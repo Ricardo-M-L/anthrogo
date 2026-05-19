@@ -1,0 +1,76 @@
+package config
+
+import (
+	"errors"
+	"os"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/ricardo/anthrogo/internal/mcp"
+	"github.com/ricardo/anthrogo/pkg/permissions"
+)
+
+// WebSearchConfig holds backend-specific settings for the WebSearch tool.
+type WebSearchConfig struct {
+	Backend  string `yaml:"backend"`
+	APIKey   string `yaml:"apiKey"`
+	Endpoint string `yaml:"endpoint,omitempty"`
+}
+
+// Config mirrors the on-disk settings.yaml shape.
+type Config struct {
+	Mode        permissions.Mode               `yaml:"mode"`
+	Model       string                         `yaml:"model"`
+	APIKey      string                         `yaml:"apiKey,omitempty"`
+	WebSearch   WebSearchConfig                `yaml:"webSearch,omitempty"`
+	MCPServers  map[string]mcp.MCPServerConfig `yaml:"mcpServers,omitempty"`
+	AlwaysAllow []permissions.Rule             `yaml:"alwaysAllow"`
+	AlwaysDeny  []permissions.Rule             `yaml:"alwaysDeny"`
+	AlwaysAsk   []permissions.Rule             `yaml:"alwaysAsk"`
+}
+
+func defaults() Config {
+	return Config{
+		Mode:  permissions.ModeDefault,
+		Model: "claude-sonnet-4-6",
+	}
+}
+
+// Load reads settings.yaml from Home(). Missing file => defaults.
+func Load() (Config, error) {
+	p, err := SettingsPath()
+	if err != nil {
+		return Config{}, err
+	}
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return defaults(), nil
+		}
+		return Config{}, err
+	}
+	cfg := defaults()
+	if err := yaml.Unmarshal(raw, &cfg); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+// ToPermissionContext realises the config's rules into a permissions.Context.
+func (c Config) ToPermissionContext() *permissions.Context {
+	pc := permissions.Empty()
+	pc.Mode = c.Mode
+	if len(c.AlwaysAllow) > 0 {
+		pc.AlwaysAllowRules[permissions.SourceUser] = c.AlwaysAllow
+	}
+	if len(c.AlwaysDeny) > 0 {
+		pc.AlwaysDenyRules[permissions.SourceUser] = c.AlwaysDeny
+	}
+	if len(c.AlwaysAsk) > 0 {
+		pc.AlwaysAskRules[permissions.SourceUser] = c.AlwaysAsk
+	}
+	if c.Mode == permissions.ModeBypassPermissions {
+		pc.IsBypassAvailable = true
+	}
+	return pc
+}

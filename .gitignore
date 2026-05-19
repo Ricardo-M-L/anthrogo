@@ -1,0 +1,9 @@
+bin/
+*.test
+*.out
+.DS_Store
+.idea/
+.vscode/
+coverage.txt
+vendor/
+.anthrogo/

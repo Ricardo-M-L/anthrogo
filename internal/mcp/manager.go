@@ -1,0 +1,133 @@
+package mcp
+
+import (
+	"context"
+	"sort"
+	"sync"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/ricardo/anthrogo/pkg/tool"
+)
+
+// Manager owns N MCP Servers and exposes their tools through tool.Tool
+// adapters. Construct with NewManager; call Start before AllTools.
+type Manager struct {
+	mu      sync.RWMutex
+	servers map[string]*Server
+	logSink LogSink
+}
+
+// NewManager constructs a Manager with an optional LogSink.
+func NewManager(logSink LogSink) *Manager {
+	return &Manager{
+		servers: map[string]*Server{},
+		logSink: logSink,
+	}
+}
+
+// AddServer registers a server config. Server is not started until Start().
+func (m *Manager) AddServer(name string, cfg MCPServerConfig) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.servers[name] = NewServer(name, cfg, m.logSink)
+}
+
+// Start spawns every server in parallel and waits for all of them to settle
+// (ready or failed). Returns nil even if some servers failed — inspect with
+// State(name).
+func (m *Manager) Start(ctx context.Context) error {
+	m.mu.RLock()
+	servers := make([]*Server, 0, len(m.servers))
+	for _, s := range m.servers {
+		servers = append(servers, s)
+	}
+	m.mu.RUnlock()
+
+	var wg sync.WaitGroup
+	for _, s := range servers {
+		wg.Add(1)
+		go func(srv *Server) {
+			defer wg.Done()
+			_ = srv.Start(ctx)
+		}(s)
+	}
+	wg.Wait()
+	return nil
+}
+
+// Names returns server names in deterministic (sorted) order.
+func (m *Manager) Names() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]string, 0, len(m.servers))
+	for n := range m.servers {
+		out = append(out, n)
+	}
+	// sort for stable tool ordering across runs (matters for prompt caching).
+	sort.Strings(out)
+	return out
+}
+
+// State returns the state of one server, or "" if no such name.
+func (m *Manager) State(name string) State {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	s, ok := m.servers[name]
+	if !ok {
+		return ""
+	}
+	return s.State()
+}
+
+// Err returns the last error for one server.
+func (m *Manager) Err(name string) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	s, ok := m.servers[name]
+	if !ok {
+		return nil
+	}
+	return s.Err()
+}
+
+// AllTools returns one MCPAdapter per (ready server, advertised tool).
+func (m *Manager) AllTools() []tool.Tool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var out []tool.Tool
+	for _, name := range m.namesLocked() {
+		s := m.servers[name]
+		if s.State() != StateReady {
+			continue
+		}
+		for _, t := range s.Tools() {
+			descriptor := t
+			srv := s
+			invoker := func(ctx context.Context, args map[string]any) (*sdk.CallToolResult, error) {
+				return srv.CallTool(ctx, descriptor.Name, args)
+			}
+			out = append(out, tool.NewMCPAdapter(name, descriptor, invoker))
+		}
+	}
+	return out
+}
+
+func (m *Manager) namesLocked() []string {
+	out := make([]string, 0, len(m.servers))
+	for n := range m.servers {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Close terminates every server.
+func (m *Manager) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, s := range m.servers {
+		_ = s.Close()
+	}
+	return nil
+}
