@@ -18,7 +18,13 @@ func New(apiKey, model string) *Provider {
 	if apiKey == "" {
 		apiKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
-	clientVal := sdk.NewClient(option.WithAPIKey(apiKey))
+	return NewWithOptions(model, option.WithAPIKey(apiKey))
+}
+
+// NewWithOptions constructs a Provider with arbitrary SDK request options.
+// Used by bedrock, Vertex and other backends that provide their own auth.
+func NewWithOptions(model string, opts ...option.RequestOption) *Provider {
+	clientVal := sdk.NewClient(opts...)
 	return &Provider{client: clientVal, model: model}
 }
 

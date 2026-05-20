@@ -308,7 +308,7 @@ Limitations: only local file paths are supported (no URLs or data URIs in the `@
 
 ## Provider profiles
 
-anthrogo ships an Anthropic provider by default but can route to any OpenAI Chat Completions compatible endpoint (DeepSeek, Kimi, MiniMax, GLM, vllm, ollama-openai, etc.) via profiles:
+anthrogo ships an Anthropic provider by default but can route to any OpenAI Chat Completions compatible endpoint (DeepSeek, Kimi, MiniMax, GLM, vllm, ollama-openai, etc.) or AWS Bedrock via profiles:
 
 ```yaml
 provider: deepseek           # active profile
@@ -333,6 +333,23 @@ profiles:
     base_url: https://open.bigmodel.cn/api/paas/v4
     model: glm-4.6
     api_key: env:GLM_API_KEY
+  bedrock-sonnet:
+    type: bedrock
+    model: anthropic.claude-sonnet-4-6-v1:0
+    region: us-west-2   # optional; falls back to AWS_REGION or ~/.aws/config
+```
+
+### AWS Bedrock
+
+Profile `type: bedrock` uses the AWS default credential chain — environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`), `~/.aws/credentials`, EC2/ECS IAM roles, etc. No `api_key` is needed; `ANTHROPIC_API_KEY` is not used.
+
+Bedrock model IDs follow the AWS naming convention (`anthropic.claude-*`), which differs from the direct Anthropic API names. Pricing table lookups may not match built-in entries; add explicit `pricing:` entries if needed:
+
+```yaml
+pricing:
+  "anthropic.claude-sonnet-4-6-v1:0":
+    input_per_m: 3.0
+    output_per_m: 15.0
 ```
 
 Switch profiles at runtime:

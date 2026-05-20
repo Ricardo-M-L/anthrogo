@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.9.0-dev] — 2026-05-20
+
+M9.1 — Bedrock provider (Anthropic via AWS).
+
+### Added
+- `pkg/provider/bedrock/` — wraps Anthropic SDK's bedrock subpackage. Uses AWS default credential chain (env, ~/.aws/credentials, IAM role). Optional `region` field in the profile (defaults to `AWS_REGION` env or default config).
+- `Profile.Region` YAML field (bedrock only).
+- New dep: `github.com/aws/aws-sdk-go-v2/config` (pulled in transitively by the Anthropic SDK's bedrock package; upgraded to latest).
+- `pkg/provider/anthropic.NewWithOptions(model, opts...)` factored out so bedrock and future Vertex backends reuse the same Stream implementation.
+
+### Example
+
+```yaml
+provider: bedrock-sonnet
+profiles:
+  bedrock-sonnet:
+    type: bedrock
+    model: anthropic.claude-sonnet-4-6-v1:0
+    region: us-west-2
+```
+
+### Known issues / deferred
+- Bedrock model IDs follow AWS format (`anthropic.claude-sonnet-4-6-v1:0`), different from direct Anthropic API names. Pricing table lookups may not find matches — add aliases to pricing YAML if needed.
+- No explicit IAM role assume; relies on default credential chain.
+- Stream-level testing requires real AWS credentials; not included in CI.
+
 ## [0.8.13-dev] — 2026-05-20
 
 M8.13 — Subagent remote tool execution.
