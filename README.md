@@ -275,6 +275,8 @@ The subagent has no memory of the parent conversation — brief it fully in `pro
 
 **SubagentStop hook:** fires after every subagent completes (success or error). Wire it in `hooks.yaml` under `SubagentStop:`.
 
+**Independent JSONL per subagent (M6.2):** each subagent run writes its own JSONL alongside the parent session for later inspection. Files land at `~/.anthrogo/projects/<cwd-hash>/<session-id>/subagents/<subagent-id>.jsonl`. A `subagent_start` record in the parent JSONL provides the ID for cross-referencing.
+
 ### Custom subagent types
 
 Drop YAML files into `~/.anthrogo/subagents/` (home, all projects) or `<cwd>/.anthrogo/subagents/` (project-local; overrides home) to define your own types:

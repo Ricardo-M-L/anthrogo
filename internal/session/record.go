@@ -20,6 +20,7 @@ const (
 	KindError            Kind = "error"
 	KindUsage            Kind = "usage"
 	KindCompact          Kind = "compact"
+	KindSubagentStart    Kind = "subagent_start"
 )
 
 type Record struct {
@@ -35,6 +36,16 @@ type Record struct {
 	Error            *ErrorRecord      `json:"error,omitempty"`
 	Usage            *UsageRecord      `json:"usage,omitempty"`
 	Compact          *CompactRecord    `json:"compact,omitempty"`
+	Subagent         *SubagentRecord   `json:"subagent,omitempty"`
+}
+
+// SubagentRecord is the payload for KindSubagentStart records emitted in the
+// parent JSONL when RunSubagent begins. Replay treats it as informational only
+// (no message added to history).
+type SubagentRecord struct {
+	ID          string `json:"id"`
+	Type        string `json:"type"`
+	Description string `json:"description"`
 }
 
 // CompactRecord is the JSONL record emitted when Engine.Compact runs.

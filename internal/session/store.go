@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,6 +68,34 @@ func New(opts NewOptions) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// NewSubagent creates a Store for a subagent invocation. The JSONL path is
+// <parent.path-without-.jsonl>/subagents/<subagentID>.jsonl. The parent's
+// directory and the subagents subdirectory are created if needed.
+func NewSubagent(parent *Store, subagentID string) (*Store, error) {
+	if parent == nil {
+		return nil, fmt.Errorf("session: parent store is nil")
+	}
+	if subagentID == "" {
+		return nil, fmt.Errorf("session: subagent ID required")
+	}
+	parentBase := strings.TrimSuffix(parent.Path(), ".jsonl")
+	dir := filepath.Join(parentBase, "subagents")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, err
+	}
+	path := filepath.Join(dir, subagentID+".jsonl")
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	return &Store{
+		id:   subagentID,
+		path: path,
+		f:    f,
+		w:    bufio.NewWriter(f),
+	}, nil
 }
 
 func Resume(cwd, sessionID string) (*Store, error) {

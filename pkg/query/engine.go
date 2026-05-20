@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
+
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/compact"
 	"github.com/ricardo/anthrogo/pkg/message"
@@ -42,6 +44,12 @@ type Config struct {
 
 	// Hooks is an optional hook sink for PostToolUse, Stop, and SubagentStop events.
 	Hooks HookSink
+
+	// Session is the parent session Store. If non-nil, Engine.RunSubagent
+	// creates an independent JSONL file under <Session.Path>/subagents/<subagent-id>.jsonl
+	// and routes the subagent's records there. nil-safe — subagent runs without
+	// persistence if absent.
+	Session *session.Store
 
 	// Subagent configuration.
 	SubagentRegistry *subagent.Registry
@@ -107,6 +115,39 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 		return "", fmt.Errorf("subagent: unknown type %q", opts.Type)
 	}
 
+	// 2b. Mint a subagent ID and create an independent JSONL store when a
+	// parent session is available.
+	subagentID := uuid.New().String()
+	var childRecordHook func(session.Record)
+	var childSessionStore *session.Store
+
+	if e.cfg.Session != nil {
+		store, err := session.NewSubagent(e.cfg.Session, subagentID)
+		if err == nil {
+			childSessionStore = store
+			childRecordHook = store.NewRecordHook()
+		}
+		// On error: degrade gracefully — subagent runs without persistence.
+	}
+
+	// Emit a KindSubagentStart record into the parent JSONL for correlation.
+	if e.cfg.RecordHook != nil {
+		e.cfg.RecordHook(session.Record{
+			Kind: session.KindSubagentStart,
+			Subagent: &session.SubagentRecord{
+				ID:          subagentID,
+				Type:        opts.Type,
+				Description: opts.Description,
+			},
+		})
+	}
+
+	defer func() {
+		if childSessionStore != nil {
+			_ = childSessionStore.Close()
+		}
+	}()
+
 	// 3. Build filtered tool registry (or share parent's).
 	var childTools *tool.Registry
 	if len(spec.ToolAllowlist) > 0 {
@@ -138,7 +179,8 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 		SystemPrompt:     e.cfg.SystemPrompt + spec.SystemPromptSuffix,
 		Hooks:            e.cfg.Hooks,
 		Cwd:              e.cfg.Cwd,
-		RecordHook:       nil, // child messages do not pollute parent JSONL
+		RecordHook:       childRecordHook,
+		Session:          nil, // nested sub-sub-agents share the immediate subagent's JSONL
 		SubagentRegistry: e.cfg.SubagentRegistry,
 		SubagentDepth:    currentDepth,
 		MaxSubagentDepth: maxDepth,

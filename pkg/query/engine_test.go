@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
@@ -597,6 +600,53 @@ func (modeFlipper) Call(_ context.Context, _ map[string]any, tcx *tool.Context) 
 		tcx.Permissions.Mode = permissions.ModePlan
 	}
 	return tool.Result{Type: tool.ResultText, Text: "flipped", ForLLM: "flipped"}, nil
+}
+
+func TestEngine_RunSubagent_WritesSubagentJSONL(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+	// Create a parent session.
+	parentSess, err := session.New(session.NewOptions{Cwd: tmpHome, Model: "m"})
+	require.NoError(t, err)
+	defer parentSess.Close()
+
+	rec := &recordingHookSink{}
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventStart},
+			{Kind: provider.EventTextDelta, Text: "SUB ANSWER"},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+	subreg := subagent.NewRegistry()
+	subreg.Register(subagent.Spec{Name: "general-purpose", Description: "x"})
+
+	e := NewEngine(Config{
+		Provider:         fp,
+		Model:            "m",
+		Hooks:            rec,
+		SubagentRegistry: subreg,
+		Session:          parentSess,
+	})
+
+	out, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type: "general-purpose", Description: "test", Prompt: "go",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "SUB ANSWER", out)
+
+	// Verify a subagent JSONL was created under <parent path without .jsonl>/subagents/
+	base := strings.TrimSuffix(parentSess.Path(), ".jsonl")
+	subDir := filepath.Join(base, "subagents")
+	entries, err := os.ReadDir(subDir)
+	require.NoError(t, err)
+	require.NotEmpty(t, entries, "expected at least one subagent JSONL")
+
+	// Read the JSONL — it should have at least 1 record.
+	raw, err := os.ReadFile(filepath.Join(subDir, entries[0].Name()))
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	require.GreaterOrEqual(t, len(lines), 1)
 }
 
 // alwaysEndTurnProvider returns an immediate end_turn for every call.

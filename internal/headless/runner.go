@@ -39,6 +39,7 @@ type Options struct {
 	Permissions     *permissions.Context
 	InitialMessages []message.Message
 	RecordHook      func(session.Record)
+	Session         *session.Store
 	Stdout          io.Writer
 	Stderr          io.Writer
 	Hooks           PromptHookSink
@@ -79,6 +80,7 @@ func Run(ctx context.Context, opts Options) error {
 		SystemPrompt:     opts.SystemPrompt,
 		Cwd:              opts.Cwd,
 		RecordHook:       opts.RecordHook,
+		Session:          opts.Session,
 		Hooks:            opts.Hooks,
 		SubagentRegistry: opts.Subagents,
 	})

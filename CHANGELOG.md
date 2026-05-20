@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.4-dev] — 2026-05-20
+
+M6.2 — Independent JSONL per subagent.
+
+### Added
+- `session.NewSubagent(parent, subagentID)` constructor; subagent JSONL written to `<parent path without .jsonl>/subagents/<subagent-id>.jsonl`.
+- `query.Engine.Config.Session *session.Store` — when non-nil, `RunSubagent` mints a UUID for the subagent and routes its `RecordHook` to a freshly-opened subagent Store.
+- `session.KindSubagentStart` record + `SubagentRecord{ID, Type, Description}` payload — parent JSONL gains a marker pointing at the spawned subagent file. Replay treats it as informational (no message effect).
+- `cmd/anthrogo` threads the parent Session into `query.Config` so the wiring activates automatically.
+
+### Known issues / deferred
+- Nested sub-sub-agents (subagent that spawns its own Task) share the immediate subagent's JSONL; per-nest isolation requires per-engine Session threading and is deferred.
+- No CLI to inspect a subagent's JSONL; user opens the file path directly. A `/subagents log <id>` builtin lands in a later milestone.
+- Compaction does not rewrite or prune subagent JSONLs.
+
 ## [0.5.3-dev] — 2026-05-20
 
 M6.1 — MCP list_changed notifications.

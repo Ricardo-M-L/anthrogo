@@ -107,6 +107,7 @@ func New(opts Options) *App {
 		Cwd:              opts.Cwd,
 		RecordHook:       opts.RecordHook,
 		Hooks:            opts.Hooks,
+		Session:          opts.Session,
 		SubagentRegistry: opts.Subagents,
 		RequestPrompt: func(_ string, req tool.PromptRequest) (tool.PromptResponse, error) {
 			if opts.Hooks != nil {
