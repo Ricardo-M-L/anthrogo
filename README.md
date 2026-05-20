@@ -400,6 +400,8 @@ For long sessions, `/compact` summarizes earlier turns to cut token cost:
 
 Currently all earlier messages including MCP tool calls are summarized to prose; pair-preserving compaction is a future milestone. `PreCompact` hooks (configured under `hooks.PreCompact`) fire before each compact.
 
+Set `auto_compact_threshold: 150000` (or pass `--auto-compact 150000`) to have anthrogo automatically run /compact at the end of any turn whose token usage exceeds the threshold. Set to 0 (default) to disable. The TUI status line always shows the latest turn's token count; when auto-compact is enabled it also shows the threshold.
+
 ## Tools (M1)
 
 | Tool        | Read-only | What it does                                                       |

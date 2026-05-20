@@ -27,6 +27,8 @@ func (e *Engine) SubmitMessage(ctx context.Context, prompt string) <-chan Event 
 	e.mu.Lock()
 	e.messages = append(e.messages, message.Text(message.RoleUser, prompt))
 	lastContent := e.messages[len(e.messages)-1].Content
+	// Reset lastUsage at the start of each new turn.
+	e.lastUsage = message.Usage{}
 	e.mu.Unlock()
 	e.recordIfHooked(session.Record{
 		Kind:        session.KindUserMessage,
@@ -56,6 +58,25 @@ func (e *Engine) SubmitMessage(ctx context.Context, prompt string) <-chan Event 
 						stopReason = "end_turn"
 					}
 					e.cfg.Hooks.FireStop(ctx, stopReason)
+				}
+				// Auto-compact check: after the turn completes and the stream channel
+				// is about to be closed, check if the latest turn's token usage
+				// exceeds the configured threshold. Run synchronously so the next
+				// SubmitMessage call sees compacted history.
+				if e.cfg.AutoCompactThreshold > 0 {
+					e.mu.Lock()
+					lu := e.lastUsage
+					e.mu.Unlock()
+					if lu.InputTokens+lu.OutputTokens >= e.cfg.AutoCompactThreshold {
+						keep := e.cfg.AutoCompactKeepRecent
+						if keep == 0 {
+							keep = 10
+						}
+						_, _ = e.Compact(context.Background(), CompactOptions{
+							Trigger:    "auto",
+							KeepRecent: keep,
+						})
+					}
 				}
 				return
 			}
@@ -127,7 +148,10 @@ func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReaso
 		case provider.EventStart, provider.EventUsage:
 			// Both carry token counts; EventStart has input tokens, EventUsage
 			// has output tokens (and cache stats). Accumulate both.
+			e.mu.Lock()
 			e.usage.Add(ev.Usage)
+			e.lastUsage.Add(ev.Usage)
+			e.mu.Unlock()
 			out <- Event{Kind: KindUsage, Usage: ev.Usage}
 			e.recordIfHooked(session.Record{
 				Kind: session.KindUsage,

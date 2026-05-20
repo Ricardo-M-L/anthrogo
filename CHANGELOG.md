@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.1-dev] — 2026-05-20
+
+M7.2 — Automatic /compact on token threshold.
+
+### Added
+- `query.Engine` tracks `LastUsage()` from streaming EventUsage events.
+- `query.Config.AutoCompactThreshold` (0 = disabled) — when set, at the end of a turn the engine checks whether `lastUsage.InputTokens + lastUsage.OutputTokens >= threshold` and if so synchronously fires Compact() before returning control to the caller. Next user prompt sees the compacted history.
+- `query.Config.AutoCompactKeepRecent` overrides the default KeepRecent (10) for auto-fires.
+- YAML `auto_compact_threshold` + `auto_compact_keep_recent` settings.
+- CLI flag `--auto-compact <N>` overrides the YAML value.
+- TUI status line shows current token usage (`tokens: <in> in / <out> out [auto-compact at N]`).
+
+### Known issues / deferred
+- Threshold uses the LATEST turn's usage, not cumulative across the session. A single huge turn beyond threshold triggers compact; smaller turns that aggregate to large context do not. Cumulative tracking lands in a later milestone.
+- Byte-count proxy is still used inside compact.Run's ApproxBytes; the threshold uses real EventUsage tokens. No precise tokenizer (M7+).
+- Auto-compact for subagents not implemented (child engine's auto-compact is disabled regardless of parent's setting — would lose subagent context).
+
 ## [0.7.0-dev] — 2026-05-20
 
 M7.1 — OpenAI-compatible provider (DeepSeek/Kimi/MiniMax/GLM).

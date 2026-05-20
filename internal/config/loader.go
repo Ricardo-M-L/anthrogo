@@ -40,6 +40,9 @@ type Config struct {
 	AlwaysDeny  []permissions.Rule             `yaml:"alwaysDeny"`
 	AlwaysAsk   []permissions.Rule             `yaml:"alwaysAsk"`
 	Hooks       hooks.Config                   `yaml:"hooks,omitempty"`
+
+	AutoCompactThreshold  int `yaml:"auto_compact_threshold,omitempty"`
+	AutoCompactKeepRecent int `yaml:"auto_compact_keep_recent,omitempty"`
 }
 
 func defaults() Config {

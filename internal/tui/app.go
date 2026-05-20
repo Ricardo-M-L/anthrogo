@@ -57,6 +57,10 @@ type Options struct {
 	// before New returns. Callers can use this to wire deferred runners (e.g.
 	// the Task tool's runner).
 	OnEngineReady func(*query.Engine)
+
+	// AutoCompactThreshold and AutoCompactKeepRecent are forwarded to the engine.
+	AutoCompactThreshold  int
+	AutoCompactKeepRecent int
 }
 
 // serverLogMsg is dispatched via tea.Program.Send from AppendServerLog so that
@@ -99,17 +103,19 @@ func New(opts Options) *App {
 	a.palette = newPalette(theme, opts.Commands)
 
 	a.engine = query.NewEngine(query.Config{
-		Provider:         opts.Provider,
-		Tools:            opts.Tools,
-		Permissions:      opts.Permissions,
-		Model:            opts.Model,
-		SystemPrompt:     opts.SystemPrompt,
-		Cwd:              opts.Cwd,
-		RecordHook:       opts.RecordHook,
-		Hooks:            opts.Hooks,
-		Session:          opts.Session,
-		SubagentRegistry: opts.Subagents,
-		RequestPrompt:    a.RequestPrompt,
+		Provider:              opts.Provider,
+		Tools:                 opts.Tools,
+		Permissions:           opts.Permissions,
+		Model:                 opts.Model,
+		SystemPrompt:          opts.SystemPrompt,
+		Cwd:                   opts.Cwd,
+		RecordHook:            opts.RecordHook,
+		Hooks:                 opts.Hooks,
+		Session:               opts.Session,
+		SubagentRegistry:      opts.Subagents,
+		RequestPrompt:         a.RequestPrompt,
+		AutoCompactThreshold:  opts.AutoCompactThreshold,
+		AutoCompactKeepRecent: opts.AutoCompactKeepRecent,
 	})
 	if opts.OnEngineReady != nil {
 		opts.OnEngineReady(a.engine)
@@ -298,7 +304,13 @@ func (a *App) View() string {
 		return a.perm.view()
 	}
 	planOn := a.opts.Permissions != nil && a.opts.Permissions.Mode == permissions.ModePlan
-	status := a.theme.StatusLine.Render(fmt.Sprintf("model=%s  cwd=%s", a.opts.Model, a.opts.Cwd))
+	lu := a.engine.LastUsage()
+	tokenInfo := fmt.Sprintf("tokens: %s in / %s out",
+		formatTokens(lu.InputTokens), formatTokens(lu.OutputTokens))
+	if a.opts.AutoCompactThreshold > 0 {
+		tokenInfo += fmt.Sprintf("  [auto-compact at %s]", formatTokens(a.opts.AutoCompactThreshold))
+	}
+	status := a.theme.StatusLine.Render(fmt.Sprintf("model=%s  cwd=%s  %s", a.opts.Model, a.opts.Cwd, tokenInfo))
 	if badge := renderPlanBadge(a.theme, planOn); badge != "" {
 		status = badge + "   " + status
 	}
@@ -306,6 +318,23 @@ func (a *App) View() string {
 		return fmt.Sprintf("%s\n%s\n%s\n%s", a.chat.view(), pal, a.input.view(), status)
 	}
 	return fmt.Sprintf("%s\n%s\n%s", a.chat.view(), a.input.view(), status)
+}
+
+// formatTokens formats an integer token count with comma-thousands separators.
+func formatTokens(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	s := fmt.Sprintf("%d", n)
+	// Insert commas every 3 digits from the right.
+	out := make([]byte, 0, len(s)+len(s)/3)
+	for i, c := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			out = append(out, ',')
+		}
+		out = append(out, byte(c))
+	}
+	return string(out)
 }
 
 // RequestPrompt routes a prompt request through the TUI permission modal.

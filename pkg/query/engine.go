@@ -56,6 +56,14 @@ type Config struct {
 	SubagentRegistry *subagent.Registry
 	SubagentDepth    int // set by parent engine when constructing child; 0 at top level
 	MaxSubagentDepth int // default 3 if zero
+
+	// AutoCompactThreshold is the combined (input + output) token count at
+	// which Engine automatically fires Compact() at the boundary between
+	// turns. 0 disables (default).
+	AutoCompactThreshold int
+
+	// AutoCompactKeepRecent is passed to Compact(). 0 → default 10.
+	AutoCompactKeepRecent int
 }
 
 // Engine owns one conversation. Each SubmitMessage starts a new turn within
@@ -65,6 +73,10 @@ type Engine struct {
 	cfg           Config
 	messages      []message.Message
 	usage         message.Usage
+	// lastUsage holds the most recently observed Usage from a provider stream.
+	// Reset to message.Usage{} at the start of each new turn; updated on every
+	// EventUsage; consulted at end-of-turn for auto-compact decision.
+	lastUsage     message.Usage
 	denials       []PermissionDenial
 	subagentDepth int
 }
@@ -265,6 +277,13 @@ func (e *Engine) Usage() message.Usage {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.usage
+}
+
+// LastUsage returns the most recently observed Usage from the last turn's stream.
+func (e *Engine) LastUsage() message.Usage {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.lastUsage
 }
 
 // CompactOptions controls Engine.Compact behaviour.

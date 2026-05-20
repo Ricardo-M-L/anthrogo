@@ -40,15 +40,16 @@ import (
 
 func main() {
 	var (
-		prompt          string
-		modelFlag       string
-		modeFlag        string
-		cwdFlag         string
-		resumeID        string
-		cont            bool
-		showVer         bool
-		kairosServeAddr string
-		providerFlag    string
+		prompt              string
+		modelFlag           string
+		modeFlag            string
+		cwdFlag             string
+		resumeID            string
+		cont                bool
+		showVer             bool
+		kairosServeAddr     string
+		providerFlag        string
+		autoCompactFlag     int
 	)
 
 	root := &cobra.Command{
@@ -139,6 +140,9 @@ func main() {
 			}
 			if modeFlag != "" {
 				cfg.Mode = permissions.Mode(modeFlag)
+			}
+			if autoCompactFlag > 0 {
+				cfg.AutoCompactThreshold = autoCompactFlag
 			}
 			perms := cfg.ToPermissionContext()
 			// Skill tool is benign on its own (returns prepared markdown); ship a CLI-level
@@ -399,20 +403,22 @@ func main() {
 			if prompt != "" {
 				perms.ShouldAvoidPrompts = true
 				return headless.Run(context.Background(), headless.Options{
-					Prompt:          prompt,
-					Model:           cfg.Model,
-					SystemPrompt:    systemPrompt,
-					Cwd:             cwd,
-					Provider:        p,
-					Tools:           tools,
-					Permissions:     perms,
-					RecordHook:      sess.NewRecordHook(),
-					InitialMessages: initialMessages,
-					Stdout:          os.Stdout,
-					Stderr:          os.Stderr,
-					Hooks:           hookMgr,
-					Subagents:       subagentReg,
-					OnEngineReady:   func(e *query.Engine) { engineRef.Store(e) },
+					Prompt:                prompt,
+					Model:                 cfg.Model,
+					SystemPrompt:          systemPrompt,
+					Cwd:                   cwd,
+					Provider:              p,
+					Tools:                 tools,
+					Permissions:           perms,
+					RecordHook:            sess.NewRecordHook(),
+					InitialMessages:       initialMessages,
+					Stdout:                os.Stdout,
+					Stderr:                os.Stderr,
+					Hooks:                 hookMgr,
+					Subagents:             subagentReg,
+					OnEngineReady:         func(e *query.Engine) { engineRef.Store(e) },
+					AutoCompactThreshold:  cfg.AutoCompactThreshold,
+					AutoCompactKeepRecent: cfg.AutoCompactKeepRecent,
 				})
 			}
 
@@ -428,23 +434,25 @@ func main() {
 			}
 			cmds.Register(builtins.Plugin{HomeRoot: homePluginsRoot, CwdRoot: cwdPluginsRoot})
 			app := tui.New(tui.Options{
-				Provider:        p,
-				Tools:           tools,
-				Permissions:     perms,
-				Model:           cfg.Model,
-				SystemPrompt:    systemPrompt,
-				Cwd:             cwd,
-				ClaudeMd:        claudeMd,
-				Session:         sess,
-				Commands:        cmds,
-				InitialMessages: initialMessages,
-				RecordHook:      sess.NewRecordHook(),
-				MCP:             mcpMgr,
-				Hooks:           hookMgr,
-				Skills:          skillReg,
-				Plugins:         pluginReg,
-				Subagents:       subagentReg,
-				OnEngineReady:   func(e *query.Engine) { engineRef.Store(e) },
+				Provider:              p,
+				Tools:                 tools,
+				Permissions:           perms,
+				Model:                 cfg.Model,
+				SystemPrompt:          systemPrompt,
+				Cwd:                   cwd,
+				ClaudeMd:              claudeMd,
+				Session:               sess,
+				Commands:              cmds,
+				InitialMessages:       initialMessages,
+				RecordHook:            sess.NewRecordHook(),
+				MCP:                   mcpMgr,
+				Hooks:                 hookMgr,
+				Skills:                skillReg,
+				Plugins:               pluginReg,
+				Subagents:             subagentReg,
+				OnEngineReady:         func(e *query.Engine) { engineRef.Store(e) },
+				AutoCompactThreshold:  cfg.AutoCompactThreshold,
+				AutoCompactKeepRecent: cfg.AutoCompactKeepRecent,
 			})
 			program := tea.NewProgram(app, tea.WithAltScreen())
 			app.SetProgram(program)
@@ -465,6 +473,7 @@ func main() {
 	root.Flags().BoolVar(&showVer, "version", false, "Print version and exit")
 	root.Flags().StringVar(&kairosServeAddr, "kairos-serve", "", "Serve as a KAIROS worker on this addr (e.g. :9001)")
 	root.Flags().StringVar(&providerFlag, "provider", "", "Override active provider profile (see profiles in settings.yaml)")
+	root.Flags().IntVar(&autoCompactFlag, "auto-compact", 0, "Auto-compact when combined input+output tokens of the latest turn exceed this threshold (0 = disabled)")
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

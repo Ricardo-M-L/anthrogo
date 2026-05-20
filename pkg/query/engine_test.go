@@ -743,6 +743,134 @@ func TestEngine_RunSubagent_RemoteDispatch_AuthError(t *testing.T) {
 	require.Equal(t, "error", rec.subagentStopReason)
 }
 
+// --- AutoCompact tests ---
+
+// makeAutoCompactMessages returns n alternating user/assistant messages so
+// compact.Run finds valid split points.
+func makeAutoCompactMessages(n int) []message.Message {
+	msgs := make([]message.Message, n)
+	for i := range msgs {
+		if i%2 == 0 {
+			msgs[i] = message.Message{Role: message.RoleUser, Content: []message.Block{{Type: message.BlockText, Text: "u"}}}
+		} else {
+			msgs[i] = message.Message{Role: message.RoleAssistant, Content: []message.Block{{Type: message.BlockText, Text: "a"}}}
+		}
+	}
+	return msgs
+}
+
+func TestEngine_AutoCompact_FiresWhenThresholdExceeded(t *testing.T) {
+	// Script 0: the user turn stream with usage {InputTokens:80, OutputTokens:30} → total 110 > threshold 100.
+	// Script 1: the compact summarisation call.
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventStart, Usage: message.Usage{InputTokens: 80}},
+			{Kind: provider.EventTextDelta, Text: "answer"},
+			{Kind: provider.EventUsage, Usage: message.Usage{OutputTokens: 30}},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+		// compact.Run uses the provider too — return a summary.
+		[]provider.Event{
+			{Kind: provider.EventStart},
+			{Kind: provider.EventTextDelta, Text: "SUMMARY"},
+			{Kind: provider.EventMessageStop},
+		},
+	)
+	rec := &recordingHookSink{}
+	e := NewEngine(Config{
+		Provider:             fp,
+		Tools:                tool.NewRegistry(),
+		Permissions:          permissions.Empty(),
+		Model:                "m",
+		Hooks:                rec,
+		AutoCompactThreshold: 100,
+		AutoCompactKeepRecent: 10,
+	})
+	// Pre-load 15 messages so compact has enough to work with.
+	e.SetInitialMessages(makeAutoCompactMessages(15))
+
+	// Drain the turn.
+	for range e.SubmitMessage(context.Background(), "hello") {
+	}
+
+	// PreCompact hook must have fired (auto compact ran).
+	require.True(t, rec.preCompactCalled, "expected PreCompact hook to fire")
+	// Messages should be fewer than 17 (15 preload + 1 user + 1 assistant = 17).
+	require.Less(t, len(e.Messages()), 17, "expected compact to reduce message count")
+}
+
+func TestEngine_AutoCompact_DoesNotFireBelowThreshold(t *testing.T) {
+	// threshold=1000, usage=80+30=110 — no compact.
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventStart, Usage: message.Usage{InputTokens: 80}},
+			{Kind: provider.EventTextDelta, Text: "answer"},
+			{Kind: provider.EventUsage, Usage: message.Usage{OutputTokens: 30}},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+	rec := &recordingHookSink{}
+	e := NewEngine(Config{
+		Provider:             fp,
+		Tools:                tool.NewRegistry(),
+		Permissions:          permissions.Empty(),
+		Model:                "m",
+		Hooks:                rec,
+		AutoCompactThreshold: 1000,
+	})
+	e.SetInitialMessages(makeAutoCompactMessages(15))
+	for range e.SubmitMessage(context.Background(), "hello") {
+	}
+	require.False(t, rec.preCompactCalled, "expected no compact below threshold")
+}
+
+func TestEngine_AutoCompact_DisabledByDefault(t *testing.T) {
+	// threshold=0 (default) — no compact even with high usage.
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventStart, Usage: message.Usage{InputTokens: 999999}},
+			{Kind: provider.EventTextDelta, Text: "answer"},
+			{Kind: provider.EventUsage, Usage: message.Usage{OutputTokens: 999999}},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+	rec := &recordingHookSink{}
+	e := NewEngine(Config{
+		Provider:    fp,
+		Tools:       tool.NewRegistry(),
+		Permissions: permissions.Empty(),
+		Model:       "m",
+		Hooks:       rec,
+		// AutoCompactThreshold intentionally 0
+	})
+	e.SetInitialMessages(makeAutoCompactMessages(15))
+	for range e.SubmitMessage(context.Background(), "hello") {
+	}
+	require.False(t, rec.preCompactCalled, "expected no compact when threshold=0")
+}
+
+func TestEngine_LastUsage_TracksMostRecentEventUsage(t *testing.T) {
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventStart, Usage: message.Usage{InputTokens: 5}},
+			{Kind: provider.EventTextDelta, Text: "hi"},
+			{Kind: provider.EventUsage, Usage: message.Usage{OutputTokens: 1}},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+	e := NewEngine(Config{
+		Provider:    fp,
+		Tools:       tool.NewRegistry(),
+		Permissions: permissions.Empty(),
+		Model:       "m",
+	})
+	for range e.SubmitMessage(context.Background(), "hello") {
+	}
+	lu := e.LastUsage()
+	require.Equal(t, 5, lu.InputTokens, "expected InputTokens=5")
+	require.Equal(t, 1, lu.OutputTokens, "expected OutputTokens=1")
+}
+
 // alwaysEndTurnProvider returns an immediate end_turn for every call.
 type alwaysEndTurnProvider struct{}
 

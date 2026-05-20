@@ -47,6 +47,10 @@ type Options struct {
 	// OnEngineReady, if non-nil, is called with the engine before the first
 	// SubmitMessage. Callers use this to wire deferred runners (e.g. Task tool).
 	OnEngineReady func(*query.Engine)
+
+	// AutoCompactThreshold and AutoCompactKeepRecent are forwarded to the engine.
+	AutoCompactThreshold  int
+	AutoCompactKeepRecent int
 }
 
 // Run executes one prompt and writes the assistant's final text to Stdout.
@@ -73,16 +77,18 @@ func Run(ctx context.Context, opts Options) error {
 	}
 
 	e := query.NewEngine(query.Config{
-		Provider:         opts.Provider,
-		Tools:            opts.Tools,
-		Permissions:      opts.Permissions,
-		Model:            opts.Model,
-		SystemPrompt:     opts.SystemPrompt,
-		Cwd:              opts.Cwd,
-		RecordHook:       opts.RecordHook,
-		Session:          opts.Session,
-		Hooks:            opts.Hooks,
-		SubagentRegistry: opts.Subagents,
+		Provider:              opts.Provider,
+		Tools:                 opts.Tools,
+		Permissions:           opts.Permissions,
+		Model:                 opts.Model,
+		SystemPrompt:          opts.SystemPrompt,
+		Cwd:                   opts.Cwd,
+		RecordHook:            opts.RecordHook,
+		Session:               opts.Session,
+		Hooks:                 opts.Hooks,
+		SubagentRegistry:      opts.Subagents,
+		AutoCompactThreshold:  opts.AutoCompactThreshold,
+		AutoCompactKeepRecent: opts.AutoCompactKeepRecent,
 	})
 	if opts.OnEngineReady != nil {
 		opts.OnEngineReady(e)
