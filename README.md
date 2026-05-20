@@ -520,6 +520,8 @@ Use `/sessions delete <id-prefix>` to remove a session. Without `--yes` it perfo
 
 Use `/sessions export <id-prefix> [-o file.md]` to render the session as a markdown document. Without `-o`, the markdown is printed to stdout. With `-o <file.md>`, it is written to the specified file and the command reports "exported <path> (<N> bytes)". `export` renders a human-readable document.
 
+Use `/sessions stats` to aggregate metrics across all session JSONLs for the current cwd. The output shows session count, turn count, total input/output tokens, estimated USD cost (using the built-in default pricing table from M8.1), first-seen and latest timestamps, a per-model token and cost breakdown, and a per-day turn count table. Use `--since YYYY-MM-DD` and/or `--until YYYY-MM-DD` to narrow the aggregation to a date range.
+
 ## Tools (M1)
 
 | Tool        | Read-only | What it does                                                       |

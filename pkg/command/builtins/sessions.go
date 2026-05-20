@@ -9,10 +9,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/command"
 	"github.com/ricardo/anthrogo/pkg/message"
+	"github.com/ricardo/anthrogo/pkg/pricing"
 )
 
 // Sessions implements the /sessions builtin command.
@@ -21,7 +23,7 @@ type Sessions struct{}
 func (Sessions) Name() string        { return "/sessions" }
 func (Sessions) Aliases() []string   { return nil }
 func (Sessions) Description() string {
-	return "List session JSONLs for the current cwd (subcommands: show <id-prefix>, replay <id-prefix>, search <keyword>, export <id-prefix> [-o file.md])"
+	return "List session JSONLs for the current cwd (subcommands: show <id-prefix>, replay <id-prefix>, search <keyword>, export <id-prefix> [-o file.md], stats [--since YYYY-MM-DD] [--until YYYY-MM-DD])"
 }
 func (Sessions) Type() command.Type  { return command.TypeLocal }
 
@@ -49,8 +51,10 @@ func (Sessions) Run(ctx context.Context, args string, host command.Host) (comman
 		return deleteSession(dir, rest)
 	case strings.HasPrefix(args, "export "):
 		return exportSession(dir, strings.TrimSpace(strings.TrimPrefix(args, "export ")))
+	case args == "stats" || strings.HasPrefix(args, "stats "):
+		return statsSessions(dir, strings.TrimSpace(strings.TrimPrefix(args, "stats")))
 	default:
-		return command.Result{Text: "usage: /sessions [list | show <id-prefix> | replay <id-prefix> | search <keyword> | delete <id-prefix> [--yes] | export <id-prefix> [-o file.md]]"}, nil
+		return command.Result{Text: "usage: /sessions [list | show <id-prefix> | replay <id-prefix> | search <keyword> | delete <id-prefix> [--yes] | export <id-prefix> [-o file.md] | stats [--since YYYY-MM-DD] [--until YYYY-MM-DD]]"}, nil
 	}
 }
 
@@ -635,6 +639,187 @@ func looksLikeCode(s string) bool {
 		}
 	}
 	return false
+}
+
+// sessionStat accumulates aggregate metrics across multiple session JSONLs.
+type sessionStat struct {
+	sessions  int
+	turns     int
+	inputTok  int
+	outputTok int
+	earliest  time.Time
+	latest    time.Time
+	perModel  map[string]struct{ in, out int }
+	perDay    map[string]int // date → turn count
+}
+
+// statsSessions aggregates metrics across every JSONL in dir.
+// rest may contain --since YYYY-MM-DD and/or --until YYYY-MM-DD.
+func statsSessions(dir, rest string) (command.Result, error) {
+	var since, until time.Time
+	tokens := strings.Fields(rest)
+	for i, tok := range tokens {
+		switch tok {
+		case "--since":
+			if i+1 < len(tokens) {
+				t, err := time.Parse("2006-01-02", tokens[i+1])
+				if err == nil {
+					since = t
+				}
+			}
+		case "--until":
+			if i+1 < len(tokens) {
+				t, err := time.Parse("2006-01-02", tokens[i+1])
+				if err == nil {
+					until = t.Add(24 * time.Hour) // end of day
+				}
+			}
+		}
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return command.Result{Text: "(no sessions yet)"}, nil
+		}
+		return command.Result{Text: "sessions: " + err.Error()}, nil
+	}
+
+	stat := sessionStat{
+		perModel: map[string]struct{ in, out int }{},
+		perDay:   map[string]int{},
+	}
+
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		records, err := session.Replay(path)
+		if err != nil {
+			continue
+		}
+
+		var sessionModel string
+		var sessionCreated time.Time
+		var sessionIncluded bool
+
+		for _, r := range records {
+			switch r.Kind {
+			case session.KindSessionMeta:
+				if r.SessionMeta != nil {
+					sessionModel = r.SessionMeta.Model
+					sessionCreated = r.SessionMeta.CreatedAt
+				}
+			case session.KindUsage:
+				if r.Usage == nil {
+					continue
+				}
+				if !since.IsZero() && r.Timestamp.Before(since) {
+					continue
+				}
+				if !until.IsZero() && r.Timestamp.After(until) {
+					continue
+				}
+				stat.inputTok += r.Usage.InputTokens
+				stat.outputTok += r.Usage.OutputTokens
+				pm := stat.perModel[sessionModel]
+				pm.in += r.Usage.InputTokens
+				pm.out += r.Usage.OutputTokens
+				stat.perModel[sessionModel] = pm
+				sessionIncluded = true
+			case session.KindTurnComplete:
+				if !since.IsZero() && r.Timestamp.Before(since) {
+					continue
+				}
+				if !until.IsZero() && r.Timestamp.After(until) {
+					continue
+				}
+				stat.turns++
+				day := r.Timestamp.Format("2006-01-02")
+				stat.perDay[day]++
+				sessionIncluded = true
+			}
+		}
+		if sessionIncluded {
+			stat.sessions++
+			if !sessionCreated.IsZero() {
+				if stat.earliest.IsZero() || sessionCreated.Before(stat.earliest) {
+					stat.earliest = sessionCreated
+				}
+				if sessionCreated.After(stat.latest) {
+					stat.latest = sessionCreated
+				}
+			}
+		}
+	}
+
+	if stat.sessions == 0 && len(stat.perModel) == 0 {
+		return command.Result{Text: "(no sessions yet)"}, nil
+	}
+
+	// Cost estimate using default pricing table.
+	tbl := pricing.NewTable(pricing.DefaultRates())
+	var totalUSD float64
+	perModelCost := map[string]float64{}
+	for model, u := range stat.perModel {
+		rate, ok := tbl.Lookup(model)
+		if !ok {
+			continue
+		}
+		c := pricing.EstimateUSD(rate, u.in, u.out)
+		totalUSD += c
+		perModelCost[model] = c
+	}
+
+	var b strings.Builder
+	b.WriteString("Session stats")
+	if !since.IsZero() || !until.IsZero() {
+		b.WriteString(" (filtered)")
+	}
+	b.WriteString(":\n\n")
+	fmt.Fprintf(&b, "  Sessions:   %d\n", stat.sessions)
+	fmt.Fprintf(&b, "  Turns:      %d\n", stat.turns)
+	fmt.Fprintf(&b, "  Tokens:     %d input + %d output = %d total\n", stat.inputTok, stat.outputTok, stat.inputTok+stat.outputTok)
+	fmt.Fprintf(&b, "  Est. cost:  $%.4f USD\n", totalUSD)
+	if !stat.earliest.IsZero() {
+		fmt.Fprintf(&b, "  First seen: %s\n", stat.earliest.Format("2006-01-02 15:04"))
+	}
+	if !stat.latest.IsZero() {
+		fmt.Fprintf(&b, "  Latest:     %s\n", stat.latest.Format("2006-01-02 15:04"))
+	}
+
+	if len(stat.perModel) > 0 {
+		b.WriteString("\nPer model:\n")
+		var models []string
+		for m := range stat.perModel {
+			models = append(models, m)
+		}
+		sort.Strings(models)
+		for _, m := range models {
+			u := stat.perModel[m]
+			line := fmt.Sprintf("  %-30s  %d in / %d out", m, u.in, u.out)
+			if c, ok := perModelCost[m]; ok {
+				line += fmt.Sprintf("   $%.4f", c)
+			}
+			line += "\n"
+			b.WriteString(line)
+		}
+	}
+
+	if len(stat.perDay) > 0 {
+		b.WriteString("\nTurns per day:\n")
+		var days []string
+		for d := range stat.perDay {
+			days = append(days, d)
+		}
+		sort.Strings(days)
+		for _, d := range days {
+			fmt.Fprintf(&b, "  %s  %d\n", d, stat.perDay[d])
+		}
+	}
+
+	return command.Result{Text: b.String()}, nil
 }
 
 // contextAround returns up to before chars before the match and after chars after,

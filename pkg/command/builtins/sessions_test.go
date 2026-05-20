@@ -493,6 +493,161 @@ func TestSessions_ExportRendersCompactAndError(t *testing.T) {
 	require.Contains(t, res.Text, "> ❗ **Error** during tool_call: permission denied")
 }
 
+// ---------------------------------------------------------------------------
+// Stats tests (M8.5)
+// ---------------------------------------------------------------------------
+
+// TestSessions_StatsEmpty — empty dir returns "(no sessions yet)".
+func TestSessions_StatsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	res, err := statsSessions(dir, "")
+	require.NoError(t, err)
+	require.Equal(t, "(no sessions yet)", res.Text)
+}
+
+// TestSessions_StatsAggregatesAcrossFiles — 2 JSONLs each with usage + turn;
+// result must show Sessions: 2, non-zero tokens, and an Est. cost line.
+func TestSessions_StatsAggregatesAcrossFiles(t *testing.T) {
+	dir := t.TempDir()
+	ts := time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
+
+	for _, name := range []string{"session-a", "session-b"} {
+		records := []session.Record{
+			{
+				Kind:      session.KindSessionMeta,
+				Timestamp: ts,
+				SessionMeta: &session.SessionMeta{
+					SessionID: name,
+					Model:     "claude-sonnet-4-6",
+					CreatedAt: ts,
+				},
+			},
+			{
+				Kind:      session.KindUsage,
+				Timestamp: ts,
+				Usage:     &session.UsageRecord{InputTokens: 200, OutputTokens: 100},
+			},
+			{
+				Kind:      session.KindTurnComplete,
+				Timestamp: ts,
+				TurnComplete: &session.TurnComplete{StopReason: "end_turn"},
+			},
+		}
+		writeJSONL(t, dir, name, records)
+	}
+
+	res, err := statsSessions(dir, "")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "Sessions:   2")
+	require.Contains(t, res.Text, "400 input") // 200+200
+	require.Contains(t, res.Text, "200 output") // 100+100
+	require.Contains(t, res.Text, "Est. cost:")
+	// Cost should be non-zero for claude-sonnet-4-6 (rate $3/$15 per M).
+	require.NotContains(t, res.Text, "$0.0000")
+}
+
+// TestSessions_StatsSinceFilter — 2 JSONLs with different dates; --since today
+// should exclude the old session.
+func TestSessions_StatsSinceFilter(t *testing.T) {
+	dir := t.TempDir()
+	oldTS := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	newTS := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
+
+	oldRecords := []session.Record{
+		{
+			Kind:      session.KindSessionMeta,
+			Timestamp: oldTS,
+			SessionMeta: &session.SessionMeta{
+				SessionID: "old-session",
+				Model:     "claude-sonnet-4-6",
+				CreatedAt: oldTS,
+			},
+		},
+		{
+			Kind:      session.KindUsage,
+			Timestamp: oldTS,
+			Usage:     &session.UsageRecord{InputTokens: 500, OutputTokens: 250},
+		},
+		{
+			Kind:      session.KindTurnComplete,
+			Timestamp: oldTS,
+			TurnComplete: &session.TurnComplete{StopReason: "end_turn"},
+		},
+	}
+	newRecords := []session.Record{
+		{
+			Kind:      session.KindSessionMeta,
+			Timestamp: newTS,
+			SessionMeta: &session.SessionMeta{
+				SessionID: "new-session",
+				Model:     "claude-sonnet-4-6",
+				CreatedAt: newTS,
+			},
+		},
+		{
+			Kind:      session.KindUsage,
+			Timestamp: newTS,
+			Usage:     &session.UsageRecord{InputTokens: 100, OutputTokens: 50},
+		},
+		{
+			Kind:      session.KindTurnComplete,
+			Timestamp: newTS,
+			TurnComplete: &session.TurnComplete{StopReason: "end_turn"},
+		},
+	}
+	writeJSONL(t, dir, "old-session", oldRecords)
+	writeJSONL(t, dir, "new-session", newRecords)
+
+	res, err := statsSessions(dir, "--since 2026-05-20")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "(filtered)")
+	// Only the new session should be counted.
+	require.Contains(t, res.Text, "Sessions:   1")
+	require.Contains(t, res.Text, "100 input")
+	require.NotContains(t, res.Text, "500")
+}
+
+// TestSessions_StatsPerModelBreakdown — 2 JSONLs with different models;
+// stats output must contain both model names in "Per model:" section.
+func TestSessions_StatsPerModelBreakdown(t *testing.T) {
+	dir := t.TempDir()
+	ts := time.Date(2026, 4, 1, 9, 0, 0, 0, time.UTC)
+
+	for _, modelName := range []struct{ id, model string }{
+		{"session-sonnet", "claude-sonnet-4-6"},
+		{"session-haiku", "claude-haiku-4-5"},
+	} {
+		records := []session.Record{
+			{
+				Kind:      session.KindSessionMeta,
+				Timestamp: ts,
+				SessionMeta: &session.SessionMeta{
+					SessionID: modelName.id,
+					Model:     modelName.model,
+					CreatedAt: ts,
+				},
+			},
+			{
+				Kind:      session.KindUsage,
+				Timestamp: ts,
+				Usage:     &session.UsageRecord{InputTokens: 300, OutputTokens: 150},
+			},
+			{
+				Kind:      session.KindTurnComplete,
+				Timestamp: ts,
+				TurnComplete: &session.TurnComplete{StopReason: "end_turn"},
+			},
+		}
+		writeJSONL(t, dir, modelName.id, records)
+	}
+
+	res, err := statsSessions(dir, "")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "Per model:")
+	require.Contains(t, res.Text, "claude-sonnet-4-6")
+	require.Contains(t, res.Text, "claude-haiku-4-5")
+}
+
 // splitNonEmpty splits by newline, returning only non-empty lines.
 func splitNonEmpty(s string) []string {
 	var out []string

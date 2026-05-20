@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.8.5-dev] — 2026-05-20
+
+M8.5 — /sessions stats.
+
+### Added
+- `/sessions stats` — aggregates metrics across every JSONL in the current cwd's session directory:
+  - Total sessions, turns, input/output tokens
+  - Estimated total cost in USD (uses built-in default pricing from M8.1)
+  - First-seen / latest timestamps
+  - Per-model token + cost breakdown
+  - Per-day turn count
+- `--since YYYY-MM-DD` / `--until YYYY-MM-DD` flags to filter the aggregation.
+
+### Known issues / deferred
+- Cost estimate ignores user-supplied pricing overrides (uses built-in defaults only). Wire in user rates later if needed.
+- Aggregation is single-pass (linear in number of JSONLs); large session libraries could be slow.
+- Per-day count uses local timezone of the timestamps in JSONL (which were written with local time at record time).
+- Doesn't recurse into subagent JSONLs.
+- Tools/MCP/hook events not counted as "turns" — only KindTurnComplete is a turn.
+
 ## [0.8.4-dev] — 2026-05-20
 
 M8.4 — /cost reset + /compact --reset-budget.
