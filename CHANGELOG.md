@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.6-dev] — 2026-05-20
+
+M6.4 — WebSocket MCP transport.
+
+### Added
+- `internal/mcp.WebSocketClientTransport{Endpoint, HTTPHeader}` — satisfies `sdk.Transport`. Frames each JSON-RPC message as one text-mode websocket message. 16 MiB read limit.
+- `MCPServerConfig.Type: "websocket"` — uses `Endpoint` (`ws://` or `wss://`).
+- Validation: websocket type requires non-empty Endpoint; missing endpoint → StateFailed with clear error.
+- New dep: `github.com/coder/websocket` v1.8.14 (single-file, minimal-dep websocket library; formerly nhooyr.io/websocket).
+
+### Known issues / deferred
+- No automatic reconnect on transport failure (matches stdio/SSE/streamable behavior).
+- No subprotocol negotiation (sends none; servers requiring a specific subprotocol won't accept the dial).
+- No HTTPHeader configuration via YAML (`HTTPHeader` field exists on the struct for programmatic use; YAML-driven custom headers ship in a later milestone).
+
 ## [0.5.5-dev] — 2026-05-20
 
 M6.3 — Real TUI form elicitation handler.

@@ -109,9 +109,12 @@ mcpServers:
   legacy-sse:
     type: sse
     endpoint: https://legacy.example.com/mcp
+  ws-server:
+    type: websocket
+    endpoint: wss://example.com/mcp
 ```
 
-`type` defaults to `stdio`. Other values: `sse` (2024-11-05 SSE), `streamable` (newer streamable HTTP).
+`type` defaults to `stdio`. Other values: `sse` (2024-11-05 SSE), `streamable` (newer streamable HTTP), `websocket` (custom WS implementation; ws:// or wss://).
 
 Tools surface as `mcp__<server>__<tool>` (names exceeding 64 chars get a sha-8 suffix). Inspect status with `/mcp`, view one server's last error with `/mcp status <name>`, restart all servers with `/mcp reload` (removes and re-registers all `mcp__*` tools; the model's system prompt is still built at startup, so restart anthrogo to refresh model awareness of newly-added tools). Server log notifications render dim-styled in the TUI; in headless they go to stderr.
 

@@ -216,6 +216,12 @@ func (s *Server) Start(parent context.Context) error {
 			Endpoint:   s.cfg.Endpoint,
 			MaxRetries: s.cfg.MaxRetries,
 		}
+	case "websocket":
+		if s.cfg.Endpoint == "" {
+			s.fail(fmt.Errorf("websocket MCP server %s requires endpoint", s.Name))
+			return s.err
+		}
+		transport = &WebSocketClientTransport{Endpoint: s.cfg.Endpoint}
 	default:
 		s.fail(fmt.Errorf("unknown MCP server type %q for %s", s.cfg.Type, s.Name))
 		return s.err

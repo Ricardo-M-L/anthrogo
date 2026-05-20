@@ -145,6 +145,14 @@ func TestServer_Start_StreamableRequiresEndpoint(t *testing.T) {
 	require.Equal(t, StateFailed, s.State())
 }
 
+func TestServer_Start_RejectsWebSocketWithoutEndpoint(t *testing.T) {
+	m := NewManager(nil)
+	m.AddServer("ws", MCPServerConfig{Type: "websocket", Timeout: 5 * time.Second})
+	_ = m.Start(context.Background())
+	require.Equal(t, StateFailed, m.State("ws"))
+	require.Contains(t, m.Err("ws").Error(), "endpoint")
+}
+
 func TestServer_ToolListChanged_TriggersRefresh(t *testing.T) {
 	bin := buildEchoServer(t)
 	var notifyMu sync.Mutex
