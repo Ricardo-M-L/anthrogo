@@ -578,7 +578,9 @@ func main() {
 			if searchCacheCap <= 0 {
 				searchCacheCap = 64
 			}
-			searchCache := session.NewReplayCache(searchCacheCap)
+			dbPath := filepath.Join(os.Getenv("HOME"), ".anthrogo", "search_index.db")
+			searchCache := session.NewPersistentCache(dbPath, searchCacheCap)
+			defer searchCache.Close()
 			cmds := registerCommands(homeSkillsRoot, cwdSkillsRoot, homeSubRoot, cwdSubRoot,
 				config.SystemOverlayPath(os.Getenv("HOME")),
 				config.ProjectSystemOverlayPath(cwd),
@@ -674,7 +676,7 @@ func registerTools(cfg config.Config) *tool.Registry {
 	return r
 }
 
-func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOverlayPath, projectOverlayPath string, replayCache *session.ReplayCache) *command.Registry {
+func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOverlayPath, projectOverlayPath string, replayCache builtins.SessionCache) *command.Registry {
 	reg := command.NewRegistry()
 	reg.Register(&builtins.Help{Reg: reg})
 	reg.Register(builtins.Tools{})

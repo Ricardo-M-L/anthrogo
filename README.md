@@ -617,6 +617,8 @@ Use `/sessions stats` to aggregate metrics across all session JSONLs for the cur
 
 Use `/sessions reindex` (alias `search-rebuild-index`) to clear the in-memory LRU parse cache (M8.12). The cache holds up to 64 parsed session files keyed by `(path, modtime)`. Unchanged files are served from cache on repeated searches without re-parsing. Modtime changes auto-invalidate; `reindex` forces a full rebuild on the next search.
 
+**Persistence (M10.1):** The search cache is now two-level. L1 is the in-memory LRU (same as before). L2 is a SQLite database at `~/.anthrogo/search_index.db` (pure-Go, no cgo). Parsed records survive process restarts — on the next search the L2 hit is served directly without re-parsing the JSONL files. The cache degrades gracefully to L1-only if the DB can't be opened. To fully reset persistence, remove `~/.anthrogo/search_index.db` and restart.
+
 ## Tools (M1)
 
 | Tool        | Read-only | What it does                                                       |

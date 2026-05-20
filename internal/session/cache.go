@@ -103,3 +103,44 @@ func (c *ReplayCache) Size() int {
 	defer c.mu.Unlock()
 	return c.order.Len()
 }
+
+// lookup performs a pure in-memory lookup: returns (records, true) if path is
+// cached and its modtime matches the provided modtime; otherwise (nil, false).
+// Unlike Get, it does NOT fall through to Replay on a miss.
+func (c *ReplayCache) lookup(path string, modtime time.Time) ([]Record, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	el, ok := c.items[path]
+	if !ok {
+		return nil, false
+	}
+	entry := el.Value.(*replayEntry)
+	if !entry.modtime.Equal(modtime) {
+		return nil, false
+	}
+	c.order.MoveToFront(el)
+	return entry.records, true
+}
+
+// warm inserts records for path without consulting the file (the caller has
+// already validated modtime). Errors only on stat failure.
+func (c *ReplayCache) warm(path string, records []Record) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for c.order.Len() >= c.capacity {
+		oldest := c.order.Back()
+		if oldest == nil {
+			break
+		}
+		c.order.Remove(oldest)
+		delete(c.items, oldest.Value.(*replayEntry).path)
+	}
+	entry := &replayEntry{path: path, modtime: info.ModTime(), records: records}
+	el := c.order.PushFront(entry)
+	c.items[path] = el
+	return nil
+}

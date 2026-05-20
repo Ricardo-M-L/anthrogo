@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.10.0-dev] — 2026-05-21
+
+M10.1 — Persistent search index (SQLite).
+
+### Added
+- `session.PersistentCache` — two-level cache for parsed JSONL records: L1 in-memory LRU (M8.12), L2 SQLite-backed at `~/.anthrogo/search_index.db`. Survives process restart. Per-file key with modtime invalidation.
+- Backed by `modernc.org/sqlite` (pure-Go, no cgo).
+- `ReplayCache.warm(path, records)` — populates L1 from L2 without re-reading from disk.
+- New `SessionCache` interface in `builtins`; both `*session.ReplayCache` and `*session.PersistentCache` satisfy it.
+- Cache degrades gracefully to L1-only if SQLite can't open the DB (write permission, disk full, etc.).
+
+### Changed
+- `cmd/anthrogo` constructs `PersistentCache` by default (DB at `~/.anthrogo/search_index.db`).
+- `builtins.Sessions.ReplayCache` field type changed from `*session.ReplayCache` to `SessionCache` interface.
+
+### Known issues / deferred
+- No DB maintenance: file grows unbounded as sessions accumulate. Manual `rm ~/.anthrogo/search_index.db` + restart to reset.
+- No per-row TTL; only modtime invalidation. Old deleted JSONLs leave orphaned rows.
+- No FTS5 full-text index yet — search still substring/regex over deserialized records.
+- L1 size still hardcoded by yaml `session_search_cache_size`.
+
 ## [0.9.10-dev] — 2026-05-21
 
 M9.11 — CI + lint + Makefile.

@@ -18,9 +18,17 @@ import (
 	"github.com/ricardo/anthrogo/pkg/pricing"
 )
 
+// SessionCache is the interface satisfied by both *session.ReplayCache and
+// *session.PersistentCache. Either can be assigned to Sessions.ReplayCache.
+type SessionCache interface {
+	Get(path string) ([]session.Record, error)
+	Invalidate(path string)
+	Clear()
+}
+
 // Sessions implements the /sessions builtin command.
 type Sessions struct {
-	ReplayCache *session.ReplayCache // optional; nil-safe falls back to direct Replay
+	ReplayCache SessionCache // optional; nil-safe falls back to direct Replay
 }
 
 // getRecords returns parsed records for path, consulting ReplayCache when available.
