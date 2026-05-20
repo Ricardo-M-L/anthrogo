@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.5.2-dev] — 2026-05-20
+
+M5.3 — Subagent polish (concurrent + isolated perms + YAML types).
+
+### Added
+- User-defined subagent types via YAML at `~/.anthrogo/subagents/<name>.yaml` (home) and `<cwd>/.anthrogo/subagents/<name>.yaml` (project; overrides home). Each YAML has `name`, `description`, `system_prompt_suffix`, optional `tool_allowlist`. "general-purpose" name is reserved.
+- `/subagents` slash command: list, `show <name>`, `reload`.
+- `permissions.Context.Clone()` — shallow copy for subagent isolation; subagent Mode toggles no longer leak to parent.
+- `pkg/subagent.Registry.Replace(other)` — used by `/subagents reload`.
+
+### Changed
+- `Task` tool's `IsConcurrencySafe` now `true`. Multiple Task tool_use blocks in one assistant turn run concurrently via the engine's parallel dispatch path. Per-subagent stderr/log output may interleave; hooks see events from all in-flight subagents merged.
+- `query.Engine.RunSubagent` clones the parent's `permissions.Context` for the child.
+- `command.Host` gains `Subagents() *subagent.Registry`.
+- `pkg/query/loop.go`: when all in-flight tool_use blocks have `IsConcurrencySafe=true`, they are dispatched concurrently in goroutines; tool_result order preserved by indexed slots.
+
+### Known issues / deferred (M6)
+- Independent JSONL session per subagent (today: child uses RecordHook=nil, so child messages aren't persisted).
+- MCP resources/list_changed notifications + subscription.
+- Real TUI form-based elicitation handler (today: declines).
+- WebSocket MCP transport.
+- OAuth 2.1 client flow.
+- KAIROS coordinator / remote sessions.
+
 ## [0.5.1-dev] — 2026-05-20
 
 M5.2 — MCP resources + minimal elicitations.

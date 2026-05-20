@@ -14,20 +14,22 @@ import (
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/query"
 	"github.com/ricardo/anthrogo/pkg/skill"
+	"github.com/ricardo/anthrogo/pkg/subagent"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
 type fakeHost struct {
-	perms    *permissions.Context
-	tools    *tool.Registry
-	cmdReg   *command.Registry
-	uiMsgs   []string
-	cwd      string
-	claudeMd string
-	mgr      *mcp.Manager
-	engine   *query.Engine
-	skills   *skill.Registry
-	plugins  any
+	perms      *permissions.Context
+	tools      *tool.Registry
+	cmdReg     *command.Registry
+	uiMsgs     []string
+	cwd        string
+	claudeMd   string
+	mgr        *mcp.Manager
+	engine     *query.Engine
+	skills     *skill.Registry
+	subagents  *subagent.Registry
+	plugins    any
 }
 
 func newFakeHost() *fakeHost {
@@ -48,6 +50,7 @@ func (f *fakeHost) Cwd() string                       { return f.cwd }
 func (f *fakeHost) Registry() *command.Registry       { return f.cmdReg }
 func (f *fakeHost) MCP() *mcp.Manager                 { return f.mgr }
 func (f *fakeHost) Skills() *skill.Registry           { return f.skills }
+func (f *fakeHost) Subagents() *subagent.Registry     { return f.subagents }
 func (f *fakeHost) Plugins() any                      { return f.plugins }
 
 func TestHelp_ListsRegisteredCommands(t *testing.T) {

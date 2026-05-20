@@ -128,11 +128,13 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 	}
 
 	// 4. Build child Config.
+	// Clone the permissions context so subagent Mode toggles don't affect parent.
+	childPerms := e.cfg.Permissions.Clone()
 	childCfg := Config{
 		Provider:         e.cfg.Provider,
 		Model:            e.cfg.Model,
 		Tools:            childTools,
-		Permissions:      e.cfg.Permissions,
+		Permissions:      childPerms,
 		SystemPrompt:     e.cfg.SystemPrompt + spec.SystemPromptSuffix,
 		Hooks:            e.cfg.Hooks,
 		Cwd:              e.cfg.Cwd,

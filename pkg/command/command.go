@@ -9,6 +9,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/query"
 	"github.com/ricardo/anthrogo/pkg/skill"
+	"github.com/ricardo/anthrogo/pkg/subagent"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -43,6 +44,7 @@ type Host interface {
 	Registry() *Registry
 	MCP() *mcp.Manager
 	Skills() *skill.Registry
+	Subagents() *subagent.Registry
 	// Plugins returns the *plugin.Registry. Typed as any to break the
 	// command ↔ plugin import cycle. Callers in pkg/command/builtins
 	// import pkg/plugin directly and type-assert the value.

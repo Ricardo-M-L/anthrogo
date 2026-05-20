@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/message"
@@ -160,15 +161,45 @@ func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReaso
 	out <- Event{Kind: KindAssistantStop, StopReason: stopReason}
 
 	// If the model asked for tools, run them and append tool_result blocks.
+	// When ALL tool_use blocks have IsConcurrencySafe=true, run them in parallel.
+	// If even one says false, fall back to sequential execution.
 	if stopReason == "tool_use" {
-		var results []message.Block
+		var toolBlocks []message.Block
 		for _, b := range assistant {
-			if b.Type != message.BlockToolUse {
-				continue
+			if b.Type == message.BlockToolUse {
+				toolBlocks = append(toolBlocks, b)
 			}
-			result := e.executeTool(ctx, b, out)
-			results = append(results, result)
 		}
+
+		allSafe := len(toolBlocks) > 0
+		for _, b := range toolBlocks {
+			t, ok := e.cfg.Tools.Get(b.ToolName)
+			if !ok || !t.IsConcurrencySafe() {
+				allSafe = false
+				break
+			}
+		}
+
+		results := make([]message.Block, len(toolBlocks))
+		if allSafe && len(toolBlocks) > 1 {
+			// Parallel dispatch: goroutines write into fixed result slots so
+			// the tool_result order matches the tool_use order.
+			var wg sync.WaitGroup
+			// out channel is buffered (64); concurrent writes are safe.
+			for i, b := range toolBlocks {
+				wg.Add(1)
+				go func(idx int, blk message.Block) {
+					defer wg.Done()
+					results[idx] = e.executeTool(ctx, blk, out)
+				}(i, b)
+			}
+			wg.Wait()
+		} else {
+			for i, b := range toolBlocks {
+				results[i] = e.executeTool(ctx, b, out)
+			}
+		}
+
 		if len(results) > 0 {
 			e.mu.Lock()
 			e.messages = append(e.messages, message.Message{Role: message.RoleUser, Content: results})

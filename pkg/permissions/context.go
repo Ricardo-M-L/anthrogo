@@ -30,6 +30,18 @@ type Context struct {
 	HookDecide func(toolName string, input map[string]any) HookOutcome
 }
 
+// Clone returns a shallow copy of c suitable for handing to a subagent.
+// RulesBySource maps and HookDecide are shared by reference (treated as
+// immutable). Mode, PrePlanMode, ShouldAvoidPrompts, and IsBypassAvailable
+// are copied so subagent toggles don't affect the parent.
+func (c *Context) Clone() *Context {
+	if c == nil {
+		return nil
+	}
+	cp := *c
+	return &cp
+}
+
 // Empty returns a Context with all rule maps initialised, in default mode.
 func Empty() *Context {
 	return &Context{

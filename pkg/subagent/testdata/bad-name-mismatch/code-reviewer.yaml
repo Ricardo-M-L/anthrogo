@@ -1,0 +1,2 @@
+name: something-else
+description: This should fail because the yaml name does not match the filename stem.

@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M5.1 complete (v0.5.0-dev). Subagents (Task tool + sub-engine) landed. See `docs/superpowers/specs/` for design docs.
+> **Status**: M5.3 complete (v0.5.2-dev). Concurrent subagents, per-subagent permission isolation, and user-defined YAML types landed. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -26,7 +26,7 @@ update/view loops.
 | M4        | Hooks, skills, plugins                                                     | shipped  |
 | M5.1      | Subagents (Task tool + sub-engine, depth limit, SubagentStop hook)         | shipped  |
 | M5.2      | MCP resources + minimal elicitations (decline handler)                    | shipped  |
-| M5.3      | Concurrent subagents, per-subagent JSONL, user-defined types               | planned  |
+| M5.3      | Concurrent subagents, isolated perms, user-defined YAML types              | shipped  |
 | M6        | OAuth + Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM   | planned  |
 
 ## Repository layout
@@ -263,13 +263,41 @@ Task({
 
 The subagent has no memory of the parent conversation — brief it fully in `prompt`. It inherits the parent's tools (unless the subagent type restricts them via `ToolAllowlist`), permission gate, and hook manager.
 
+**Concurrent dispatch (M5.3):** when the model emits multiple `Task` tool_use blocks in a single turn, the engine runs them concurrently. Tool_result order is preserved. Log/stderr output from concurrent subagents may interleave.
+
+**Permission isolation (M5.3):** each subagent runs with a cloned `permissions.Context`. Mode toggles (e.g. the model entering plan mode inside a subagent) do not leak back to the parent.
+
 **Recursion limit:** nested subagents are allowed up to depth 3 by default (`MaxSubagentDepth`). Calls beyond the limit return an error to the model.
 
 **Plan mode:** `Task` is treated as a write tool, so plan mode blocks it. Switch to default mode (`/mode default`) to invoke subagents.
 
 **SubagentStop hook:** fires after every subagent completes (success or error). Wire it in `hooks.yaml` under `SubagentStop:`.
 
-Currently subagents run serially (one at a time). Concurrent dispatch and user-defined subagent types are M5.3.
+### Custom subagent types
+
+Drop YAML files into `~/.anthrogo/subagents/` (home, all projects) or `<cwd>/.anthrogo/subagents/` (project-local; overrides home) to define your own types:
+
+```yaml
+# ~/.anthrogo/subagents/code-reviewer.yaml
+name: code-reviewer
+description: Use when reviewing a PR or code change for correctness and style.
+system_prompt_suffix: |
+  You are a code reviewer. Be specific. Cite file:line. Suggest concrete fixes.
+tool_allowlist:
+  - Read
+  - Grep
+  - Glob
+  - Bash
+```
+
+Rules:
+- `name` must be lowercase alphanumeric + hyphens (`^[a-z][a-z0-9-]{0,63}$`) and match the filename stem.
+- `description` is required (shown to the model in the Task tool schema).
+- `system_prompt_suffix` is optional extra instruction appended to the system prompt for this subagent.
+- `tool_allowlist` is optional. Empty = inherit parent's full tool registry.
+- The name `general-purpose` is reserved and cannot be overridden.
+
+Use `/subagents` to list loaded types, `/subagents show <name>` to inspect, `/subagents reload` to hot-reload without restarting (note: the system prompt is built at startup, so newly added types won't be advertised to the model until restart).
 
 ## Compaction
 

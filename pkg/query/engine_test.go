@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -413,6 +414,189 @@ func TestEngine_RunSubagent_NoRegistry(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no registry")
+}
+
+// TestEngine_RunSubagent_ConcurrentTwoTasksFromOneTurn verifies that when an
+// assistant turn contains two Task tool_use blocks (both IsConcurrencySafe=true),
+// the engine dispatches them concurrently and both tool_results appear in the
+// message history.
+func TestEngine_RunSubagent_ConcurrentTwoTasksFromOneTurn(t *testing.T) {
+	subreg := subagent.DefaultRegistry()
+
+	// Each subagent call gets its own scripted provider. We use a provider that
+	// returns a different text depending on the script index. Because fake.Provider
+	// serves scripts in order and Task.Call invokes e.RunSubagent (which calls the
+	// parent engine's provider via the child engine), we need two separate child
+	// providers. The simplest approach: wire a multi-script parent fake where:
+	//   - Script 0 (parent turn 1): two Task tool_use blocks, stopReason=tool_use
+	//   - Script 1 (parent turn 2): end_turn with text "all done"
+	// And the Task runner itself uses an inner fake for the child — achieved by
+	// using a multi-call fake that serves the parent first, then two child calls.
+	//
+	// Since fake.Provider.Stream is called in order, we script:
+	//   call 0  → parent assistant turn with 2 Task tool_use blocks
+	//   call 1  → child A: "FOO" end_turn
+	//   call 2  → child B: "BAR" end_turn
+	//   call 3  → parent turn 2 end_turn
+	fp := fake.New(
+		// Parent turn 1: two Task tool_use blocks.
+		[]provider.Event{
+			{Kind: provider.EventToolUseStart, ToolUseID: "ta", ToolName: "Task"},
+			{Kind: provider.EventToolInputDelta, PartialJSON: `{"description":"task A","prompt":"do A","subagent_type":"general-purpose"}`},
+			{Kind: provider.EventBlockStop},
+			{Kind: provider.EventToolUseStart, ToolUseID: "tb", ToolName: "Task"},
+			{Kind: provider.EventToolInputDelta, PartialJSON: `{"description":"task B","prompt":"do B","subagent_type":"general-purpose"}`},
+			{Kind: provider.EventBlockStop},
+			{Kind: provider.EventMessageStop, StopReason: "tool_use"},
+		},
+		// Child A provider script.
+		[]provider.Event{
+			{Kind: provider.EventTextDelta, Text: "FOO"},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+		// Child B provider script.
+		[]provider.Event{
+			{Kind: provider.EventTextDelta, Text: "BAR"},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+		// Parent turn 2: model acknowledges the results and ends.
+		[]provider.Event{
+			{Kind: provider.EventTextDelta, Text: "all done"},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+
+	perms := permissions.Empty()
+	perms.AlwaysAllowRules[permissions.SourceCLI] = []permissions.Rule{{Tool: "Task"}}
+
+	toolReg := tool.NewRegistry()
+
+	var engineRef sync.Mutex
+	var parentEngine *Engine
+
+	taskTool := tool.NewTask(subreg, func(ctx context.Context, opts tool.TaskOptions) (string, error) {
+		engineRef.Lock()
+		e := parentEngine
+		engineRef.Unlock()
+		if e == nil {
+			return "", fmt.Errorf("engine not set")
+		}
+		return e.RunSubagent(ctx, SubagentOptions{
+			Type:        opts.SubagentType,
+			Description: opts.Description,
+			Prompt:      opts.Prompt,
+		})
+	})
+	toolReg.Register(taskTool)
+
+	e := NewEngine(Config{
+		Provider:         fp,
+		Tools:            toolReg,
+		Permissions:      perms,
+		Model:            "x",
+		SubagentRegistry: subreg,
+	})
+	engineRef.Lock()
+	parentEngine = e
+	engineRef.Unlock()
+
+	// Drain the channel.
+	for range e.SubmitMessage(context.Background(), "run two tasks") {
+	}
+
+	// Find the tool_result message in history.
+	msgs := e.Messages()
+	// Message order: [user, assistant(2 task uses), user(2 tool_results), assistant(final)]
+	require.GreaterOrEqual(t, len(msgs), 3, "expected at least 3 messages")
+
+	// Find the user message that contains tool results.
+	var resultBlocks []message.Block
+	for _, m := range msgs {
+		if m.Role == message.RoleUser {
+			for _, b := range m.Content {
+				if b.Type == message.BlockToolResult {
+					resultBlocks = append(resultBlocks, b)
+				}
+			}
+		}
+	}
+	require.Len(t, resultBlocks, 2, "expected 2 tool_result blocks")
+
+	// Collect result texts — order may vary since concurrent.
+	texts := map[string]bool{}
+	for _, b := range resultBlocks {
+		texts[b.Text] = true
+	}
+	require.True(t, texts["FOO"], "expected FOO in tool results")
+	require.True(t, texts["BAR"], "expected BAR in tool results")
+}
+
+// TestEngine_RunSubagent_ChildModeChangeDoesntAffectParent verifies that a
+// subagent toggling permissions.Mode (via a tool that mutates tcx.Permissions)
+// does not affect the parent engine's permissions context.
+func TestEngine_RunSubagent_ChildModeChangeDoesntAffectParent(t *testing.T) {
+	subreg := subagent.DefaultRegistry()
+
+	// The child will call FlipMode which mutates tcx.Permissions.Mode to ModePlan.
+	// After RunSubagent, parent permissions must still be ModeDefault.
+	fp := fake.New(
+		// Child turn: call FlipMode, then end.
+		[]provider.Event{
+			{Kind: provider.EventToolUseStart, ToolUseID: "f1", ToolName: "FlipMode"},
+			{Kind: provider.EventToolInputDelta, PartialJSON: `{}`},
+			{Kind: provider.EventBlockStop},
+			{Kind: provider.EventMessageStop, StopReason: "tool_use"},
+		},
+		// Child turn 2: final end_turn after tool result.
+		[]provider.Event{
+			{Kind: provider.EventTextDelta, Text: "done"},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+
+	childTools := tool.NewRegistry()
+	childTools.Register(modeFlipper{})
+
+	parentPerms := permissions.Empty()
+	// parentPerms.Mode is ModeDefault.
+	require.Equal(t, permissions.ModeDefault, parentPerms.Mode)
+
+	// We pass childTools as the parent's tool registry so the child inherits it.
+	e := NewEngine(Config{
+		Provider:         fp,
+		Tools:            childTools,
+		Permissions:      parentPerms,
+		Model:            "x",
+		SubagentRegistry: subreg,
+	})
+
+	_, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type:        "general-purpose",
+		Description: "test",
+		Prompt:      "flip mode",
+	})
+	require.NoError(t, err)
+
+	// Parent's mode must be unchanged.
+	require.Equal(t, permissions.ModeDefault, parentPerms.Mode,
+		"child mode change must not affect parent permissions context")
+}
+
+// modeFlipper is a test tool that mutates tcx.Permissions.Mode to ModePlan
+// when called.
+type modeFlipper struct{ tool.DefaultPermission }
+
+func (modeFlipper) Name() string                         { return "FlipMode" }
+func (modeFlipper) Description(context.Context) string   { return "flips mode to plan" }
+func (modeFlipper) UserFacingName(map[string]any) string { return "FlipMode" }
+func (modeFlipper) IsReadOnly() bool                     { return true }
+func (modeFlipper) IsConcurrencySafe() bool              { return true }
+func (modeFlipper) Schema() map[string]any               { return map[string]any{"type": "object"} }
+func (modeFlipper) Call(_ context.Context, _ map[string]any, tcx *tool.Context) (tool.Result, error) {
+	if tcx != nil && tcx.Permissions != nil {
+		tcx.Permissions.Mode = permissions.ModePlan
+	}
+	return tool.Result{Type: tool.ResultText, Text: "flipped", ForLLM: "flipped"}, nil
 }
 
 // alwaysEndTurnProvider returns an immediate end_turn for every call.

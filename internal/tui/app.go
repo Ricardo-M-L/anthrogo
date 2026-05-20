@@ -334,6 +334,7 @@ func (a *App) Cwd() string                       { return a.opts.Cwd }
 func (a *App) Registry() *command.Registry       { return a.cmdReg }
 func (a *App) MCP() *mcp.Manager                 { return a.opts.MCP }
 func (a *App) Skills() *skill.Registry           { return a.opts.Skills }
+func (a *App) Subagents() *subagent.Registry     { return a.opts.Subagents }
 func (a *App) Plugins() any                      { return a.opts.Plugins }
 
 // SetProgram must be called with the tea.Program before Run so that

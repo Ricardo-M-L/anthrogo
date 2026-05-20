@@ -43,6 +43,12 @@ func (r *Registry) List() []Spec {
 	return out
 }
 
+// Replace swaps r's underlying spec map with other's. Used by /subagents reload
+// to atomically replace the registry contents in place.
+func (r *Registry) Replace(other *Registry) {
+	r.specs = other.specs
+}
+
 // DefaultRegistry returns a Registry pre-populated with the built-in
 // "general-purpose" subagent type.
 func DefaultRegistry() *Registry {

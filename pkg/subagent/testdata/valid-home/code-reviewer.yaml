@@ -1,0 +1,8 @@
+name: code-reviewer
+description: Use when reviewing a PR or code change for correctness and style.
+system_prompt_suffix: |
+  You are a code reviewer. Be specific. Cite file:line. Suggest concrete fixes.
+tool_allowlist:
+  - Read
+  - Grep
+  - Glob

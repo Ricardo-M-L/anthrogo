@@ -176,6 +176,18 @@ func main() {
 			// (called on the SubmitMessage goroutine) can safely Load() while
 			// OnEngineReady Store()s from the startup path.
 			subagentReg := subagent.DefaultRegistry()
+			homeSubRoot := filepath.Join(os.Getenv("HOME"), ".anthrogo", "subagents")
+			cwdSubRoot := filepath.Join(cwd, ".anthrogo", "subagents")
+			userSubs, swarn, _ := subagent.LoadAll(homeSubRoot, cwdSubRoot)
+			for _, w := range swarn {
+				fmt.Fprintln(os.Stderr, "subagents:", w)
+			}
+			for _, s := range userSubs {
+				if s.Name == "general-purpose" {
+					continue // reserved; loader already warned
+				}
+				subagentReg.Register(s)
+			}
 			var engineRef atomic.Pointer[query.Engine]
 			taskTool := tool.NewTask(subagentReg, func(ctx context.Context, opts tool.TaskOptions) (string, error) {
 				e := engineRef.Load()
@@ -301,7 +313,7 @@ func main() {
 				})
 			}
 
-			cmds := registerCommands(homeSkillsRoot, cwdSkillsRoot)
+			cmds := registerCommands(homeSkillsRoot, cwdSkillsRoot, homeSubRoot, cwdSubRoot)
 			// Register plugin commands; warn on duplicates (last-writer-wins).
 			for _, p := range loadedPlugins {
 				for _, c := range p.Commands {
@@ -377,7 +389,7 @@ func registerTools(cfg config.Config) *tool.Registry {
 	return r
 }
 
-func registerCommands(skillsHome, skillsCwd string) *command.Registry {
+func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd string) *command.Registry {
 	reg := command.NewRegistry()
 	reg.Register(&builtins.Help{Reg: reg})
 	reg.Register(builtins.Tools{})
@@ -391,6 +403,7 @@ func registerCommands(skillsHome, skillsCwd string) *command.Registry {
 	reg.Register(builtins.Mode{})
 	reg.Register(builtins.MCP{})
 	reg.Register(builtins.Skills{HomeRoot: skillsHome, CwdRoot: skillsCwd})
+	reg.Register(builtins.Subagents{HomeRoot: subagentsHome, CwdRoot: subagentsCwd})
 	return reg
 }
 

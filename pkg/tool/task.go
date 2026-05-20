@@ -60,8 +60,9 @@ func (*Task) UserFacingName(input map[string]any) string {
 // IsReadOnly returns false — a subagent can call write tools.
 func (*Task) IsReadOnly() bool { return false }
 
-// IsConcurrencySafe returns false — M5.1 is serial only.
-func (*Task) IsConcurrencySafe() bool { return false }
+// IsConcurrencySafe returns true — multiple Task tool_use blocks in one
+// assistant turn run concurrently via the engine's parallel dispatch path.
+func (*Task) IsConcurrencySafe() bool { return true }
 
 // Schema returns the JSON schema for Task inputs.
 func (*Task) Schema() map[string]any {
