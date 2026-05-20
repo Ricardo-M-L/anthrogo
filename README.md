@@ -217,6 +217,30 @@ You can also reset automatically when compacting by passing `--reset-budget`:
 
 This resets the in-memory usage counter so the post-compact session starts fresh. The budget cap remains armed; usage will accumulate again from zero.
 
+## ContainerExec tool
+
+The `ContainerExec` built-in tool runs a command inside a docker or podman container, providing real OS-level isolation. Auto-detects `docker` on PATH; falls back to `podman`.
+
+Default network is `none` (no internet access). Containers are removed after exit (`--rm`).
+
+Sample tool call (as the model would receive it):
+
+```yaml
+tool: ContainerExec
+input:
+  image: alpine
+  command: "echo hello && uname -a"
+  network: none          # default; omit to keep no-internet
+  mounts:
+    - /host/data:/data:ro   # read-only bind mount
+    - /host/out:/out:rw     # writable bind mount
+  env:
+    MY_VAR: hello
+  timeout_ms: 30000
+```
+
+Requirements: `docker` or `podman` must be on PATH. Image must be available locally or pullable (ContainerExec does not pre-pull — if the image is absent docker will pull it on first call).
+
 ## MCP servers
 
 anthrogo can spawn MCP (Model Context Protocol) servers at startup and expose their tools to the model. Add to `~/.anthrogo/settings.yaml`:

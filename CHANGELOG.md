@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.10.6-dev] — 2026-05-21
+
+M10.7 — ContainerExec tool.
+
+### Added
+- `ContainerExec` built-in tool — runs a command inside a docker or podman container. Provides real OS-level isolation (vs M10.2 Bash sandbox's env scrubbing).
+- Auto-detects runtime: docker preferred, podman fallback. Errors if neither on PATH.
+- Default network: `none` (no internet). Override with `network: host` or a custom docker network name.
+- Bind mounts via `mounts: ["/host:/container[:ro|rw]"]` strings. Read-only is the default; explicit `:rw` to allow writes.
+- Env vars via `env: {KEY: value}`.
+- Timeout via `timeout_ms` (default 120000 = 2 min).
+- Container is `--rm` after exit (no persistent state).
+
+### Known issues / deferred
+- No image-pull caching / verification. The model must specify a digest pin (`alpine@sha256:...`) for reproducibility.
+- No GPU support.
+- Combined stdout+stderr to a single output stream.
+- Live tests skipped in CI (docker not on the CI runners by default).
+
 ## [0.10.5-dev] — 2026-05-21
 
 M10.6 — Multi-provider failover.

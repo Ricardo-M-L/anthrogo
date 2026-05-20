@@ -708,6 +708,7 @@ func registerTools(cfg config.Config) *tool.Registry {
 	r.Register(tool.Git{})
 	r.Register(tool.SymbolSearch{})
 	r.Register(tool.References{})
+	r.Register(&tool.ContainerExec{})
 	return r
 }
 
