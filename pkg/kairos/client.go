@@ -5,9 +5,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/ricardo/anthrogo/pkg/permissions"
@@ -32,6 +35,11 @@ type ClientOptions struct {
 	// key before the payload is parsed. Any frame that fails verification causes
 	// DispatchRemoteWithOptions to return an error immediately.
 	TrustKey ed25519.PublicKey
+	// InsecureSkipVerify disables TLS certificate verification. DEV ONLY.
+	InsecureSkipVerify bool
+	// CACertPath is the path to a PEM-encoded CA certificate bundle used to
+	// verify the server's TLS certificate. Useful for internal/self-signed CAs.
+	CACertPath string
 }
 
 // DispatchRemote sends a RunRequest to a KAIROS worker at endpoint, streams
@@ -78,7 +86,25 @@ func DispatchRemoteWithOptions(ctx context.Context, endpoint string, req RunRequ
 		httpReq.Header.Set("X-Anthrogo-Exec-Tools-Locally", "true")
 	}
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	// Build a custom HTTP client when TLS options are specified.
+	httpClient := http.DefaultClient
+	if opts.CACertPath != "" || opts.InsecureSkipVerify {
+		pool := x509.NewCertPool()
+		if opts.CACertPath != "" {
+			ca, readErr := os.ReadFile(opts.CACertPath)
+			if readErr != nil {
+				return "", fmt.Errorf("kairos: read ca_cert_path: %w", readErr)
+			}
+			pool.AppendCertsFromPEM(ca)
+		}
+		tlsCfg := &tls.Config{
+			InsecureSkipVerify: opts.InsecureSkipVerify, //nolint:gosec // DEV ONLY; documented
+			RootCAs:            pool,
+		}
+		httpClient = &http.Client{Transport: &http.Transport{TLSClientConfig: tlsCfg}}
+	}
+
+	resp, err := httpClient.Do(httpReq)
 	if err != nil {
 		return "", err
 	}
@@ -139,7 +165,7 @@ func DispatchRemoteWithOptions(ctx context.Context, endpoint string, req RunRequ
 						var tur ToolUseRequest
 						if jsonErr := json.Unmarshal([]byte(data), &tur); jsonErr == nil {
 							result := dispatchToolLocally(ctx, tur, opts, endpoint, opts.AuthToken, rid)
-							if postErr := postToolResult(ctx, endpoint, opts.AuthToken, rid, result); postErr != nil {
+							if postErr := postToolResult(ctx, httpClient, endpoint, opts.AuthToken, rid, result); postErr != nil {
 								// Non-fatal; the worker will time out waiting and return an error.
 								_ = postErr
 							}
@@ -237,7 +263,8 @@ func dispatchToolLocally(ctx context.Context, tur ToolUseRequest, opts ClientOpt
 }
 
 // postToolResult POSTs a ToolResult back to the worker's tool-result endpoint.
-func postToolResult(ctx context.Context, endpoint, authToken, rid string, result ToolResult) error {
+// client is used for the POST so that custom TLS settings (CA, insecure) apply.
+func postToolResult(ctx context.Context, client *http.Client, endpoint, authToken, rid string, result ToolResult) error {
 	body, _ := json.Marshal(result)
 	url := strings.TrimRight(endpoint, "/") + "/kairos/run/" + rid + "/tool-result"
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
@@ -248,7 +275,7 @@ func postToolResult(ctx context.Context, endpoint, authToken, rid string, result
 	if authToken != "" {
 		req.Header.Set("Authorization", "Bearer "+authToken)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

@@ -68,6 +68,10 @@ func main() {
 		autoCompactFlag     int
 		costLimitFlag       float64
 		jsonFlag            bool
+		tlsCert             string
+		tlsKey              string
+		tlsAuto             bool
+		tlsDomain           string
 	)
 
 	root := &cobra.Command{
@@ -285,8 +289,22 @@ func main() {
 				} else {
 					srv = kairos.NewServerWithToolForward(kHandler, kHandlerWithForward, authToken)
 				}
-				fmt.Fprintln(os.Stderr, "anthrogo kairos worker listening on", kairosServeAddr)
-				return srv.Run(context.Background(), kairosServeAddr)
+				switch {
+				case tlsAuto:
+					if tlsDomain == "" {
+						return fmt.Errorf("--tls-auto requires --tls-domain")
+					}
+					domains := strings.Split(tlsDomain, ",")
+					cacheDir := filepath.Join(os.Getenv("HOME"), ".anthrogo", "autocert")
+					fmt.Fprintf(os.Stderr, "anthrogo kairos worker (autocert TLS) on %s for %v\n", kairosServeAddr, domains)
+					return srv.RunAutocert(context.Background(), kairosServeAddr, domains, cacheDir)
+				case tlsCert != "" && tlsKey != "":
+					fmt.Fprintf(os.Stderr, "anthrogo kairos worker (TLS) on %s\n", kairosServeAddr)
+					return srv.RunTLS(context.Background(), kairosServeAddr, tlsCert, tlsKey)
+				default:
+					fmt.Fprintf(os.Stderr, "anthrogo kairos worker (HTTP — no TLS) on %s\n", kairosServeAddr)
+					return srv.Run(context.Background(), kairosServeAddr)
+				}
 			}
 
 			cfg, err := config.Load()
@@ -802,6 +820,10 @@ func main() {
 	root.Flags().StringVar(&providerFlag, "provider", "", "Override active provider profile (see profiles in settings.yaml)")
 	root.Flags().IntVar(&autoCompactFlag, "auto-compact", 0, "Auto-compact when combined input+output tokens of the latest turn exceed this threshold (0 = disabled)")
 	root.Flags().Float64Var(&costLimitFlag, "cost-limit", 0, "Deny tool calls once estimated session cost (USD) reaches this amount; 0 = disabled")
+	root.Flags().StringVar(&tlsCert, "tls-cert", "", "Path to TLS cert (PEM) for --kairos-serve")
+	root.Flags().StringVar(&tlsKey, "tls-key", "", "Path to TLS key (PEM) for --kairos-serve")
+	root.Flags().BoolVar(&tlsAuto, "tls-auto", false, "Auto-provision Let's Encrypt cert (requires --tls-domain + port 443)")
+	root.Flags().StringVar(&tlsDomain, "tls-domain", "", "Domain(s) for --tls-auto (comma-separated)")
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

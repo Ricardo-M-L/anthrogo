@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/acme/autocert"
 )
 
 // runState tracks an in-flight SSE run so tool-result POSTs can be routed to
@@ -279,6 +280,49 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 	srv := &http.Server{Addr: addr, Handler: s.Handler()}
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()
+	select {
+	case <-ctx.Done():
+		_ = srv.Shutdown(context.Background())
+		return ctx.Err()
+	case err := <-errCh:
+		return err
+	}
+}
+
+// RunTLS starts an HTTPS server on addr using the supplied PEM cert and key
+// files. It blocks until ctx is cancelled or the server fails, and shuts down
+// gracefully when ctx is done.
+func (s *Server) RunTLS(ctx context.Context, addr, certFile, keyFile string) error {
+	srv := &http.Server{Addr: addr, Handler: s.Handler()}
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.ListenAndServeTLS(certFile, keyFile) }()
+	select {
+	case <-ctx.Done():
+		_ = srv.Shutdown(context.Background())
+		return ctx.Err()
+	case err := <-errCh:
+		return err
+	}
+}
+
+// RunAutocert starts an HTTPS server on addr using Let's Encrypt auto-provisioned
+// certificates for the given domains. Certificates are cached under cacheDir.
+// Port 443 must be reachable from the internet for the ACME HTTP-01 challenge.
+// It blocks until ctx is cancelled or the server fails, and shuts down gracefully
+// when ctx is done.
+func (s *Server) RunAutocert(ctx context.Context, addr string, domains []string, cacheDir string) error {
+	m := &autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist(domains...),
+		Cache:      autocert.DirCache(cacheDir),
+	}
+	srv := &http.Server{
+		Addr:      addr,
+		Handler:   s.Handler(),
+		TLSConfig: m.TLSConfig(),
+	}
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.ListenAndServeTLS("", "") }()
 	select {
 	case <-ctx.Done():
 		_ = srv.Shutdown(context.Background())

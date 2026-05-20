@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.11.9-dev] — 2026-05-21
+
+M11.10 — TLS for KAIROS.
+
+### Added
+- `Server.RunTLS(ctx, addr, cert, key)` — HTTPS server with user-supplied PEM cert + key.
+- `Server.RunAutocert(ctx, addr, domains, cacheDir)` — Let's Encrypt auto-provisioning via `golang.org/x/crypto/acme/autocert`. Caches certs under `~/.anthrogo/autocert/`. Requires port 443 reachable.
+- CLI flags: `--tls-cert <path>`, `--tls-key <path>`, `--tls-auto`, `--tls-domain <name>[,name...]`.
+- `RemoteSpec.InsecureSkipVerify` (DEV ONLY) + `RemoteSpec.CACertPath` — client-side options for self-signed CA setups.
+- `ClientOptions.InsecureSkipVerify` + `ClientOptions.CACertPath` — plumbed through `DispatchRemoteWithOptions`.
+- New dep: `golang.org/x/crypto/acme/autocert` (promoted to direct; was already indirect).
+
+### Use cases
+- Public-facing KAIROS workers via `--tls-auto --tls-domain worker.example.com` (port 443).
+- Self-managed cert: `--tls-cert /path/to/cert.pem --tls-key /path/to/key.pem`.
+- Internal CA: client sets `ca_cert_path` in subagent YAML.
+- Plain HTTP: default (existing M6.6 behavior); the worker prints a warning.
+- `https://` endpoint URLs in `subagent.RemoteSpec` already work via stdlib CA roots — no config needed for public CAs.
+
+### Known issues / deferred
+- TLS port shutdown via context cancellation (no Listener accessor for testing arbitrary ports).
+- No client cert authentication (mTLS).
+- No cert rotation hot-reload.
+- autocert requires port 443 (HTTP-01 challenge); no DNS-01 / TLS-ALPN-01 alternatives.
+
 ## [0.11.8-dev] — 2026-05-21
 
 M11.9 — KAIROS tool signature verification.

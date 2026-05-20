@@ -6,10 +6,12 @@ import "sort"
 // When non-nil, Engine.RunSubagent dispatches via HTTP to the KAIROS worker
 // instead of spawning a local child Engine.
 type RemoteSpec struct {
-	Endpoint         string `yaml:"endpoint"`                    // http://host:port
-	AuthToken        string `yaml:"auth_token"`                  // optional; supports "env:VARNAME" prefix
-	ExecToolsLocally bool   `yaml:"exec_tools_locally,omitempty"` // when true, tool calls from the remote subagent execute on the CLIENT process
-	TrustKey         string `yaml:"trust_key,omitempty"`          // base64 ed25519 public key (or path) for SSE signature verification
+	Endpoint           string `yaml:"endpoint"`                      // http://host:port or https://host:port
+	AuthToken          string `yaml:"auth_token"`                    // optional; supports "env:VARNAME" prefix
+	ExecToolsLocally   bool   `yaml:"exec_tools_locally,omitempty"`  // when true, tool calls from the remote subagent execute on the CLIENT process
+	TrustKey           string `yaml:"trust_key,omitempty"`           // base64 ed25519 public key (or path) for SSE signature verification
+	InsecureSkipVerify bool   `yaml:"insecure_skip_verify,omitempty"` // DEV ONLY: skip TLS certificate verification
+	CACertPath         string `yaml:"ca_cert_path,omitempty"`         // path to PEM CA cert for custom/internal CAs
 }
 
 // Spec describes a subagent type: its name, description (shown to the model in

@@ -218,6 +218,9 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 		} else if len(e.cfg.KairosTrustKey) > 0 {
 			clientOpts.TrustKey = e.cfg.KairosTrustKey
 		}
+		// Wire TLS client options from RemoteSpec.
+		clientOpts.InsecureSkipVerify = spec.Remote.InsecureSkipVerify
+		clientOpts.CACertPath = spec.Remote.CACertPath
 		if spec.Remote.ExecToolsLocally {
 			// Exec-tools-locally: tool calls from the remote subagent run on this
 			// (client) process using the parent engine's tool registry and
