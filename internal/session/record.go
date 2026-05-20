@@ -49,11 +49,18 @@ type SubagentRecord struct {
 }
 
 // CompactRecord is the JSONL record emitted when Engine.Compact runs.
+// OriginalTokens / NewTokens replaced OriginalBytes / NewBytes in M8.10.
+// Legacy JSONLs written with original_bytes / new_bytes still unmarshal
+// correctly because the old fields are retained with omitempty and the
+// unused direction is harmless.
 type CompactRecord struct {
 	OriginalCount int    `json:"original_count"`
 	NewCount      int    `json:"new_count"`
-	OriginalBytes int    `json:"original_bytes"`
-	NewBytes      int    `json:"new_bytes"`
+	OriginalTokens int   `json:"original_tokens"`
+	NewTokens      int   `json:"new_tokens"`
+	// Deprecated legacy fields — kept for reading old JSONL files.
+	OriginalBytes int    `json:"original_bytes,omitempty"`
+	NewBytes      int    `json:"new_bytes,omitempty"`
 	Trigger       string `json:"trigger"`
 }
 

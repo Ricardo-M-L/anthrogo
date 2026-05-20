@@ -501,6 +501,8 @@ For long sessions, `/compact` summarizes earlier turns to cut token cost:
 
 Currently all earlier messages including MCP tool calls are summarized to prose; pair-preserving compaction is a future milestone. `PreCompact` hooks (configured under `hooks.PreCompact`) fire before each compact.
 
+On completion, `/compact` reports actual token counts rather than byte sizes (e.g. `compacted 15 → 11 messages (~820 → ~210 tokens)`). Token counting uses a real BPE tokenizer for OpenAI-family models (tiktoken-go) and a char/4 approximation for Claude and other models. Image tokens are not counted client-side; the provider's EventUsage is authoritative for image cost.
+
 Set `auto_compact_threshold: 150000` (or pass `--auto-compact 150000`) to have anthrogo automatically run `/compact` when cumulative token usage since the last compact exceeds the threshold. The threshold is checked at the end of every turn using the cumulative `usageSinceLastCompact` counter — not just the latest turn's usage — so sessions with many small turns are handled correctly. Set to 0 (default) to disable. After a successful compact the counter resets to zero. Manual `/compact` also resets the counter.
 
 Use `/usage` at any time to inspect the current state:

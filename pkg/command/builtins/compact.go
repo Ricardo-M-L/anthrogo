@@ -59,8 +59,8 @@ func (Compact) Run(ctx context.Context, args string, host command.Host) (command
 		return command.Result{Text: "compact: " + s.SkipReason}, nil
 	}
 	msg := fmt.Sprintf(
-		"compacted %d → %d messages (~%d → ~%d bytes)",
-		s.OriginalCount, s.NewCount, s.OriginalBytes, s.NewBytes,
+		"compacted %d → %d messages (~%d → ~%d tokens)",
+		s.OriginalCount, s.NewCount, s.OriginalTokens, s.NewTokens,
 	)
 	if resetBudget {
 		eng.ResetUsage()

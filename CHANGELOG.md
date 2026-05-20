@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.8.10-dev] — 2026-05-20
+
+M8.10 — Real tokenizer (tiktoken-go).
+
+### Added
+- `pkg/tokens/` package — `Counter` bound to a model:
+  - gpt-4o / o1 / o3 / gpt-5 → o200k_base (tiktoken-go)
+  - gpt-4 / gpt-3.5 / text-embedding-3 → cl100k_base
+  - deepseek-* / kimi-* / moonshot-* / minimax / abab / glm-* → cl100k_base (close approximation)
+  - Anything else (claude-*, unknown) → (len+3)/4 char approximation
+- `Counter.CountText(s)` / `CountBlocks([]Block)` / `CountMessages([]Message)`. Per-message overhead ~3 tokens for role tagging (matches OpenAI documented behavior).
+- BlockImage skipped (real image-token cost only available via provider EventUsage).
+- New dep: `github.com/pkoukk/tiktoken-go`.
+
+### Changed
+- `compact.Run` now uses `tokens.Counter` instead of `ApproxBytes` for `OriginalTokens` / `NewTokens` fields. Result text now reports "X → Y tokens" instead of "X → Y bytes".
+- `compact.Output.OriginalBytes`/`NewBytes` renamed to `OriginalTokens`/`NewTokens`.
+- `query.Summary.OriginalBytes`/`NewBytes` renamed similarly.
+- `session.CompactRecord` gains `original_tokens`/`new_tokens` JSON fields. Old `original_bytes`/`new_bytes` fields retained in struct with `omitempty` for legacy JSONL backward compatibility.
+- `/compact` builtin format string updated to "X → Y tokens".
+- `compact.ApproxBytes` marked deprecated; still callable for tests.
+
+### Known issues / deferred
+- Anthropic Claude has no public tokenizer; char/4 is a rough underestimate.
+- Image tokens not counted (provider EventUsage is authoritative).
+- BPE encoders init lazily on first use; first /compact takes ~5ms longer.
+
 ## [0.8.9-dev] — 2026-05-20
 
 M8.9 — Real multi-field form elicitation UI.

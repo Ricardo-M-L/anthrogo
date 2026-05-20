@@ -369,14 +369,14 @@ type CompactOptions struct {
 
 // Summary is the result of Engine.Compact.
 type Summary struct {
-	OriginalCount int
-	NewCount      int
-	OriginalBytes int
-	NewBytes      int
-	SummaryText   string
-	Skipped       bool
-	SkipReason    string
-	Trigger       string
+	OriginalCount  int
+	NewCount       int
+	OriginalTokens int
+	NewTokens      int
+	SummaryText    string
+	Skipped        bool
+	SkipReason     string
+	Trigger        string
 }
 
 // Compact summarizes earlier conversation turns to reduce context size.
@@ -411,14 +411,14 @@ func (e *Engine) Compact(ctx context.Context, opts CompactOptions) (Summary, err
 		return Summary{}, err
 	}
 	s := Summary{
-		OriginalCount: out.OriginalCount,
-		NewCount:      out.NewCount,
-		OriginalBytes: out.OriginalBytes,
-		NewBytes:      out.NewBytes,
-		SummaryText:   out.SummaryText,
-		Skipped:       out.Skipped,
-		SkipReason:    out.SkipReason,
-		Trigger:       opts.Trigger,
+		OriginalCount:  out.OriginalCount,
+		NewCount:       out.NewCount,
+		OriginalTokens: out.OriginalTokens,
+		NewTokens:      out.NewTokens,
+		SummaryText:    out.SummaryText,
+		Skipped:        out.Skipped,
+		SkipReason:     out.SkipReason,
+		Trigger:        opts.Trigger,
 	}
 	if !out.Skipped {
 		// Install compacted messages directly under lock to avoid a double-copy
@@ -434,11 +434,11 @@ func (e *Engine) Compact(ctx context.Context, opts CompactOptions) (Summary, err
 			e.cfg.RecordHook(session.Record{
 				Kind: session.KindCompact,
 				Compact: &session.CompactRecord{
-					OriginalCount: s.OriginalCount,
-					NewCount:      s.NewCount,
-					OriginalBytes: s.OriginalBytes,
-					NewBytes:      s.NewBytes,
-					Trigger:       s.Trigger,
+					OriginalCount:  s.OriginalCount,
+					NewCount:       s.NewCount,
+					OriginalTokens: s.OriginalTokens,
+					NewTokens:      s.NewTokens,
+					Trigger:        s.Trigger,
 				},
 			})
 		}

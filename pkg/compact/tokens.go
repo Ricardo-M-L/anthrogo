@@ -7,8 +7,11 @@ import (
 )
 
 // ApproxBytes is a stand-in for token counting. Returns the sum of JSON-
-// marshaled byte lengths across all messages. Good enough for M4.2; a real
-// tokenizer arrives with M6 (multi-provider).
+// marshaled byte lengths across all messages.
+//
+// Deprecated: Use pkg/tokens.Counter.CountMessages for accurate token counts.
+// ApproxBytes is retained for tests and legacy callers but is no longer called
+// by compact.Run (replaced in M8.10).
 func ApproxBytes(msgs []message.Message) int {
 	total := 0
 	for i := range msgs {

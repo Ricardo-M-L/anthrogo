@@ -7,6 +7,7 @@ import (
 
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/provider"
+	"github.com/ricardo/anthrogo/pkg/tokens"
 )
 
 // Input is the pure input to Run. No engine, no hooks.
@@ -20,14 +21,14 @@ type Input struct {
 
 // Output is what Run returns. NewMessages is empty if Skipped.
 type Output struct {
-	NewMessages   []message.Message
-	OriginalCount int
-	NewCount      int
-	OriginalBytes int
-	NewBytes      int
-	SummaryText   string
-	Skipped       bool
-	SkipReason    string
+	NewMessages    []message.Message
+	OriginalCount  int
+	NewCount       int
+	OriginalTokens int
+	NewTokens      int
+	SummaryText    string
+	Skipped        bool
+	SkipReason     string
 }
 
 // Run produces a compacted message list. Pure (modulo provider call).
@@ -48,10 +49,11 @@ func Run(ctx context.Context, in Input) (Output, error) {
 	if in.MaxTokens <= 0 {
 		in.MaxTokens = 4096
 	}
+	counter := tokens.NewCounter(in.Model)
 	msgs := in.Messages
 	out := Output{
-		OriginalCount: len(msgs),
-		OriginalBytes: ApproxBytes(msgs),
+		OriginalCount:  len(msgs),
+		OriginalTokens: counter.CountMessages(msgs),
 	}
 	if len(msgs) <= in.KeepRecent {
 		out.Skipped = true
@@ -101,7 +103,7 @@ func Run(ctx context.Context, in Input) (Output, error) {
 
 	out.NewMessages = newMsgs
 	out.NewCount = len(newMsgs)
-	out.NewBytes = ApproxBytes(newMsgs)
+	out.NewTokens = counter.CountMessages(newMsgs)
 	return out, nil
 }
 
