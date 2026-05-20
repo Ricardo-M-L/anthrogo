@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M7.5 complete (v0.7.4-dev). Budget hard caps + `/sessions list` builtin landed. See `docs/superpowers/specs/` for design docs.
+> **Status**: M7.6 complete (v0.7.5-dev). `/sessions replay` + `/sessions search` landed. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -458,7 +458,11 @@ ID                                      Modified          Size
 3f2504e0-4f89-11d3-9a0c-0305e82c3301    2026-05-19 09:11  4201 B
 ```
 
-Use `/sessions show <id-prefix>` for a quick metadata summary of a specific session (unambiguous prefix match). Future milestones will add `/sessions replay` and `/sessions search`.
+Use `/sessions show <id-prefix>` for a quick metadata summary of a specific session (unambiguous prefix match).
+
+Use `/sessions replay <id-prefix>` to render the matched session as a one-line-per-record timeline. Every record kind is covered: meta, user, asst, tool, result, compact, subagent, usage, turn-end, error. Text is truncated and newlines collapsed so the output stays readable in the TUI.
+
+Use `/sessions search <keyword>` for case-insensitive substring search across all session JSONLs for the current cwd. Each match line shows `<session-id-prefix> [<kind>] <context>` (40 chars before + match + 40 chars after). Results are capped at 200 matches.
 
 ## Tools (M1)
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.5-dev] — 2026-05-20
+
+M7.6 — /sessions replay + search.
+
+### Added
+- `/sessions replay <id-prefix>` — renders the matched session JSONL as a one-line-per-record timeline. Covers all 10 record kinds (meta, user, asst, tool, result, compact, subagent, usage, turn-end, error). Text blocks truncated to 200 chars (100 for tool results); newlines collapsed.
+- `/sessions search <keyword>` — case-insensitive substring search across every .jsonl in the current cwd's session directory. Returns one line per match showing session id, record kind, and 80 chars of context (40 before + 40 after). Caps at 200 matches.
+
+### Known issues / deferred
+- Search is full-file scan; large session histories may be slow. No index.
+- No regex syntax in search (substring only).
+- Search doesn't recurse into subagent subdirectories.
+- Replay doesn't render images, thinking blocks, or raw JSON inputs in full; first-N-chars truncation only.
+- No /sessions delete yet.
+
 ## [0.7.4-dev] — 2026-05-20
 
 M7.5 — Budget hard caps + /sessions list.
