@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/ricardo/anthrogo/pkg/bashscan"
 )
 
 // Bash executes a shell command. M1 has no sandbox, no AST security, no
@@ -115,19 +117,44 @@ var sandboxEnvDenyPrefixes = []string{
 	"KAIROS_AUTH_TOKEN",
 }
 
-// sandboxedCommand forbidden substrings (heuristic, not airtight).
-var sandboxForbidden = []string{
+// forbiddenBinaries is the denylist checked by the AST scan in sandbox mode.
+var forbiddenBinaries = []string{
+	"sudo", "doas", "rm", "dd", "mkfs", "mount", "umount",
+	"chmod", "chown", "chroot", "setuid", "setgid",
+}
+
+// sandboxForbiddenSubstrings are path/pattern heuristics kept as a second
+// layer of defence (M10.2 originals).
+var sandboxForbiddenSubstrings = []string{
 	"../", "..\\",
 	"~/.ssh", "~/.aws", "~/.gnupg", "~/.kube",
 	"/etc/passwd", "/etc/shadow", "/private/etc/",
 	"/var/log", "/proc/", "/sys/",
 }
 
-// validateSandboxedCommand returns an error if cmdString contains a forbidden
-// path or substring. This is a heuristic denylist — not airtight.
+// validateSandboxedCommand uses AST-based binary detection (M10.10) layered
+// on top of the M10.2 substring denylist.
 func validateSandboxedCommand(cmdString string) error {
+	scan := bashscan.Scan(cmdString)
+	if scan.ParseError != "" {
+		// Conservative: parse failure → reject when in sandbox mode.
+		return fmt.Errorf("sandbox: shell parse failed: %s", scan.ParseError)
+	}
+	// Block dangerous binaries.
+	if scan.HasBinary(forbiddenBinaries...) {
+		return fmt.Errorf("sandbox: command invokes forbidden binary in %v", scan.Binaries)
+	}
+	if scan.UsesSudo {
+		return fmt.Errorf("sandbox: sudo not allowed")
+	}
+	// Still apply M10.2 substring path heuristics as a second layer.
+	return validateSandboxedSubstrings(cmdString)
+}
+
+// validateSandboxedSubstrings keeps the M10.2 substring checks as a fallback.
+func validateSandboxedSubstrings(cmdString string) error {
 	lower := strings.ToLower(cmdString)
-	for _, sub := range sandboxForbidden {
+	for _, sub := range sandboxForbiddenSubstrings {
 		if strings.Contains(lower, sub) {
 			return fmt.Errorf("sandbox: command contains forbidden path/substring %q", sub)
 		}

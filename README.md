@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M10.9 complete (v0.10.8-dev). Self-check via `/version`. See `docs/superpowers/specs/` for design docs.
+> **Status**: M10.10 complete (v0.10.9-dev). Bash AST safety scan. See `docs/superpowers/specs/` for design docs.
 
 ## Input history
 
@@ -51,6 +51,7 @@ update/view loops.
 | M9.8      | `Diff.range` commit-range, `Format.paths` batch, per-nest subagent JSONL     | shipped  |
 | M9.9      | Model + path + visibility polish, KAIROS hook resolver, nested prefix chain  | shipped  |
 | M9.10     | Persistent input history (Up/Down nav), `/history` slash command             | shipped  |
+| M10.10    | Bash AST safety scan (`pkg/bashscan/`, sandbox binary denylist)              | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout
@@ -251,6 +252,17 @@ You can also reset automatically when compacting by passing `--reset-budget`:
 ```
 
 This resets the in-memory usage counter so the post-compact session starts fresh. The budget cap remains armed; usage will accumulate again from zero.
+
+## Bash sandbox
+
+Pass `sandbox: true` in the tool input to enable opt-in sandboxing for the `Bash` tool. Since M10.10 the sandbox runs two layers of validation:
+
+1. **AST scan** (`pkg/bashscan/`) — parses the script via `mvdan.cc/sh/v3/syntax` and blocks any command that invokes a forbidden binary: `sudo`, `doas`, `rm`, `dd`, `mkfs`, `mount`, `umount`, `chmod`, `chown`, `chroot`, `setuid`, `setgid`. Shell parse failures are also rejected (conservative fallback).
+2. **Substring denylist** (M10.2) — rejects commands containing sensitive path fragments (`../`, `~/.ssh`, `/etc/passwd`, `/proc/`, etc.).
+
+Additionally, sandboxed commands run with a restricted `PATH=/usr/bin:/bin:/usr/sbin:/sbin` and have sensitive environment variables (AWS_*, SSH_*, ANTHROPIC_API_KEY, etc.) stripped.
+
+Note: `$VAR`-style indirection (e.g. `$RM /tmp`) is not expanded by the AST scanner — the binary check would miss it. The restricted PATH mitigates this in practice.
 
 ## ContainerExec tool
 

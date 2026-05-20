@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.10.9-dev] — 2026-05-21
+
+M10.10 — Bash AST safety scan.
+
+### Added
+- `pkg/bashscan/` package — parses shell commands via mvdan.cc/sh/v3/syntax, extracts `Binaries`, `UsesSudo`, `UsesPipeOrChain`, `UsesRedirect`, `UsesSubshell` flags.
+- `bashscan.Scan(script)` returns a `*Result` with these fields; `ParseError` set on syntax failure.
+- `Result.HasBinary(names...)` convenience query.
+- Bash sandbox (M10.2's `sandbox: true`) now layers AST scan ON TOP of substring denylist:
+  - Forbidden binaries: sudo, doas, rm, dd, mkfs, mount, umount, chmod, chown, chroot, setuid, setgid
+  - Sudo blocked outright (UsesSudo + binary detection)
+  - Parse failures reject (conservative — sandbox mode only)
+  - Original M10.2 substring path checks still apply as second layer
+
+### Known issues / deferred
+- AST scan only runs in sandbox mode; non-sandboxed Bash still permits anything the permission gate allows.
+- Doesn't expand $VAR / $(cmd) — so `$RM /tmp` (where $RM=rm) passes the binary check. Mitigated by substring layer + restricted PATH.
+- Forbidden-binary list is fixed; not user-extensible via YAML yet.
+- New dep: mvdan.cc/sh/v3 (Go-pure, ~30KB compiled).
+
 ## [0.10.8-dev] — 2026-05-21
 
 M10.9 — Update self-check.

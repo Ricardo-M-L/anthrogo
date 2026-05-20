@@ -86,3 +86,27 @@ func TestBash_NonSandboxKeepsEnv(t *testing.T) {
 	require.False(t, res.IsError)
 	require.Contains(t, res.Text, "sentinel-passthrough")
 }
+
+// --- M10.10 AST scan sandbox tests ---
+
+func TestBash_SandboxRejectsForbiddenBinary(t *testing.T) {
+	res, _ := (&Bash{}).Call(context.Background(), map[string]any{
+		"command": "rm /tmp/foo", "sandbox": true,
+	}, nil)
+	require.True(t, res.IsError)
+	require.Contains(t, res.Text, "forbidden binary")
+}
+
+func TestBash_SandboxRejectsSudo(t *testing.T) {
+	res, _ := (&Bash{}).Call(context.Background(), map[string]any{
+		"command": "sudo ls", "sandbox": true,
+	}, nil)
+	require.True(t, res.IsError)
+}
+
+func TestBash_SandboxParseFailureRejected(t *testing.T) {
+	res, _ := (&Bash{}).Call(context.Background(), map[string]any{
+		"command": "if then else", "sandbox": true,
+	}, nil)
+	require.True(t, res.IsError)
+}
