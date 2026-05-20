@@ -36,6 +36,19 @@ func (r *Registry) List() []Skill {
 	return out
 }
 
+// Add inserts s into the registry if no skill with that name exists.
+// Returns true if added, false if a same-named skill was already present
+// (in which case s is discarded).
+func (r *Registry) Add(s Skill) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.skills[s.Name]; exists {
+		return false
+	}
+	r.skills[s.Name] = s
+	return true
+}
+
 func (r *Registry) Reload(homeRoot, cwdRoot string) ([]string, error) {
 	skills, warnings, err := LoadAll(homeRoot, cwdRoot)
 	if err != nil {

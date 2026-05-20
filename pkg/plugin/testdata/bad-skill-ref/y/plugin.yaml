@@ -1,0 +1,5 @@
+name: y
+version: 0.1.0
+description: bad skill ref test
+skills:
+  - dir: skills/nope

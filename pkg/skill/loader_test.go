@@ -85,7 +85,7 @@ func TestLoadAll_BothRootsMissing_NoError(t *testing.T) {
 
 func TestSplitFrontmatter_PreservesHorizontalRulesInBody(t *testing.T) {
 	raw := []byte("---\nname: x\ndescription: y\n---\n# Heading\n\n---\n\nmore body\n")
-	fm, body, ok := splitFrontmatter(raw)
+	fm, body, ok := SplitFrontmatter(raw)
 	require.True(t, ok)
 	require.Contains(t, string(fm), "name: x")
 	require.Contains(t, string(body), "# Heading")
@@ -95,7 +95,7 @@ func TestSplitFrontmatter_PreservesHorizontalRulesInBody(t *testing.T) {
 
 func TestSplitFrontmatter_EmptyBody(t *testing.T) {
 	raw := []byte("---\nname: x\ndescription: y\n---\n")
-	_, body, ok := splitFrontmatter(raw)
+	_, body, ok := SplitFrontmatter(raw)
 	require.True(t, ok)
 	require.Equal(t, "", string(body))
 }
@@ -103,7 +103,7 @@ func TestSplitFrontmatter_EmptyBody(t *testing.T) {
 func TestSplitFrontmatter_HandlesCRLF(t *testing.T) {
 	// Build a CRLF SKILL.md
 	crlf := "---\r\nname: git-flow\r\ndescription: test\r\n---\r\n\r\nBody here.\r\n"
-	fm, body, ok := splitFrontmatter([]byte(crlf))
+	fm, body, ok := SplitFrontmatter([]byte(crlf))
 	require.True(t, ok)
 	require.Contains(t, string(fm), "name: git-flow")
 	require.Contains(t, string(body), "Body here")

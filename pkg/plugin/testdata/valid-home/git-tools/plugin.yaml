@@ -1,0 +1,20 @@
+name: git-tools
+version: 0.1.0
+description: branch helpers
+commands:
+  - name: /new-branch
+    type: local-prompt
+    description: Start a new feature branch
+    body: |
+      Create a new branch off main using the team naming convention.
+skills:
+  - dir: skills/git-flow
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      command: hooks/audit.sh
+      timeout: 10s
+mcpServers:
+  fs:
+    command: /bin/echo
+    args: ["mcp-fake"]

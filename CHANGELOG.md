@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.4.3-dev] — 2026-05-20
+
+M4.4 — Plugins (third-party content bundles).
+
+### Added
+- `pkg/plugin/` package: Plugin struct + Manifest parser + DynamicCommand + Loader + Registry.
+- Layout: `~/.anthrogo/plugins/<name>/plugin.yaml` (home) + `<cwd>/.anthrogo/plugins/<name>/plugin.yaml` (project; overrides home).
+- Manifest contributes 4 kinds: commands (type local/local-prompt/submit + body), skills (by directory ref), hooks (path-resolved relative to plugin root, then merged via `hooks.Config.AppendOverlay`), mcpServers (keys namespaced `<plugin>:<name>` to avoid collisions).
+- `/plugin` slash command: list, info <name>, reload, install <path>, remove <name>.
+- `command.Host.Plugins() any` accessor (typed as `any` to break import cycle; callers type-assert to `*plugin.Registry`); `tui.Options.Plugins`.
+- `skill.Registry.Add(Skill)` for plugin skill contributions.
+- Loader emits warnings + skips on: missing/malformed plugin.yaml, name regex / mismatch, broken skill dir refs.
+
+### Changed
+- Startup order: plugin loading happens AFTER skills/perms/config but BEFORE `hookMgr` construction so manager sees the combined hook config.
+- Plugin MCP server keys carry plugin namespace prefix (`<plugin>:<key>`).
+
+### Known issues / deferred
+- Remote install (git/npm) — M5.
+- Sandbox per-plugin processes — long-term.
+- Plugin reload doesn't rebuild model's system prompt, doesn't restart MCP / hook manager; restart anthrogo to surface contribution changes.
+- No plugin dependency declarations / version pinning.
+
 ## [0.4.2-dev] — 2026-05-20
 
 M4.3 — Skills (markdown + frontmatter, model-invoked).

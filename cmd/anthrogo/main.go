@@ -25,6 +25,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/command/builtins"
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
+	"github.com/ricardo/anthrogo/pkg/plugin"
 	"github.com/ricardo/anthrogo/pkg/provider/anthropic"
 	"github.com/ricardo/anthrogo/pkg/skill"
 	"github.com/ricardo/anthrogo/pkg/tool"
@@ -126,6 +127,39 @@ func main() {
 				fmt.Fprintln(os.Stderr, "skills:", w)
 			}
 			skillReg := skill.NewRegistry(loadedSkills)
+
+			// Load plugins from ~/.anthrogo/plugins/ and <cwd>/.anthrogo/plugins/.
+			homePluginsRoot := filepath.Join(os.Getenv("HOME"), ".anthrogo", "plugins")
+			cwdPluginsRoot := filepath.Join(cwd, ".anthrogo", "plugins")
+			loadedPlugins, pluginWarnings, _ := plugin.LoadAll(homePluginsRoot, cwdPluginsRoot)
+			for _, w := range pluginWarnings {
+				fmt.Fprintln(os.Stderr, "plugins:", w)
+			}
+			pluginReg := plugin.NewRegistry(loadedPlugins)
+
+			// Merge plugin skill contributions into the skill registry.
+			for _, p := range loadedPlugins {
+				for _, s := range p.Skills {
+					if !skillReg.Add(s) {
+						fmt.Fprintf(os.Stderr, "plugins: skill %s from %s skipped (already loaded)\n", s.Name, p.Name)
+					}
+				}
+			}
+
+			// Merge plugin hook contributions into cfg.Hooks BEFORE hookMgr is built.
+			for _, p := range loadedPlugins {
+				cfg.Hooks = cfg.Hooks.AppendOverlay(p.Hooks)
+			}
+			for _, w := range cfg.Hooks.Validate() {
+				fmt.Fprintln(os.Stderr, "hooks (after plugins):", w)
+			}
+
+			// Merge plugin MCP server contributions.
+			for _, p := range loadedPlugins {
+				for name, mcfg := range p.MCPServers {
+					mcpMgr.AddServer(name, mcfg)
+				}
+			}
 
 			tools := registerTools(cfg)
 			for _, t := range mcpMgr.AllTools() {
@@ -234,6 +268,16 @@ func main() {
 			}
 
 			cmds := registerCommands(homeSkillsRoot, cwdSkillsRoot)
+			// Register plugin commands; warn on duplicates (last-writer-wins).
+			for _, p := range loadedPlugins {
+				for _, c := range p.Commands {
+					if _, exists := cmds.Lookup(c.Name()); exists {
+						fmt.Fprintf(os.Stderr, "plugins: command %s from %s shadows an existing command\n", c.Name(), p.Name)
+					}
+					cmds.Register(c)
+				}
+			}
+			cmds.Register(builtins.Plugin{HomeRoot: homePluginsRoot, CwdRoot: cwdPluginsRoot})
 			app := tui.New(tui.Options{
 				Provider:        p,
 				Tools:           tools,
@@ -249,6 +293,7 @@ func main() {
 				MCP:             mcpMgr,
 				Hooks:           hookMgr,
 				Skills:          skillReg,
+				Plugins:         pluginReg,
 			})
 			program := tea.NewProgram(app, tea.WithAltScreen())
 			app.SetProgram(program)

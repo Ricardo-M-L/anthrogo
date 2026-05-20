@@ -47,6 +47,9 @@ type Options struct {
 	MCP             *mcp.Manager
 	Hooks           PromptHookSink
 	Skills          *skill.Registry
+	// Plugins is the *plugin.Registry. Typed as any to avoid an import cycle
+	// between tui and pkg/plugin (which imports pkg/command which tui uses).
+	Plugins any
 }
 
 // serverLogMsg is dispatched via tea.Program.Send from AppendServerLog so that
@@ -320,6 +323,7 @@ func (a *App) Cwd() string                       { return a.opts.Cwd }
 func (a *App) Registry() *command.Registry       { return a.cmdReg }
 func (a *App) MCP() *mcp.Manager                 { return a.opts.MCP }
 func (a *App) Skills() *skill.Registry           { return a.opts.Skills }
+func (a *App) Plugins() any                      { return a.opts.Plugins }
 
 // SetProgram must be called with the tea.Program before Run so that
 // AppendServerLog can route through Program.Send instead of mutating chat

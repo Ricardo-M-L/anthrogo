@@ -173,6 +173,49 @@ Project-level `<cwd>/.anthrogo/skills/<name>/SKILL.md` overrides a same-named ho
 
 **Trust:** the body of a SKILL.md becomes part of the prompt sent to the model when invoked. A malicious skill can instruct the model to leak data, exfiltrate files, or trigger side effects — though every action still flows through anthrogo's tool permission gate. Only install skills from sources you trust.
 
+## Plugins
+
+A Plugin is a directory bundling one or more of: slash commands, skills, hook configurations, MCP server configurations. Install by copying into `~/.anthrogo/plugins/` or via `/plugin install <local-path>`:
+
+```
+~/.anthrogo/plugins/git-tools/
+├── plugin.yaml         # required manifest
+├── skills/
+│   └── git-flow/SKILL.md
+└── hooks/audit.sh
+```
+
+`plugin.yaml`:
+
+```yaml
+name: git-tools
+version: 0.1.0
+description: Branch + PR helpers
+commands:
+  - name: /new-branch
+    type: local-prompt
+    body: |
+      Start a new feature branch off main.
+skills:
+  - dir: skills/git-flow
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      command: hooks/audit.sh
+mcpServers:
+  fs:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+```
+
+> Plugin-contributed MCP server keys are prefixed with `<plugin-name>:` at runtime to prevent collisions. So `git-tools`'s `fs:` server surfaces as tools like `mcp__git-tools:fs__read_file`. Use `/mcp` to inspect.
+
+Project-level `<cwd>/.anthrogo/plugins/<name>/` overrides a same-named home plugin.
+
+Manage with `/plugin` (list), `/plugin info <name>`, `/plugin reload`, `/plugin install <local-path>`, `/plugin remove <name>`. After install/remove anthrogo must be restarted for commands / skills / MCP-server / hook contributions to take effect at runtime.
+
+**Trust:** Plugins execute shell commands (via hooks), spawn subprocesses (via MCP), and inject text into the model's prompt (via skills + commands). **Installing a plugin = trusting its author.** Every action still flows through anthrogo's existing permission gate, but the model's reasoning is fully influenceable by anything the plugin injects.
+
 ## Compaction
 
 For long sessions, `/compact` summarizes earlier turns to cut token cost:

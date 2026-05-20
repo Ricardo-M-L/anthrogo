@@ -72,7 +72,7 @@ func loadDir(root, source string) ([]Skill, []string) {
 			warnings = append(warnings, fmt.Sprintf("skill %q: no SKILL.md", name))
 			continue
 		}
-		fm, body, ok := splitFrontmatter(raw)
+		fm, body, ok := SplitFrontmatter(raw)
 		if !ok {
 			warnings = append(warnings, fmt.Sprintf("skill %q: missing or malformed frontmatter", name))
 			continue
@@ -106,8 +106,8 @@ func loadDir(root, source string) ([]Skill, []string) {
 	return skills, warnings
 }
 
-// splitFrontmatter separates the leading "---\n...\n---\n" block.
-func splitFrontmatter(raw []byte) (frontmatterBytes, body []byte, ok bool) {
+// SplitFrontmatter separates the leading "---\n...\n---\n" block.
+func SplitFrontmatter(raw []byte) (frontmatterBytes, body []byte, ok bool) {
 	s := string(raw)
 	if !strings.HasPrefix(s, "---\n") && !strings.HasPrefix(s, "---\r\n") {
 		return nil, nil, false

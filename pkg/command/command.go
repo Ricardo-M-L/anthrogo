@@ -43,6 +43,10 @@ type Host interface {
 	Registry() *Registry
 	MCP() *mcp.Manager
 	Skills() *skill.Registry
+	// Plugins returns the *plugin.Registry. Typed as any to break the
+	// command ↔ plugin import cycle. Callers in pkg/command/builtins
+	// import pkg/plugin directly and type-assert the value.
+	Plugins() any
 }
 
 type Result struct {
