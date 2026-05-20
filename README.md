@@ -3,7 +3,9 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M11.3 complete (v0.11.2-dev). Plugin remote install via URL/git. See `docs/superpowers/specs/` for design docs.
+**Documentation:** https://Ricardo-M-L.github.io/anthrogo/
+
+> **Status**: M11.4 complete (v0.11.3-dev). mkdocs documentation site. See `docs/superpowers/specs/` for design docs.
 
 ## Input history
 

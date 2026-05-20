@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.11.3-dev] — 2026-05-21
+
+M11.4 — mkdocs documentation site.
+
+### Added
+- `mkdocs.yml` + `docs/` tree — Material theme; navigation organized by Getting started / Features / Providers / Reference.
+- `.github/workflows/docs.yml` — auto-build + deploy to GitHub Pages on push to main affecting `docs/` or `mkdocs.yml`.
+- Per-feature stub pages currently link back to README sections; will get full coverage over time.
+
+### Known issues / deferred
+- Stub pages are short — full feature docs migrating from README incrementally.
+- No mkdocs-include-file plugin yet, so changelog page links to CHANGELOG.md rather than embedding.
+- No versioning of docs across releases (Material's mike plugin handles this — defer).
+- No search-only-of-docs (relies on Material's built-in search index).
+
 ## [0.11.2-dev] — 2026-05-21
 
 M11.3 — Plugin remote install.

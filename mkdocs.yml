@@ -1,0 +1,76 @@
+site_name: anthrogo
+site_description: A Go port of Anthropic's Claude Code CLI
+site_url: https://Ricardo-M-L.github.io/anthrogo/
+repo_url: https://github.com/Ricardo-M-L/anthrogo
+repo_name: Ricardo-M-L/anthrogo
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Getting started:
+    - Installation: install.md
+    - First run: first-run.md
+    - Configuration: configuration.md
+  - Features:
+    - Tools: tools.md
+    - Hooks: hooks.md
+    - Skills: skills.md
+    - Plugins: plugins.md
+    - Subagents: subagents.md
+    - Sessions: sessions.md
+    - MCP: mcp.md
+    - Compaction: compaction.md
+    - Cost tracking: cost.md
+    - KAIROS: kairos.md
+  - Providers:
+    - Anthropic: providers/anthropic.md
+    - OpenAI-compat: providers/openai.md
+    - Bedrock: providers/bedrock.md
+    - Vertex: providers/vertex.md
+    - Failover: providers/failover.md
+  - Reference:
+    - CLI flags: reference/cli.md
+    - Slash commands: reference/commands.md
+    - Settings YAML: reference/yaml.md
+    - Roadmap: reference/roadmap.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Ricardo-M-L/anthrogo
