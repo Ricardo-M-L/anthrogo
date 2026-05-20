@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 
 // ContainerExec runs a command inside a docker or podman container.
 // M10.7: provides real OS-level isolation vs M10.2 Bash sandbox's env scrubbing.
+// M11.7: adds pull_policy, gpu, user, workdir, and separate stdout/stderr capture.
 type ContainerExec struct{ DefaultPermission }
 
 func (ContainerExec) Name() string { return "ContainerExec" }
@@ -59,6 +61,22 @@ func (ContainerExec) Schema() map[string]any {
 				"type":        "integer",
 				"description": "Default 120000.",
 			},
+			"pull_policy": map[string]any{
+				"type":        "string",
+				"description": "always | missing (default) | never",
+			},
+			"gpu": map[string]any{
+				"type":        "boolean",
+				"description": "Add --gpus all (NVIDIA Container Toolkit required).",
+			},
+			"user": map[string]any{
+				"type":        "string",
+				"description": "Run as <uid>:<gid> or username inside container.",
+			},
+			"workdir": map[string]any{
+				"type":        "string",
+				"description": "Initial working directory inside container.",
+			},
 		},
 		"required": []string{"image", "command"},
 	}
@@ -86,7 +104,24 @@ func (*ContainerExec) Call(ctx context.Context, input map[string]any, tcx *Conte
 	runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
 	defer cancel()
 
+	// Handle pull_policy before building run args.
+	pullPolicy, _ := input["pull_policy"].(string)
+	if pullPolicy == "always" {
+		pullCtx, pullCancel := context.WithTimeout(runCtx, 10*time.Minute)
+		pullCmd := exec.CommandContext(pullCtx, runtime, "pull", image)
+		if out, err := pullCmd.CombinedOutput(); err != nil {
+			pullCancel()
+			msg := "containerexec: pull failed: " + string(out)
+			return Result{Type: ResultText, Text: msg, ForLLM: msg, IsError: true}, nil
+		}
+		pullCancel()
+	}
+
 	args := []string{"run", "--rm", "-i"}
+
+	if pullPolicy == "never" {
+		args = append(args, "--pull", "never")
+	}
 
 	network, _ := input["network"].(string)
 	if network == "" {
@@ -126,18 +161,53 @@ func (*ContainerExec) Call(ctx context.Context, input map[string]any, tcx *Conte
 		}
 	}
 
+	if gpu, _ := input["gpu"].(bool); gpu {
+		args = append(args, "--gpus", "all")
+	}
+	if u, _ := input["user"].(string); u != "" {
+		args = append(args, "--user", u)
+	}
+	if wd, _ := input["workdir"].(string); wd != "" {
+		args = append(args, "--workdir", wd)
+	}
+
 	args = append(args, image, "/bin/sh", "-c", cmd)
 	runner := exec.CommandContext(runCtx, runtime, args...)
-	out, err := runner.CombinedOutput()
-	text := string(out)
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	runner.Stdout = &stdoutBuf
+	runner.Stderr = &stderrBuf
+	err := runner.Run()
+	out := stdoutBuf.String()
+	errOut := stderrBuf.String()
+
+	// Combine into Result text: stdout body, then stderr footer if non-empty.
+	text := out
+	if errOut != "" {
+		if text != "" {
+			text += "\n"
+		}
+		text += "--- stderr ---\n" + errOut
+	}
+
+	exitCode := 0
+	if runner.ProcessState != nil {
+		exitCode = runner.ProcessState.ExitCode()
+	}
+
+	data := map[string]any{
+		"stdout":    out,
+		"stderr":    errOut,
+		"exit_code": exitCode,
+	}
 
 	if runCtx.Err() == context.DeadlineExceeded {
 		msg := text + "\n[timeout after " + fmt.Sprintf("%d", timeoutMs) + "ms]"
-		return Result{Type: ResultText, Text: msg, ForLLM: msg, IsError: true}, nil
+		return Result{Type: ResultText, Text: msg, ForLLM: msg, IsError: true, Data: data}, nil
 	}
 	if err != nil {
 		msg := text + "\n[exit error: " + err.Error() + "]"
-		return Result{Type: ResultText, Text: msg, ForLLM: msg, IsError: true}, nil
+		return Result{Type: ResultText, Text: msg, ForLLM: msg, IsError: true, Data: data}, nil
 	}
-	return Result{Type: ResultText, Text: text, ForLLM: text}, nil
+	return Result{Type: ResultText, Text: text, ForLLM: text, Data: data}, nil
 }

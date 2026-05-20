@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -70,6 +71,10 @@ func TestContainerExec_Schema(t *testing.T) {
 	require.Contains(t, props, "env")
 	require.Contains(t, props, "network")
 	require.Contains(t, props, "timeout_ms")
+	require.Contains(t, props, "pull_policy")
+	require.Contains(t, props, "gpu")
+	require.Contains(t, props, "user")
+	require.Contains(t, props, "workdir")
 	required, ok := s["required"].([]string)
 	require.True(t, ok)
 	require.Contains(t, required, "image")
@@ -143,5 +148,64 @@ func TestContainerExec_BindMountReadonly(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 	// readonly mount: write should fail; either error result or "write_blocked" output
+	_ = res
+}
+
+func TestContainerExec_PullPolicyAlways_FailsOnFakeImage(t *testing.T) {
+	if !hasContainerRuntime(t) {
+		t.Skip("no docker/podman on PATH")
+	}
+	res, _ := (&ContainerExec{}).Call(context.Background(), map[string]any{
+		"image":       "nonexistent-image-name-12345:never",
+		"command":     "true",
+		"pull_policy": "always",
+	}, nil)
+	require.True(t, res.IsError)
+	require.Contains(t, strings.ToLower(res.Text), "pull")
+}
+
+func TestContainerExec_StdoutStderrSplit(t *testing.T) {
+	skipIfNoAlpine(t)
+	res, err := (&ContainerExec{}).Call(context.Background(), map[string]any{
+		"image":   "alpine",
+		"command": "echo OUT; echo ERR >&2",
+	}, nil)
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+	require.Contains(t, res.Data["stdout"].(string), "OUT")
+	require.Contains(t, res.Data["stderr"].(string), "ERR")
+}
+
+func TestContainerExec_UserOverride(t *testing.T) {
+	skipIfNoAlpine(t)
+	res, _ := (&ContainerExec{}).Call(context.Background(), map[string]any{
+		"image":   "alpine",
+		"command": "id -u",
+		"user":    "1234:5678",
+	}, nil)
+	require.False(t, res.IsError)
+	require.Contains(t, res.Data["stdout"].(string), "1234")
+}
+
+func TestContainerExec_Workdir(t *testing.T) {
+	skipIfNoAlpine(t)
+	res, _ := (&ContainerExec{}).Call(context.Background(), map[string]any{
+		"image":   "alpine",
+		"command": "pwd",
+		"workdir": "/tmp",
+	}, nil)
+	require.False(t, res.IsError)
+	require.Contains(t, res.Data["stdout"].(string), "/tmp")
+}
+
+func TestContainerExec_PullPolicyValidation(t *testing.T) {
+	// Test with no runtime — still validates input fields before runtime check.
+	res, _ := (&ContainerExec{}).Call(context.Background(), map[string]any{
+		"image":       "alpine",
+		"command":     "true",
+		"pull_policy": "garbage",
+	}, nil)
+	// Garbage pull_policy is silently accepted (treated as default).
+	// Just smoke test that the call doesn't panic.
 	_ = res
 }

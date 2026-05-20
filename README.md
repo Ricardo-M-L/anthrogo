@@ -363,9 +363,20 @@ input:
   env:
     MY_VAR: hello
   timeout_ms: 30000
+  pull_policy: missing   # always | missing (default) | never
+  gpu: false             # true adds --gpus all (requires NVIDIA Container Toolkit)
+  user: "1000:1000"      # run as <uid>:<gid> or username inside container
+  workdir: /app          # initial working directory inside container
 ```
 
-Requirements: `docker` or `podman` must be on PATH. Image must be available locally or pullable (ContainerExec does not pre-pull — if the image is absent docker will pull it on first call).
+**pull_policy** controls image pulling behaviour:
+- `always` — runs `docker/podman pull <image>` before `run` (10-minute timeout); returns an error if pull fails.
+- `never` — passes `--pull never`; fails immediately if the image is not locally cached.
+- `missing` (default) — lets the container runtime decide (pull only if not cached).
+
+**Stdout / stderr** are captured separately. `Result.Text` shows stdout; if stderr is non-empty it is appended after a `--- stderr ---` separator. Programmatic callers can read `Result.Data["stdout"]`, `Result.Data["stderr"]`, and `Result.Data["exit_code"]`.
+
+Requirements: `docker` or `podman` must be on PATH.
 
 ## Background task tools (M11.2)
 

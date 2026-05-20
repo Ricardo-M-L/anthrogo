@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.11.6-dev] — 2026-05-21
+
+M11.7 — ContainerExec enhancements.
+
+### Added
+- `ContainerExec.pull_policy`: `always` runs `docker/podman pull` before the run (10min timeout); `never` adds `--pull never`; missing/default = runtime's default.
+- `ContainerExec.gpu` bool — adds `--gpus all` (requires NVIDIA Container Toolkit on docker; podman has its own GPU args, untested here).
+- `ContainerExec.user` — `--user <uid>:<gid>` or username override.
+- `ContainerExec.workdir` — `--workdir` inside the container.
+- Stdout / stderr now captured separately; `Result.Text` shows stdout with stderr appended under `--- stderr ---` footer when non-empty. `Result.Data` exposes `{stdout, stderr, exit_code}` for programmatic callers.
+
+### Known issues / deferred
+- `pull_policy: always` blocks on the pull; large images can timeout at 10min.
+- `gpu: true` requires NVIDIA Container Toolkit; no AMD GPU support; no per-GPU selection.
+- No interactive mode (`-it`); tools that need stdin still won't work cleanly.
+
 ## [0.11.5-dev] — 2026-05-21
 
 M11.6 — Speech I/O tools.
