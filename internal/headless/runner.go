@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/ricardo/anthrogo/internal/session"
+	"github.com/ricardo/anthrogo/pkg/command"
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/pricing"
@@ -58,6 +60,28 @@ type Options struct {
 
 	// CostLimitUSD, when > 0, enables hard budget enforcement via IsOverBudget().
 	CostLimitUSD float64
+}
+
+// RunExecRequest executes a command.ExecRequest in headless mode: the subprocess
+// inherits stdio so an editor (or any interactive program) can paint the terminal
+// directly. OnComplete is called after the process exits, and the returned status
+// string (if any) is written to stdout.
+//
+// Callers that dispatch slash commands in headless mode should call this after
+// checking result.ExecCmd != nil.
+func RunExecRequest(req *command.ExecRequest, stdout io.Writer) {
+	if req == nil || req.Cmd == nil {
+		return
+	}
+	req.Cmd.Stdin = os.Stdin
+	req.Cmd.Stdout = os.Stdout
+	req.Cmd.Stderr = os.Stderr
+	err := req.Cmd.Run()
+	if req.OnComplete != nil {
+		if msg := req.OnComplete(err); msg != "" {
+			fmt.Fprintln(stdout, msg)
+		}
+	}
 }
 
 // Run executes one prompt and writes the assistant's final text to Stdout.

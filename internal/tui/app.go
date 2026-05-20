@@ -79,6 +79,10 @@ type serverLogMsg struct{ server, msg string }
 // chat mutations always happen on the bubbletea Update goroutine.
 type hookLogMsg struct{ event, msg string }
 
+// execCompleteMsg is sent after tea.ExecProcess returns from a subprocess
+// (e.g. $EDITOR). The string payload is the OnComplete-returned status line.
+type execCompleteMsg string
+
 type App struct {
 	theme      Theme
 	chat       chat
@@ -238,7 +242,28 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				res, err := cmd.Run(context.Background(), args, a)
 				if err != nil {
 					a.chat.appendError(err.Error())
-				} else if res.Text != "" {
+					a.input.setEnabled(true)
+					return a, nil
+				}
+				if res.ExecCmd != nil && res.ExecCmd.Cmd != nil {
+					// Suspend the TUI, run the editor, resume on exit.
+					if res.Text != "" {
+						a.chat.appendError(res.Text)
+					}
+					onComplete := res.ExecCmd.OnComplete
+					execCmd := tea.ExecProcess(res.ExecCmd.Cmd, func(execErr error) tea.Msg {
+						status := ""
+						if onComplete != nil {
+							status = onComplete(execErr)
+						} else if execErr != nil {
+							status = "exec error: " + execErr.Error()
+						}
+						return execCompleteMsg(status)
+					})
+					a.input.setEnabled(true)
+					return a, execCmd
+				}
+				if res.Text != "" {
 					a.chat.appendError(res.Text)
 				}
 				a.input.setEnabled(true)
@@ -282,6 +307,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case hookLogMsg:
 		a.chat.appendHookLog(m.event, m.msg)
+		return a, nil
+
+	case execCompleteMsg:
+		if string(m) != "" {
+			a.chat.appendError(string(m))
+		}
 		return a, nil
 
 	case tickMsg:

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -98,10 +99,22 @@ func editSystem(overlayPath, label string) (command.Result, error) {
 	if editor == "" {
 		editor = "vi"
 	}
-	return command.Result{Text: fmt.Sprintf(
-		"Edit your %s overlay outside anthrogo:\n  %s %s\nor open %s in any editor.\nChanges take effect when anthrogo restarts.",
-		label, editor, overlayPath, overlayPath,
-	)}, nil
+	cmd := exec.Command(editor, overlayPath)
+	return command.Result{
+		Text: fmt.Sprintf("opening %s overlay in %s...", label, editor),
+		ExecCmd: &command.ExecRequest{
+			Cmd: cmd,
+			OnComplete: func(err error) string {
+				if err != nil {
+					return fmt.Sprintf("editor (%s overlay) exited with error: %v", label, err)
+				}
+				if info, statErr := os.Stat(overlayPath); statErr == nil {
+					return fmt.Sprintf("%s overlay saved (%d bytes). Effective next turn (current engine's system prompt is frozen for this session).", label, info.Size())
+				}
+				return fmt.Sprintf("%s overlay saved.", label)
+			},
+		},
+	}, nil
 }
 
 func resetSystem(overlayPath, label string) (command.Result, error) {

@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"os/exec"
 
 	"github.com/ricardo/anthrogo/internal/mcp"
 	"github.com/ricardo/anthrogo/internal/session"
@@ -51,7 +52,19 @@ type Host interface {
 	Plugins() any
 }
 
+// ExecRequest describes an editor / subprocess launch that the TUI should
+// handle via tea.ExecProcess. After the process exits, OnComplete (if non-nil)
+// is invoked on the bubbletea goroutine with the exit error (or nil).
+type ExecRequest struct {
+	Cmd        *exec.Cmd
+	OnComplete func(err error) string // returns a chat-appendable status message
+}
+
 type Result struct {
 	Text       string
 	SubmitText string
+	// ExecCmd, when non-nil, is a subprocess the surface (TUI) should run via
+	// bubbletea's tea.ExecProcess wrapper. Headless surfaces run the *exec.Cmd
+	// directly with inherited stdio. Both surfaces call OnComplete after exit.
+	ExecCmd *ExecRequest
 }

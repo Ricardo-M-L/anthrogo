@@ -45,7 +45,9 @@ func TestSystem_EditCreatesSeedFile(t *testing.T) {
 	tmpCwd := t.TempDir()
 	h := newFakeHost()
 	res, _ := makeSystem(tmpHome, tmpCwd).Run(context.Background(), "edit", h)
-	require.Contains(t, res.Text, "Edit your home overlay")
+	require.Contains(t, res.Text, "opening")
+	require.NotNil(t, res.ExecCmd)
+	require.NotNil(t, res.ExecCmd.Cmd)
 	_, err := os.Stat(filepath.Join(tmpHome, ".anthrogo", "system_overlay.md"))
 	require.NoError(t, err)
 }
@@ -96,7 +98,9 @@ func TestSystem_EditProject(t *testing.T) {
 	h := newFakeHost()
 	res, err := makeSystem(tmpHome, tmpCwd).Run(context.Background(), "edit project", h)
 	require.NoError(t, err)
-	require.Contains(t, res.Text, "Edit your project overlay")
+	require.Contains(t, res.Text, "opening")
+	require.NotNil(t, res.ExecCmd)
+	require.NotNil(t, res.ExecCmd.Cmd)
 	_, err = os.Stat(filepath.Join(tmpCwd, ".anthrogo", "system_overlay.md"))
 	require.NoError(t, err)
 }
@@ -114,4 +118,15 @@ func TestSystem_ResetProject(t *testing.T) {
 	require.True(t, os.IsNotExist(err))
 }
 
+func TestSystem_EditReturnsExecCmd(t *testing.T) {
+	tmpHome := t.TempDir()
+	h := newFakeHost()
+	res, _ := System{
+		HomeOverlayPath:    filepath.Join(tmpHome, ".anthrogo", "system_overlay.md"),
+		ProjectOverlayPath: filepath.Join(tmpHome, "proj", ".anthrogo", "system_overlay.md"),
+	}.Run(context.Background(), "edit", h)
+	require.NotNil(t, res.ExecCmd)
+	require.NotNil(t, res.ExecCmd.Cmd)
+	require.Contains(t, res.Text, "opening")
+}
 

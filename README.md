@@ -107,12 +107,12 @@ Manage them with the `/system` builtin:
 | Command | Effect |
 |---------|--------|
 | `/system show` | Print the active system prompt, then both overlay files with their paths |
-| `/system edit` or `/system edit home` | Edit the home overlay (default) |
-| `/system edit project` | Edit the project overlay for the current cwd |
+| `/system edit` or `/system edit home` | Open `$EDITOR` on the home overlay inline (TUI suspends, editor runs, TUI resumes) |
+| `/system edit project` | Open `$EDITOR` on the project overlay inline |
 | `/system reset` or `/system reset home` | Remove the home overlay (effective next session) |
 | `/system reset project` | Remove the project overlay (effective next session) |
 
-Each overlay file is created with a seed comment the first time the corresponding `/system edit` is run. Changes take effect when anthrogo restarts.
+Each overlay file is created with a seed comment the first time the corresponding `/system edit` is run. The editor opens inline via bubbletea's `ExecProcess`; the TUI suspends, you edit, save and quit the editor, and the TUI resumes with a status message showing how many bytes were saved. Changes apply on the **next** conversation turn (the engine's system prompt for the current session is frozen at startup).
 
 ## Cost tracking
 

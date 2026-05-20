@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.8-dev] — 2026-05-20
+
+M8.8 — Inline $EDITOR via tea.ExecProcess.
+
+### Added
+- `command.Result.ExecCmd *ExecRequest` — slash commands can now request a subprocess be launched (typically a $EDITOR). TUI suspends bubbletea via tea.ExecProcess, runs the cmd, resumes the screen, then appends an OnComplete-returned status to the chat. Headless mode exposes `headless.RunExecRequest` to run the cmd directly with inherited stdio.
+- `/system edit` and `/system edit project` now actually open `$EDITOR <overlay-path>` from inside anthrogo without restart. Overlay saves are reported back in the chat.
+
+### Known issues / deferred
+- Overlay edits still apply on the NEXT turn (the engine's system prompt for the current session is frozen at startup). Future could re-resolve the overlay on every turn boundary.
+- $EDITOR uses inherited stdio; if EDITOR is a complex modal editor that paints, your terminal scroll history during the edit is captured into bubbletea's restoration.
+- No editor-quit detection beyond exit status.
+
 ## [0.8.7-dev] — 2026-05-20
 
 M8.7 — WebSocket subprotocol + YAML HTTPHeader.
