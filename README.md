@@ -645,6 +645,33 @@ For every tool call the engine consults `permissions.Decide`:
 5. `alwaysAsk` rules → ask (prompt the user).
 6. Otherwise → ask (TUI shows a modal) / deny (headless when `ShouldAvoidPrompts`).
 
+## Development
+
+Run `make help` to see all available targets:
+
+```
+  help          Show this help.
+  build         Build anthrogo for the current platform.
+  test          Run all unit + integration tests.
+  race          Run race detector on hot packages.
+  sweep         3x uncached test sweep (catches flakes).
+  vet           go vet all packages.
+  lint          Run golangci-lint (install first via 'brew install golangci-lint' if missing).
+  fmt           Format Go code.
+  clean         Remove build artifacts.
+  install       go install to $GOPATH/bin.
+  release       Cross-compile release binaries for darwin/linux × amd64/arm64.
+```
+
+`make build` stamps the binary with the version from `internal/version/version.go` via `-ldflags`. `make release` produces version-named binaries under `dist/` for all four platforms (darwin/linux × amd64/arm64).
+
+### CI
+
+`.github/workflows/ci.yml` runs on every push and PR to `main`:
+
+- **test** job — matrix over `ubuntu-latest` + `macos-latest`: `go build ./...`, `go vet ./...`, `go test ./...`, then a race-detector pass on the hot packages.
+- **lint** job — `ubuntu-latest` only: `golangci-lint` (config in `.golangci.yml`).
+
 ## License
 
 Source code Anthropic-attributed in the reference repo. This port is for

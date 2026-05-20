@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.10-dev] — 2026-05-21
+
+M9.11 — CI + lint + Makefile.
+
+### Added
+- `.github/workflows/ci.yml` — GitHub Actions: build / vet / test (Linux + macOS matrix), race detector on hot packages, golangci-lint pass on Ubuntu.
+- `.golangci.yml` — config: errcheck (with stdlib write exemptions), govet (shadow enabled, fieldalignment off), ineffassign, staticcheck, unused, gofmt, goimports, misspell, typecheck. Tests exempted from errcheck/staticcheck. Max issues unlimited.
+- `Makefile` overhaul: `help` target (auto-generated), `release` (cross-compile darwin/linux × amd64/arm64 with version-stamped ldflags), `race`, `sweep` (3× uncached flake check), `install` (go install with ldflags), `lint` (golangci-lint with install reminder).
+
+### Known issues / deferred
+- CI doesn't run on Windows (no `windows-latest` job — anthrogo TUI hasn't been tested on Windows).
+- No release artifact upload to GitHub Releases yet (would need goreleaser config).
+- golangci-lint version pinned to latest (not version-pinned) — may produce different results over time.
+- Race tests in CI use `-count=1` not `-count=2` (faster CI).
+
 ## [0.9.9-dev] — 2026-05-21
 
 M9.10 — Input history + /history command.
