@@ -459,9 +459,11 @@ func main() {
 				})
 			}
 
+			searchCache := session.NewReplayCache(64)
 			cmds := registerCommands(homeSkillsRoot, cwdSkillsRoot, homeSubRoot, cwdSubRoot,
 				config.SystemOverlayPath(os.Getenv("HOME")),
 				config.ProjectSystemOverlayPath(cwd),
+				searchCache,
 			)
 			// Register plugin commands; warn on duplicates (last-writer-wins).
 			for _, p := range loadedPlugins {
@@ -549,7 +551,7 @@ func registerTools(cfg config.Config) *tool.Registry {
 	return r
 }
 
-func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOverlayPath, projectOverlayPath string) *command.Registry {
+func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOverlayPath, projectOverlayPath string, replayCache *session.ReplayCache) *command.Registry {
 	reg := command.NewRegistry()
 	reg.Register(&builtins.Help{Reg: reg})
 	reg.Register(builtins.Tools{})
@@ -566,7 +568,7 @@ func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOv
 	reg.Register(builtins.Subagents{HomeRoot: subagentsHome, CwdRoot: subagentsCwd})
 	reg.Register(builtins.Usage{})
 	reg.Register(builtins.Cost{})
-	reg.Register(builtins.Sessions{})
+	reg.Register(builtins.Sessions{ReplayCache: replayCache})
 	reg.Register(builtins.System{HomeOverlayPath: homeOverlayPath, ProjectOverlayPath: projectOverlayPath})
 	return reg
 }

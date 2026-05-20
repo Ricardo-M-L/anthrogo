@@ -19,16 +19,26 @@ import (
 )
 
 // Sessions implements the /sessions builtin command.
-type Sessions struct{}
+type Sessions struct {
+	ReplayCache *session.ReplayCache // optional; nil-safe falls back to direct Replay
+}
+
+// getRecords returns parsed records for path, consulting ReplayCache when available.
+func (s Sessions) getRecords(path string) ([]session.Record, error) {
+	if s.ReplayCache != nil {
+		return s.ReplayCache.Get(path)
+	}
+	return session.Replay(path)
+}
 
 func (Sessions) Name() string        { return "/sessions" }
 func (Sessions) Aliases() []string   { return nil }
 func (Sessions) Description() string {
-	return "List session JSONLs for the current cwd (subcommands: show <id-prefix>, replay <id-prefix>, search <keyword>, export <id-prefix> [-o file.md], stats [--since YYYY-MM-DD] [--until YYYY-MM-DD])"
+	return "List session JSONLs for the current cwd (subcommands: show <id-prefix>, replay <id-prefix>, search <keyword>, export <id-prefix> [-o file.md], stats [--since YYYY-MM-DD] [--until YYYY-MM-DD], reindex)"
 }
 func (Sessions) Type() command.Type  { return command.TypeLocal }
 
-func (Sessions) Run(ctx context.Context, args string, host command.Host) (command.Result, error) {
+func (s Sessions) Run(ctx context.Context, args string, host command.Host) (command.Result, error) {
 	cwd := host.Cwd()
 	args = strings.TrimSpace(args)
 	dir, err := session.ProjectDir(cwd)
@@ -43,19 +53,25 @@ func (Sessions) Run(ctx context.Context, args string, host command.Host) (comman
 		return showSession(dir, prefix)
 	case strings.HasPrefix(args, "replay "):
 		prefix := strings.TrimSpace(strings.TrimPrefix(args, "replay "))
-		return replaySession(dir, prefix)
+		return s.replaySession(dir, prefix)
 	case strings.HasPrefix(args, "search "):
 		keyword := strings.TrimSpace(strings.TrimPrefix(args, "search "))
-		return searchSessions(dir, keyword)
+		return s.searchSessions(dir, keyword)
 	case strings.HasPrefix(args, "delete "):
 		rest := strings.TrimSpace(strings.TrimPrefix(args, "delete "))
-		return deleteSession(dir, rest)
+		return s.deleteSession(dir, rest)
 	case strings.HasPrefix(args, "export "):
-		return exportSession(dir, strings.TrimSpace(strings.TrimPrefix(args, "export ")))
+		return s.exportSession(dir, strings.TrimSpace(strings.TrimPrefix(args, "export ")))
 	case args == "stats" || strings.HasPrefix(args, "stats "):
-		return statsSessions(dir, strings.TrimSpace(strings.TrimPrefix(args, "stats")))
+		return s.statsSessions(dir, strings.TrimSpace(strings.TrimPrefix(args, "stats")))
+	case args == "search-rebuild-index", args == "reindex":
+		if s.ReplayCache != nil {
+			s.ReplayCache.Clear()
+			return command.Result{Text: "search index cleared (will rebuild on next /sessions search)"}, nil
+		}
+		return command.Result{Text: "no replay cache configured"}, nil
 	default:
-		return command.Result{Text: "usage: /sessions [list | show <id-prefix> | replay <id-prefix> | search <keyword> | delete <id-prefix> [--yes] | export <id-prefix> [-o file.md] | stats [--since YYYY-MM-DD] [--until YYYY-MM-DD]]"}, nil
+		return command.Result{Text: "usage: /sessions [list | show <id-prefix> | replay <id-prefix> | search <keyword> | delete <id-prefix> [--yes] | export <id-prefix> [-o file.md] | stats [--since YYYY-MM-DD] [--until YYYY-MM-DD] | reindex]"}, nil
 	}
 }
 
@@ -149,7 +165,7 @@ func matchPrefix(dir, prefix string) ([]string, error) {
 }
 
 // replaySession renders every record in the matched session JSONL as a timeline.
-func replaySession(dir, prefix string) (command.Result, error) {
+func (s Sessions) replaySession(dir, prefix string) (command.Result, error) {
 	if prefix == "" {
 		return command.Result{Text: "usage: /sessions replay <id-prefix>"}, nil
 	}
@@ -163,7 +179,7 @@ func replaySession(dir, prefix string) (command.Result, error) {
 	if len(matched) > 1 {
 		return command.Result{Text: "sessions: ambiguous prefix " + prefix + " (matches: " + strings.Join(matched, ", ") + ")"}, nil
 	}
-	records, err := session.Replay(filepath.Join(dir, matched[0]))
+	records, err := s.getRecords(filepath.Join(dir, matched[0]))
 	if err != nil {
 		return command.Result{Text: "sessions: replay error: " + err.Error()}, nil
 	}
@@ -276,7 +292,7 @@ const searchMaxMatches = 200
 //   --recurse-subagents   — also scan <session-id>/subagents/*.jsonl
 //   --since YYYY-MM-DD    — skip records before this date
 //   --until YYYY-MM-DD    — skip records after this date (inclusive end-of-day)
-func searchSessions(dir, args string) (command.Result, error) {
+func (s Sessions) searchSessions(dir, args string) (command.Result, error) {
 	// Parse flags from args.
 	tokens := strings.Fields(args)
 	var useRegex, recurse bool
@@ -392,7 +408,7 @@ func searchSessions(dir, args string) (command.Result, error) {
 	overflow := 0
 
 	for _, f := range files {
-		records, err := session.Replay(f.path)
+		records, err := s.getRecords(f.path)
 		if err != nil {
 			continue
 		}
@@ -464,7 +480,7 @@ func searchableText(r session.Record) (string, string) {
 // deleteSession deletes a session JSONL (and its subagents dir) identified by
 // an unambiguous prefix. rest may contain --yes anywhere; without it the
 // function performs a dry-run only.
-func deleteSession(dir, rest string) (command.Result, error) {
+func (s Sessions) deleteSession(dir, rest string) (command.Result, error) {
 	// Parse --yes flag out of rest.
 	tokens := strings.Fields(rest)
 	confirm := false
@@ -523,6 +539,9 @@ func deleteSession(dir, rest string) (command.Result, error) {
 	if err := os.Remove(jsonlPath); err != nil {
 		return command.Result{Text: "sessions: " + err.Error()}, nil
 	}
+	if s.ReplayCache != nil {
+		s.ReplayCache.Invalidate(jsonlPath)
+	}
 	msg := "deleted " + jsonlPath
 	if hasSubagents {
 		if err := os.RemoveAll(subagentsDir); err != nil {
@@ -549,7 +568,7 @@ func dirStats(dir string) (count int, bytes int64) {
 
 // exportSession renders a matched session JSONL as a markdown document.
 // rest is parsed for an optional -o / --out <file> flag; remaining token is the id-prefix.
-func exportSession(dir, rest string) (command.Result, error) {
+func (s Sessions) exportSession(dir, rest string) (command.Result, error) {
 	if rest == "" {
 		return command.Result{Text: "usage: /sessions export <id-prefix> [-o file.md]"}, nil
 	}
@@ -582,7 +601,7 @@ func exportSession(dir, rest string) (command.Result, error) {
 		return command.Result{Text: "sessions: ambiguous prefix " + prefix + " (matches: " + strings.Join(matched, ", ") + ")"}, nil
 	}
 
-	records, err := session.Replay(filepath.Join(dir, matched[0]))
+	records, err := s.getRecords(filepath.Join(dir, matched[0]))
 	if err != nil {
 		return command.Result{Text: "sessions: replay error: " + err.Error()}, nil
 	}
@@ -747,7 +766,7 @@ type sessionStat struct {
 
 // statsSessions aggregates metrics across every JSONL in dir.
 // rest may contain --since YYYY-MM-DD and/or --until YYYY-MM-DD.
-func statsSessions(dir, rest string) (command.Result, error) {
+func (s Sessions) statsSessions(dir, rest string) (command.Result, error) {
 	var since, until time.Time
 	tokens := strings.Fields(rest)
 	for i, tok := range tokens {
@@ -787,7 +806,7 @@ func statsSessions(dir, rest string) (command.Result, error) {
 			continue
 		}
 		path := filepath.Join(dir, e.Name())
-		records, err := session.Replay(path)
+		records, err := s.getRecords(path)
 		if err != nil {
 			continue
 		}

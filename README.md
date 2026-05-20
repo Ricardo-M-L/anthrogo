@@ -540,6 +540,8 @@ Use `/sessions export <id-prefix> [-o file.md]` to render the session as a markd
 
 Use `/sessions stats` to aggregate metrics across all session JSONLs for the current cwd. The output shows session count, turn count, total input/output tokens, estimated USD cost (using the built-in default pricing table from M8.1), first-seen and latest timestamps, a per-model token and cost breakdown, and a per-day turn count table. Use `--since YYYY-MM-DD` and/or `--until YYYY-MM-DD` to narrow the aggregation to a date range.
 
+Use `/sessions reindex` (alias `search-rebuild-index`) to clear the in-memory LRU parse cache (M8.12). The cache holds up to 64 parsed session files keyed by `(path, modtime)`. Unchanged files are served from cache on repeated searches without re-parsing. Modtime changes auto-invalidate; `reindex` forces a full rebuild on the next search.
+
 ## Tools (M1)
 
 | Tool        | Read-only | What it does                                                       |

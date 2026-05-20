@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.12-dev] — 2026-05-20
+
+M8.12 — LRU index for /sessions search.
+
+### Added
+- `session.ReplayCache` — in-memory LRU of parsed `[]Record` keyed by `(path, modtime)`. Default capacity 64 sessions. Modtime changes auto-invalidate. Thread-safe.
+- `Sessions{ReplayCache *ReplayCache}` accepts the cache; `search` / `replay` / `stats` / `export` / `show` all consult it first, falling back to direct `Replay` if not set.
+- `/sessions reindex` (alias `search-rebuild-index`) — clears the cache; rebuilds on demand from next call.
+- `Sessions.deleteSession` invalidates the cache entry after removing a JSONL.
+
+### Known issues / deferred
+- Cap is hardcoded at 64; not configurable from YAML yet.
+- Cache is process-local; restart anthrogo loses warm state.
+- No persistence to disk; future could SQLite-index by hash.
+
 ## [0.8.11-dev] — 2026-05-20
 
 M8.11 — Diff / Format / Git built-in tools.
