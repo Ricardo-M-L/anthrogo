@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -163,7 +164,15 @@ func New(opts Options) *App {
 	return a
 }
 
-func (a *App) Init() tea.Cmd { return waitForAsk(a.asks) }
+type tickMsg time.Time
+
+func tickEvery() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+func (a *App) Init() tea.Cmd { return tea.Batch(waitForAsk(a.asks), tickEvery()) }
 
 type askMsg permissionAsk
 
@@ -274,6 +283,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case hookLogMsg:
 		a.chat.appendHookLog(m.event, m.msg)
 		return a, nil
+
+	case tickMsg:
+		// 1Hz tick — re-calls View() to repaint the status line live.
+		return a, tickEvery()
 	}
 
 	var c tea.Cmd

@@ -22,6 +22,20 @@ func stripANSI(s string) string {
 	return ansiEscape.ReplaceAllString(s, "")
 }
 
+func TestApp_Init_ReturnsTickCmd(t *testing.T) {
+	a := New(Options{})
+	cmd := a.Init()
+	require.NotNil(t, cmd)
+	// The tea.Batch with the tick should at minimum produce a non-nil cmd.
+	// We don't drive the bubbletea loop here; just smoke-test that Init wires the tick.
+}
+
+func TestApp_Update_TickReturnsAnotherTick(t *testing.T) {
+	a := New(Options{})
+	_, cmd := a.Update(tickMsg(time.Now()))
+	require.NotNil(t, cmd, "tick handler must re-schedule")
+}
+
 func TestApp_ScriptedTurn_RendersAssistantText(t *testing.T) {
 	fp := fake.New([]provider.Event{
 		{Kind: provider.EventTextDelta, Text: "hi"},

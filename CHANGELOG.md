@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.3-dev] — 2026-05-20
+
+M8.3 — TUI 1Hz status refresh.
+
+### Added
+- TUI now schedules a `tea.Tick` once per second. Each tick re-paints the View, so the status line (tokens, since-compact, cost, budget) updates live during long-running turns instead of staying frozen until the next event arrives.
+- Tick auto-re-schedules from inside Update; no global state.
+
+### Known issues / deferred
+- 1Hz is hardcoded; no flag to change frequency.
+- Other parts of the UI re-render on every tick too (cheap, but worth flagging if performance ever matters).
+- No tick during permission modal pause — modals own the terminal but cmd loop still runs, so tick continues; render is correct.
+
 ## [0.8.2-dev] — 2026-05-20
 
 M8.2 — Per-project system prompt overlay.

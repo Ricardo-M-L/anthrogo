@@ -483,7 +483,7 @@ Since last compact: 420 input + 130 output = 550 tokens
 Auto-compact at: 150,000 tokens (keep recent: 10) — 149,450 tokens until trigger
 ```
 
-The TUI status line shows `tok: <in>in/<out>out (since: <Z>) [⚙ <N>]` where `since` is the post-compact accumulation and `⚙ N` is the auto-compact threshold (omitted when disabled).
+The TUI status line shows `tok: <in>in/<out>out (since: <Z>) [⚙ <N>]` where `since` is the post-compact accumulation and `⚙ N` is the auto-compact threshold (omitted when disabled). Live 1Hz status refresh during turns (tokens, cost, budget).
 
 ## Session history
 
