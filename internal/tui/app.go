@@ -17,6 +17,19 @@ import (
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
+// PromptHookSink is the subset of hooks.Manager the TUI (and engine via tui.New) needs.
+// Includes both per-prompt methods and tool-level methods so the same concrete
+// value (*hooks.Manager) can be forwarded to query.Config.Hooks without a cast.
+// All methods are nil-safe when the Hooks field is nil.
+type PromptHookSink interface {
+	FireUserPromptSubmit(ctx context.Context, prompt string) (context.Context, string, bool, string)
+	FireSessionStart(ctx context.Context, kind string)
+	FireSessionEnd(ctx context.Context, kind string)
+	FireNotification(ctx context.Context, message, kind string)
+	FirePostToolUse(ctx context.Context, toolName string, input, response map[string]any) string
+	FireStop(ctx context.Context, reason string)
+}
+
 type Options struct {
 	Provider        provider.Provider
 	Tools           *tool.Registry
@@ -30,11 +43,16 @@ type Options struct {
 	InitialMessages []message.Message
 	RecordHook      func(session.Record)
 	MCP             *mcp.Manager
+	Hooks           PromptHookSink
 }
 
 // serverLogMsg is dispatched via tea.Program.Send from AppendServerLog so that
 // chat mutations always happen on the bubbletea Update goroutine.
 type serverLogMsg struct{ server, msg string }
+
+// hookLogMsg is dispatched via tea.Program.Send from AppendHookLog so that
+// chat mutations always happen on the bubbletea Update goroutine.
+type hookLogMsg struct{ event, msg string }
 
 type App struct {
 	theme      Theme
@@ -75,12 +93,25 @@ func New(opts Options) *App {
 		SystemPrompt: opts.SystemPrompt,
 		Cwd:          opts.Cwd,
 		RecordHook:   opts.RecordHook,
+		Hooks:        opts.Hooks,
 		RequestPrompt: func(_ string, req tool.PromptRequest) (tool.PromptResponse, error) {
+			if opts.Hooks != nil {
+				opts.Hooks.FireNotification(context.Background(), "permission ask: "+req.ToolName, "permission_ask")
+			}
 			reply := make(chan tool.PromptResponse, 1)
 			a.asks <- permissionAsk{req: req, reply: reply}
 			return <-reply, nil
 		},
 	})
+
+	// Fire SessionStart hook now that construction is complete.
+	if opts.Hooks != nil {
+		kind := "new"
+		if len(opts.InitialMessages) > 0 {
+			kind = "resume"
+		}
+		opts.Hooks.FireSessionStart(context.Background(), kind)
+	}
 
 	if len(opts.InitialMessages) > 0 {
 		a.engine.SetInitialMessages(opts.InitialMessages)
@@ -155,6 +186,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case submitMsg:
 		text := m.text
+		// Run UserPromptSubmit hooks before dispatching.
+		if a.opts.Hooks != nil {
+			_, finalPrompt, abort, reason := a.opts.Hooks.FireUserPromptSubmit(context.Background(), text)
+			if abort {
+				a.chat.appendError("user prompt blocked: " + reason)
+				return a, nil
+			}
+			text = finalPrompt
+		}
 		if strings.HasPrefix(text, "/") && a.cmdReg != nil {
 			firstField := strings.Fields(text)[0]
 			if cmd, ok := a.cmdReg.Lookup(firstField); ok {
@@ -193,13 +233,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case serverLogMsg:
 		a.chat.appendServerLog(m.server, m.msg)
 		return a, nil
+
+	case hookLogMsg:
+		a.chat.appendHookLog(m.event, m.msg)
+		return a, nil
 	}
 
 	var c tea.Cmd
 	a.input, c = a.input.update(msg)
 	cmds = append(cmds, c)
 	a.palette.updateForInput(a.input.ti.Value())
-	a.chat, c = a.chat.update(msg)
+	c = a.chat.update(msg)
 	cmds = append(cmds, c)
 	return a, tea.Batch(cmds...)
 }
@@ -278,13 +322,25 @@ func (a *App) MCP() *mcp.Manager                 { return a.opts.MCP }
 // directly from a background goroutine.
 func (a *App) SetProgram(p *tea.Program) { a.program = p }
 
-// AppendServerLog routes MCP log lines through the bubbletea event loop to
-// avoid data races with other chat mutations that run on the Update goroutine.
+// AppendServerLog routes MCP log lines through the bubbletea event loop when
+// the program is running. When program is nil (before SetProgram / in tests
+// that don't Run the TUI) it falls through directly to chat.appendServerLog,
+// which is now mutex-protected and safe to call from any goroutine.
 func (a *App) AppendServerLog(server, msg string) {
 	if a.program != nil {
 		a.program.Send(serverLogMsg{server: server, msg: msg})
 		return
 	}
-	// pre-Run fallback (rare; e.g. during boot before SetProgram)
 	a.chat.appendServerLog(server, msg)
+}
+
+// AppendHookLog routes hook log lines through the bubbletea event loop when
+// the program is running. When program is nil it falls through directly to
+// chat.appendHookLog, which is now mutex-protected and safe to call from any goroutine.
+func (a *App) AppendHookLog(event, msg string) {
+	if a.program != nil {
+		a.program.Send(hookLogMsg{event: event, msg: msg})
+		return
+	}
+	a.chat.appendHookLog(event, msg)
 }

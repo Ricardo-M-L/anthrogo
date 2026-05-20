@@ -13,6 +13,17 @@ import (
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
+// PromptHookSink is the subset of hooks.Manager that headless.Run needs.
+// Declared locally to keep import graph flat (no import of internal/hooks).
+type PromptHookSink interface {
+	FireUserPromptSubmit(ctx context.Context, prompt string) (context.Context, string, bool, string)
+	FireSessionStart(ctx context.Context, kind string)
+	FireSessionEnd(ctx context.Context, kind string)
+	FireNotification(ctx context.Context, message, kind string)
+	FirePostToolUse(ctx context.Context, toolName string, input, response map[string]any) string
+	FireStop(ctx context.Context, reason string)
+}
+
 // Options bundles everything Run needs. The CLI assembles this from cobra flags
 // + config.
 type Options struct {
@@ -27,6 +38,7 @@ type Options struct {
 	RecordHook      func(session.Record)
 	Stdout          io.Writer
 	Stderr          io.Writer
+	Hooks           PromptHookSink
 }
 
 // Run executes one prompt and writes the assistant's final text to Stdout.
@@ -36,6 +48,22 @@ func Run(ctx context.Context, opts Options) error {
 	if opts.Stderr == nil {
 		opts.Stderr = io.Discard
 	}
+
+	if opts.Hooks != nil {
+		opts.Hooks.FireSessionStart(ctx, "new")
+		defer opts.Hooks.FireSessionEnd(ctx, "user_quit")
+	}
+
+	// Run UserPromptSubmit hooks.
+	prompt := opts.Prompt
+	if opts.Hooks != nil {
+		_, finalPrompt, abort, reason := opts.Hooks.FireUserPromptSubmit(ctx, prompt)
+		if abort {
+			return fmt.Errorf("prompt blocked by hook: %s", reason)
+		}
+		prompt = finalPrompt
+	}
+
 	e := query.NewEngine(query.Config{
 		Provider:     opts.Provider,
 		Tools:        opts.Tools,
@@ -44,11 +72,12 @@ func Run(ctx context.Context, opts Options) error {
 		SystemPrompt: opts.SystemPrompt,
 		Cwd:          opts.Cwd,
 		RecordHook:   opts.RecordHook,
+		Hooks:        opts.Hooks,
 	})
 	if len(opts.InitialMessages) > 0 {
 		e.SetInitialMessages(opts.InitialMessages)
 	}
-	ch := e.SubmitMessage(ctx, opts.Prompt)
+	ch := e.SubmitMessage(ctx, prompt)
 	for ev := range ch {
 		switch ev.Kind {
 		case query.KindAssistantDelta:

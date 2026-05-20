@@ -1,12 +1,21 @@
 package query
 
 import (
+	"context"
+
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
+
+// HookSink is the subset of hooks.Manager that the query engine needs.
+// Both methods are nil-safe when the field is nil.
+type HookSink interface {
+	FirePostToolUse(ctx context.Context, toolName string, input, response map[string]any) string
+	FireStop(ctx context.Context, reason string)
+}
 
 type Config struct {
 	Provider     provider.Provider
@@ -23,6 +32,9 @@ type Config struct {
 	RequestPrompt   func(source string, req tool.PromptRequest) (tool.PromptResponse, error)
 	AppendUIMessage func(msg string)
 	RecordHook      func(session.Record)
+
+	// Hooks is an optional hook sink for PostToolUse and Stop events.
+	Hooks HookSink
 }
 
 // Engine owns one conversation. Each SubmitMessage starts a new turn within

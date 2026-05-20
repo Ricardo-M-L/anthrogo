@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"github.com/ricardo/anthrogo/internal/config"
 	"github.com/ricardo/anthrogo/internal/headless"
+	"github.com/ricardo/anthrogo/internal/hooks"
 	"github.com/ricardo/anthrogo/internal/mcp"
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/internal/system"
@@ -56,15 +59,36 @@ func main() {
 				cfg.Mode = permissions.Mode(modeFlag)
 			}
 			perms := cfg.ToPermissionContext()
+			// Validate hook configuration; print any warnings but don't abort.
+			for _, w := range cfg.Hooks.Validate() {
+				fmt.Fprintln(os.Stderr, "hooks:", w)
+			}
 			cwd, err := resolveCwd(cwdFlag)
 			if err != nil {
 				return err
+			}
+			// Load project-level hooks overlay from <cwd>/.anthrogo/hooks.yaml if present.
+			overlayPath := filepath.Join(cwd, ".anthrogo", "hooks.yaml")
+			if raw, readErr := os.ReadFile(overlayPath); readErr == nil {
+				var overlay hooks.Config
+				if unmarshalErr := yaml.Unmarshal(raw, &overlay); unmarshalErr != nil {
+					fmt.Fprintln(os.Stderr, "hooks overlay:", unmarshalErr)
+				} else {
+					overlay.Expand()
+					cfg.Hooks = cfg.Hooks.AppendOverlay(overlay)
+					// Re-validate after merging.
+					for _, w := range cfg.Hooks.Validate() {
+						fmt.Fprintln(os.Stderr, "hooks:", w)
+					}
+				}
 			}
 
 			// Bring up MCP servers and merge their tools into the registry.
 			// logSinkRef is an atomic pointer so the MCP reader goroutine can
 			// load it safely after the TUI's tea.Program is set up.
+			// appRef is a separate atomic pointer for hook log routing.
 			var logSinkRef atomic.Pointer[func(string, string)]
+			var appRef atomic.Pointer[tui.App]
 			mcpMgr := mcp.NewManager(func(name, msg string) {
 				if f := logSinkRef.Load(); f != nil {
 					(*f)(name, msg)
@@ -138,6 +162,36 @@ func main() {
 			}
 			defer sess.Close()
 
+			// Build the hooks Manager and wire it into the permission gate.
+			hookMgr := hooks.NewManager(cfg.Hooks, hooks.ManagerOptions{
+				SessionID: sess.ID(),
+				Cwd:       cwd,
+				Version:   version.Version,
+				LogSink: func(event, msg string) {
+					if a := appRef.Load(); a != nil {
+						(*a).AppendHookLog(event, msg)
+						return
+					}
+					fmt.Fprintf(os.Stderr, "[hook:%s] %s\n", event, msg)
+				},
+			})
+			defer func() {
+				hookMgr.FireSessionEnd(context.Background(), "user_quit")
+				hookMgr.Drain(5 * time.Second)
+			}()
+
+			perms.HookDecide = func(toolName string, input map[string]any) permissions.HookOutcome {
+				d := hookMgr.FirePreToolUse(context.Background(), toolName, input)
+				switch d.Behavior {
+				case hooks.DecisionAllow:
+					return permissions.HookOutcome{Allow: true, Reason: d.Reason, ModifiedInput: d.ModifiedInput}
+				case hooks.DecisionDeny:
+					return permissions.HookOutcome{Deny: true, Reason: d.Reason, ModifiedInput: d.ModifiedInput}
+				default:
+					return permissions.HookOutcome{Pass: true, ModifiedInput: d.ModifiedInput}
+				}
+			}
+
 			p := anthropic.New(cfg.APIKey, cfg.Model)
 
 			if prompt != "" {
@@ -154,6 +208,7 @@ func main() {
 					InitialMessages: initialMessages,
 					Stdout:          os.Stdout,
 					Stderr:          os.Stderr,
+					Hooks:           hookMgr,
 				})
 			}
 
@@ -171,9 +226,11 @@ func main() {
 				InitialMessages: initialMessages,
 				RecordHook:      sess.NewRecordHook(),
 				MCP:             mcpMgr,
+				Hooks:           hookMgr,
 			})
 			program := tea.NewProgram(app, tea.WithAltScreen())
 			app.SetProgram(program)
+			appRef.Store(app)
 			appender := app.AppendServerLog
 			logSinkRef.Store(&appender)
 			_, err = program.Run()

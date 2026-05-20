@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.4.0-dev] — 2026-05-20
+
+M4.1 — Hooks (9 event types: PreToolUse / PostToolUse / UserPromptSubmit / Stop / SubagentStop / Notification / PreCompact / SessionStart / SessionEnd).
+
+### Added
+- `internal/hooks/` package: Config, Event payloads, Runner, Manager, Decision.
+- `hooks:` YAML stanza in `settings.yaml` — per-event lists with `matcher` (Go regexp), `command`, and `timeout`.
+- JSON-over-stdin / JSON-on-stdout / exit-code-2-blocks protocol matching upstream claude-code@2.1.88.
+- Permission gate consults `PreToolUse` hooks before rule lookup; hooks can allow / deny / mutate input.
+- Plan-mode hard-lock still overrides hook-allow for write tools.
+- `PostToolUse` hooks can append `additionalContext` to tool_result text.
+- `UserPromptSubmit` hooks can inject context or abort the prompt (exit 2).
+- Async fire-and-forget for `Stop` / `SubagentStop` / `Notification` / `SessionStart` / `SessionEnd`.
+- Sync but log-only `PreCompact` (M4.2 wires real /compact).
+- TUI dim-styled `[hook:<event>] <msg>` log lines via a separate atomic.Pointer[*App] rail.
+- chat AppendServerLog / AppendHookLog concurrent-safe regression tests.
+- `Server.Start` state-reset regression test (covers `/mcp reload` re-Start).
+
+### Changed
+- `permissions.Context` gains `HookDecide func(toolName, input) HookOutcome` (nil-safe).
+- `permissions.Decision` gains `ModifiedInput map[string]any`.
+- `query.Config` gains `Hooks query.HookSink` interface (FirePostToolUse, FireStop).
+- `tui.Options` and `headless.Options` gain `Hooks PromptHookSink` (6-method superset; same value satisfies both).
+- Async hook Fire methods gained a `ctx context.Context` first parameter for interface uniformity.
+
+### Known issues / deferred
+- `SubagentStop` payload defined but never fires (no subagents until M5).
+- `PreCompact` wired but `/compact` itself is still a placeholder (M4.2 lands real compaction).
+- Hook subprocesses run unsandboxed in the user's privilege; sandbox lands with M5 plugins.
+
 ## [0.3.0-dev] — 2026-05-19
 
 M3 — MCP stdio support.

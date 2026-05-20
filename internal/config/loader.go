@@ -6,6 +6,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/ricardo/anthrogo/internal/hooks"
 	"github.com/ricardo/anthrogo/internal/mcp"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 )
@@ -27,6 +28,7 @@ type Config struct {
 	AlwaysAllow []permissions.Rule             `yaml:"alwaysAllow"`
 	AlwaysDeny  []permissions.Rule             `yaml:"alwaysDeny"`
 	AlwaysAsk   []permissions.Rule             `yaml:"alwaysAsk"`
+	Hooks       hooks.Config                   `yaml:"hooks,omitempty"`
 }
 
 func defaults() Config {
@@ -53,6 +55,8 @@ func Load() (Config, error) {
 	if err := yaml.Unmarshal(raw, &cfg); err != nil {
 		return Config{}, err
 	}
+	// Expand hook paths and fill default timeouts; warnings are surfaced by callers.
+	cfg.Hooks.Expand()
 	return cfg, nil
 }
 

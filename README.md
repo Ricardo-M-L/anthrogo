@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M3 complete (v0.3.0-dev). MCP stdio support landed. See `docs/superpowers/specs/` for design docs and `docs/superpowers/plans/` for implementation plans.
+> **Status**: M4.1 complete (v0.4.0-dev). Hooks (9 event types) landed. See `docs/superpowers/specs/` for design docs and `docs/superpowers/plans/` for implementation plans.
 
 ## Why
 
@@ -107,6 +107,37 @@ mcpServers:
 Tools surface as `mcp__<server>__<tool>` (names exceeding 64 chars get a sha-8 suffix). Inspect status with `/mcp`, view one server's last error with `/mcp status <name>`, restart all servers with `/mcp reload` (note: tool registry is refreshed at startup only; reloaded servers' tool list changes won't surface until restart — fixed in M4). Server log notifications render dim-styled in the TUI; in headless they go to stderr.
 
 Stdio-spawned servers only. SSE / WebSocket / OAuth / elicitations / resources are deferred to M4–M5.
+
+## Hooks
+
+anthrogo runs user-defined shell commands at 9 lifecycle events. Add to `~/.anthrogo/settings.yaml`:
+
+```yaml
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      command: ~/.anthrogo/hooks/audit.sh
+      timeout: 30s
+    - matcher: "Write|Edit|NotebookEdit"
+      command: ~/.anthrogo/hooks/protect-secrets.sh
+  PostToolUse:
+    - matcher: "Write|Edit"
+      command: ~/.anthrogo/hooks/gofmt.sh
+  UserPromptSubmit:
+    - command: ~/.anthrogo/hooks/inject-cwd.sh
+  Stop:
+    - command: ~/.anthrogo/hooks/notify-slack.sh
+```
+
+Each hook gets one JSON object on stdin describing the event. Exit code 2 blocks the action (PreToolUse → deny, UserPromptSubmit → abort prompt). Exit code 0 + JSON on stdout can `permissionDecision: "allow"|"deny"`, `modifiedInput: {...}` (PreToolUse only), or `additionalContext: "..."` (UserPromptSubmit / PostToolUse).
+
+`matcher` is a Go regexp against the tool name (PreToolUse / PostToolUse only). Project-level `.anthrogo/hooks.yaml` appends to home-level `hooks:` block.
+
+anthrogo doesn't auto-provision the `~/.anthrogo/hooks/` directory — create it and your hook scripts yourself, then `chmod +x` them.
+
+Default timeouts: 30s for sync events, 5–10s for async. Async events (Stop / Notification / Session*) fire on a background goroutine.
+
+Plan-mode hard-lock still overrides hook-allow for write tools.
 
 ## Tools (M1)
 

@@ -46,6 +46,13 @@ func (e *Engine) SubmitMessage(ctx context.Context, prompt string) <-chan Event 
 					TurnComplete: &session.TurnComplete{StopReason: stop},
 				})
 				out <- Event{Kind: KindTurnComplete, StopReason: stop}
+				if e.cfg.Hooks != nil {
+					stopReason := stop
+					if stopReason == "" {
+						stopReason = "end_turn"
+					}
+					e.cfg.Hooks.FireStop(ctx, stopReason)
+				}
 				return
 			}
 		}
@@ -188,6 +195,11 @@ func (e *Engine) executeTool(ctx context.Context, b message.Block, out chan<- Ev
 	if decision.Behavior == permissions.BehaviorAsk {
 		decision = permissions.Decide(e.cfg.Permissions, b.ToolName, b.Input)
 	}
+	// Apply any input mutation produced by the hook (ModifiedInput) so the
+	// tool receives the rewritten input, not the original model-generated one.
+	if decision.ModifiedInput != nil {
+		b.Input = decision.ModifiedInput
+	}
 	if decision.Behavior == permissions.BehaviorAsk && e.cfg.RequestPrompt != nil {
 		resp, err := e.cfg.RequestPrompt("tool", tool.PromptRequest{
 			Kind:      tool.PromptToolPermission,
@@ -238,15 +250,25 @@ func (e *Engine) executeTool(ctx context.Context, b message.Block, out chan<- Ev
 		})
 		return message.Block{Type: message.BlockToolResult, ToolUseID: b.ToolUseID, Text: msg, IsError: true}
 	}
-	out <- Event{Kind: KindToolResult, ToolUseID: b.ToolUseID, ToolName: b.ToolName, IsError: res.IsError, Text: res.ModelText()}
+
+	resultText := res.ModelText()
+	// Invoke PostToolUse hook; any returned additional context is appended to result.
+	if e.cfg.Hooks != nil {
+		responseMap := map[string]any{"text": resultText, "is_error": res.IsError}
+		if extra := e.cfg.Hooks.FirePostToolUse(ctx, b.ToolName, b.Input, responseMap); extra != "" {
+			resultText = resultText + "\n\n" + extra
+		}
+	}
+
+	out <- Event{Kind: KindToolResult, ToolUseID: b.ToolUseID, ToolName: b.ToolName, IsError: res.IsError, Text: resultText}
 	e.recordIfHooked(session.Record{
 		Kind:       session.KindToolResult,
-		ToolResult: &session.ToolResult{ToolUseID: b.ToolUseID, Text: res.ModelText(), IsError: res.IsError},
+		ToolResult: &session.ToolResult{ToolUseID: b.ToolUseID, Text: resultText, IsError: res.IsError},
 	})
 	return message.Block{
 		Type:      message.BlockToolResult,
 		ToolUseID: b.ToolUseID,
-		Text:      res.ModelText(),
+		Text:      resultText,
 		IsError:   res.IsError,
 	}
 }

@@ -111,3 +111,48 @@ func TestGate_PlanMode_HardLocksWriteEvenWithAllowRule(t *testing.T) {
 		require.Equalf(t, BehaviorDeny, d.Behavior, "tool=%s should be denied even with allow rule", tool)
 	}
 }
+
+func TestGate_HookDeny_ShortCircuits(t *testing.T) {
+	c := ctx()
+	c.HookDecide = func(toolName string, input map[string]any) HookOutcome {
+		return HookOutcome{Deny: true, Reason: "hook said no"}
+	}
+	d := Decide(c, "Bash", map[string]any{"command": "ls"})
+	require.Equal(t, BehaviorDeny, d.Behavior)
+	require.Equal(t, "hook said no", d.Reason)
+}
+
+func TestGate_HookAllow_OverridesAsk(t *testing.T) {
+	c := ctx()
+	// No rules → would normally be BehaviorAsk.
+	c.HookDecide = func(toolName string, input map[string]any) HookOutcome {
+		return HookOutcome{Allow: true, Reason: "hook approved"}
+	}
+	d := Decide(c, "Bash", map[string]any{"command": "ls"})
+	require.Equal(t, BehaviorAllow, d.Behavior)
+	require.Equal(t, "hook approved", d.Reason)
+}
+
+func TestGate_HookAllow_DoesNotUnlockPlanModeWriteTool(t *testing.T) {
+	c := ctx()
+	c.Mode = ModePlan
+	c.HookDecide = func(toolName string, input map[string]any) HookOutcome {
+		return HookOutcome{Allow: true, Reason: "hook approved write"}
+	}
+	for _, tool := range []string{"Write", "Edit", "NotebookEdit"} {
+		d := Decide(c, tool, map[string]any{"path": "/x"})
+		require.Equalf(t, BehaviorDeny, d.Behavior, "tool=%s must still be denied in plan mode", tool)
+	}
+}
+
+func TestGate_HookModifiedInput_Visible(t *testing.T) {
+	c := ctx()
+	c.HookDecide = func(toolName string, input map[string]any) HookOutcome {
+		// Pass but return a modified input.
+		return HookOutcome{Pass: true, ModifiedInput: map[string]any{"command": "ls -al"}}
+	}
+	// With no rules, should fall through to Ask (the default).
+	d := Decide(c, "Bash", map[string]any{"command": "ls"})
+	// Behavior should still be Ask (hook passed, no rules matched).
+	require.Equal(t, BehaviorAsk, d.Behavior)
+}

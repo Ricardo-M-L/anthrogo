@@ -138,6 +138,68 @@ func TestEngine_ContextCancel_EndsTurnWithError(t *testing.T) {
 	require.True(t, sawErr, "expected KindError carrying context.Canceled")
 }
 
+// recordingTool records the input it receives on Call so tests can inspect it.
+type recordingTool struct {
+	tool.DefaultPermission
+	lastInput map[string]any
+}
+
+func (r *recordingTool) Name() string                         { return "RecordingTool" }
+func (r *recordingTool) Description(context.Context) string   { return "records input" }
+func (r *recordingTool) UserFacingName(map[string]any) string { return "RecordingTool" }
+func (r *recordingTool) Schema() map[string]any               { return map[string]any{"type": "object"} }
+func (r *recordingTool) IsReadOnly() bool                     { return true }
+func (r *recordingTool) IsConcurrencySafe() bool              { return true }
+func (r *recordingTool) Call(_ context.Context, input map[string]any, _ *tool.Context) (tool.Result, error) {
+	r.lastInput = input
+	return tool.Result{Text: "ok"}, nil
+}
+
+func TestEngine_HookModifiedInput_ReachesTool(t *testing.T) {
+	seen := &recordingTool{}
+	reg := tool.NewRegistry()
+	reg.Register(seen)
+
+	// Two-script provider: turn 1 asks for RecordingTool; turn 2 returns end_turn.
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventToolUseStart, ToolUseID: "u1", ToolName: "RecordingTool"},
+			{Kind: provider.EventToolInputDelta, PartialJSON: `{"orig": true}`},
+			{Kind: provider.EventBlockStop, StopReason: "tool_use"},
+			{Kind: provider.EventMessageStop, StopReason: "tool_use"},
+		},
+		[]provider.Event{
+			{Kind: provider.EventTextDelta, Text: "done"},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+
+	perms := permissions.Empty()
+	// Hook: always pass (don't deny or allow), but rewrite the input.
+	perms.HookDecide = func(toolName string, input map[string]any) permissions.HookOutcome {
+		return permissions.HookOutcome{
+			Pass:          true,
+			ModifiedInput: map[string]any{"mutated": true},
+		}
+	}
+	// Allow the tool so the gate doesn't block it after the hook pass.
+	perms.AlwaysAllowRules[permissions.SourceCLI] = []permissions.Rule{{Tool: "RecordingTool"}}
+
+	e := NewEngine(Config{
+		Provider:    fp,
+		Tools:       reg,
+		Permissions: perms,
+		Model:       "x",
+	})
+	for range e.SubmitMessage(context.Background(), "run recording tool") {
+	}
+
+	require.NotNil(t, seen.lastInput, "tool Call was never reached")
+	require.Equal(t, true, seen.lastInput["mutated"], "mutated key must be present")
+	_, hasOrig := seen.lastInput["orig"]
+	require.False(t, hasOrig, "orig key must be absent after mutation")
+}
+
 type slowFakeProvider struct{}
 
 func (s *slowFakeProvider) Stream(ctx context.Context, _ provider.Request) (<-chan provider.Event, error) {

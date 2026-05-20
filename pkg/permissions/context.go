@@ -5,6 +5,15 @@ type AdditionalDir struct {
 	Path string
 }
 
+// HookOutcome is the result returned by HookDecide.
+type HookOutcome struct {
+	Pass          bool
+	Allow         bool
+	Deny          bool
+	Reason        string
+	ModifiedInput map[string]any
+}
+
 // Context holds permission state for one conversation.
 // Mirrors ToolPermissionContext (src/Tool.ts:123).
 type Context struct {
@@ -16,6 +25,9 @@ type Context struct {
 	IsBypassAvailable            bool
 	ShouldAvoidPrompts           bool
 	PrePlanMode                  Mode
+
+	// HookDecide is consulted by Decide before any rule lookup. nil-safe.
+	HookDecide func(toolName string, input map[string]any) HookOutcome
 }
 
 // Empty returns a Context with all rule maps initialised, in default mode.

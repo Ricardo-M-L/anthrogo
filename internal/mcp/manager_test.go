@@ -80,6 +80,22 @@ func TestManager_LogSinkReceivesNotifications(t *testing.T) {
 	t.Skip("requires echo-server to emit notifications/message — placeholder for future PR")
 }
 
+func TestServer_Start_ResetsStateAfterClose(t *testing.T) {
+	bin := buildEchoServer(t)
+	s := NewServer("echo", MCPServerConfig{Command: bin, Timeout: 30 * time.Second}, nil)
+	require.NoError(t, s.Start(context.Background()))
+	require.Equal(t, StateReady, s.State())
+
+	require.NoError(t, s.Close())
+	require.Equal(t, StateClosed, s.State())
+
+	// Re-Start the same server — state must reset to StateReady.
+	require.NoError(t, s.Start(context.Background()))
+	require.Equal(t, StateReady, s.State())
+	require.Nil(t, s.Err())
+	require.NoError(t, s.Close())
+}
+
 func TestMain(m *testing.M) {
 	// Some CI shells lack `go`; ensure we error early in that case.
 	if _, err := exec.LookPath("go"); err != nil {

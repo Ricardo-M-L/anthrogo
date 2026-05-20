@@ -3,12 +3,14 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type chat struct {
+	mu        sync.Mutex
 	vp        viewport.Model
 	theme     Theme
 	lines     []string
@@ -22,17 +24,23 @@ func newChat(theme Theme) chat {
 }
 
 func (c *chat) resize(w, h int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.vp.Width = w
 	c.vp.Height = h
 	c.refresh()
 }
 
 func (c *chat) appendUser(text string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.lines = append(c.lines, c.theme.UserPrompt.Render("you > ")+text)
 	c.refresh()
 }
 
 func (c *chat) appendAssistantDelta(text string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if !c.streaming || len(c.lines) == 0 {
 		c.lines = append(c.lines, c.theme.Assistant.Render("assistant > ")+text)
 		c.streaming = true
@@ -45,10 +53,14 @@ func (c *chat) appendAssistantDelta(text string) {
 // finishAssistant marks the current assistant turn as complete so the next
 // delta starts a new line.
 func (c *chat) finishAssistant() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.streaming = false
 }
 
 func (c *chat) appendTool(toolName, summary string, isError bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.streaming = false
 	header := c.theme.ToolHeader.Render(fmt.Sprintf("[tool] %s", toolName))
 	body := c.theme.ToolBody.Render(summary)
@@ -60,13 +72,24 @@ func (c *chat) appendTool(toolName, summary string, isError bool) {
 }
 
 func (c *chat) appendError(msg string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.streaming = false
 	c.lines = append(c.lines, c.theme.Error.Render("error: "+msg))
 	c.refresh()
 }
 
 func (c *chat) appendServerLog(server, msg string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.lines = append(c.lines, c.theme.StatusLine.Render(fmt.Sprintf("[mcp:%s] %s", server, msg)))
+	c.refresh()
+}
+
+func (c *chat) appendHookLog(event, msg string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lines = append(c.lines, c.theme.StatusLine.Render(fmt.Sprintf("[hook:%s] %s", event, msg)))
 	c.refresh()
 }
 
@@ -75,12 +98,12 @@ func (c *chat) refresh() {
 	c.vp.GotoBottom()
 }
 
-func (c chat) update(msg tea.Msg) (chat, tea.Cmd) {
+func (c *chat) update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	c.vp, cmd = c.vp.Update(msg)
-	return c, cmd
+	return cmd
 }
 
-func (c chat) view() string {
+func (c *chat) view() string {
 	return c.theme.Border.Render(c.vp.View())
 }

@@ -13,7 +13,7 @@ const (
 type Decision struct {
 	Behavior      Behavior
 	Reason        string
-	UpdatedInput  map[string]any
+	ModifiedInput map[string]any
 	SuggestedRule *Rule
 }
 
@@ -30,6 +30,28 @@ func Decide(c *Context, tool string, input map[string]any) Decision {
 	if c.Mode == ModeBypassPermissions && c.IsBypassAvailable {
 		return Decision{Behavior: BehaviorAllow, Reason: "bypassPermissions mode"}
 	}
+	// hookModified captures any input rewrite produced by a Pass outcome so it
+	// can be carried forward in every Decision returned from the rule paths below.
+	var hookModified map[string]any
+	// Consult hook decision before rule lookup.
+	if c.HookDecide != nil {
+		out := c.HookDecide(tool, input)
+		if out.Deny {
+			return Decision{Behavior: BehaviorDeny, Reason: out.Reason, ModifiedInput: out.ModifiedInput}
+		}
+		if out.Allow {
+			// Plan-mode hard-lock for write tools still overrides hook-allow.
+			if c.Mode == ModePlan && IsWriteTool(tool) {
+				return Decision{Behavior: BehaviorDeny, Reason: "plan mode blocks " + tool}
+			}
+			return Decision{Behavior: BehaviorAllow, Reason: out.Reason, ModifiedInput: out.ModifiedInput}
+		}
+		// Pass: remember ModifiedInput for downstream rule evaluation.
+		if out.ModifiedInput != nil {
+			input = out.ModifiedInput
+			hookModified = out.ModifiedInput
+		}
+	}
 	if c.Mode == ModePlan {
 		if IsWriteTool(tool) {
 			return Decision{Behavior: BehaviorDeny, Reason: "plan mode: write tools disabled"}
@@ -45,15 +67,19 @@ func Decide(c *Context, tool string, input map[string]any) Decision {
 		return Decision{Behavior: BehaviorDeny, Reason: "matched deny rule", SuggestedRule: rule}
 	}
 	if c.Mode == ModeAcceptEdits && isEditingTool(tool) {
-		return Decision{Behavior: BehaviorAllow, Reason: "acceptEdits mode"}
+		return Decision{Behavior: BehaviorAllow, Reason: "acceptEdits mode", ModifiedInput: hookModified}
 	}
 	if rule, ok := firstMatch(c.AlwaysAllowRules, tool, input); ok {
-		return Decision{Behavior: BehaviorAllow, Reason: "matched allow rule", SuggestedRule: rule}
+		return Decision{Behavior: BehaviorAllow, Reason: "matched allow rule", SuggestedRule: rule, ModifiedInput: hookModified}
 	}
 	if rule, ok := firstMatch(c.AlwaysAskRules, tool, input); ok {
-		return ask(c, "matched ask rule", rule)
+		d := ask(c, "matched ask rule", rule)
+		d.ModifiedInput = hookModified
+		return d
 	}
-	return ask(c, "no matching rule", nil)
+	d := ask(c, "no matching rule", nil)
+	d.ModifiedInput = hookModified
+	return d
 }
 
 func ask(c *Context, reason string, rule *Rule) Decision {
