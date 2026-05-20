@@ -48,3 +48,38 @@ func TestRegistry_DuplicatePanics(t *testing.T) {
 	r.Register(stubTool{name: "A"})
 	require.Panics(t, func() { r.Register(stubTool{name: "A"}) })
 }
+
+func TestRegistry_RemoveByPrefix(t *testing.T) {
+	t.Run("empty registry returns 0", func(t *testing.T) {
+		r := NewRegistry()
+		require.Equal(t, 0, r.RemoveByPrefix("mcp__"))
+	})
+
+	t.Run("removes only matching names", func(t *testing.T) {
+		r := NewRegistry()
+		r.Register(stubTool{name: "Read"})
+		r.Register(stubTool{name: "mcp__fs__read"})
+		r.Register(stubTool{name: "mcp__fs__write"})
+		r.Register(stubTool{name: "Bash"})
+		n := r.RemoveByPrefix("mcp__")
+		require.Equal(t, 2, n)
+		_, ok1 := r.Get("mcp__fs__read")
+		_, ok2 := r.Get("mcp__fs__write")
+		require.False(t, ok1)
+		require.False(t, ok2)
+	})
+
+	t.Run("preserves order of non-matching tools", func(t *testing.T) {
+		r := NewRegistry()
+		r.Register(stubTool{name: "A"})
+		r.Register(stubTool{name: "mcp__x__y"})
+		r.Register(stubTool{name: "B"})
+		r.Register(stubTool{name: "C"})
+		r.RemoveByPrefix("mcp__")
+		names := []string{}
+		for _, t := range r.All() {
+			names = append(names, t.Name())
+		}
+		require.Equal(t, []string{"A", "B", "C"}, names)
+	})
+}

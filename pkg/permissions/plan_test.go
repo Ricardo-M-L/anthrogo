@@ -14,6 +14,14 @@ func TestIsWriteTool(t *testing.T) {
 	require.False(t, IsWriteTool("Grep"))
 }
 
+func TestIsWriteTool_MatchesMCPPrefix(t *testing.T) {
+	require.True(t, IsWriteTool("mcp__fs__write_file"))
+	require.True(t, IsWriteTool("mcp__github__create_pull_request"))
+	require.False(t, IsWriteTool("Read"))
+	require.False(t, IsWriteTool("Bash"))
+	require.True(t, IsWriteTool("Write"))
+}
+
 func TestIsReadOnlyBashCommand(t *testing.T) {
 	for _, cmd := range []string{
 		"ls", "ls -la", "cat foo.txt", "grep -r foo .", "rg foo",

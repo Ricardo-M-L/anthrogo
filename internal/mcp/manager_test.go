@@ -96,6 +96,40 @@ func TestServer_Start_ResetsStateAfterClose(t *testing.T) {
 	require.NoError(t, s.Close())
 }
 
+// Transport-validation tests — these never dial a network; they just check
+// that invalid configs fail fast with StateFailed.
+
+func TestServer_Start_RejectsBadType(t *testing.T) {
+	s := NewServer("x", MCPServerConfig{Type: "garbage", Timeout: 2 * time.Second}, nil)
+	err := s.Start(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unknown")
+	require.Equal(t, StateFailed, s.State())
+}
+
+func TestServer_Start_StdioRequiresCommand(t *testing.T) {
+	s := NewServer("x", MCPServerConfig{Type: "stdio", Timeout: 2 * time.Second}, nil)
+	err := s.Start(context.Background())
+	require.Error(t, err)
+	require.Equal(t, StateFailed, s.State())
+}
+
+func TestServer_Start_SSERequiresEndpoint(t *testing.T) {
+	s := NewServer("x", MCPServerConfig{Type: "sse", Timeout: 2 * time.Second}, nil)
+	err := s.Start(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "endpoint")
+	require.Equal(t, StateFailed, s.State())
+}
+
+func TestServer_Start_StreamableRequiresEndpoint(t *testing.T) {
+	s := NewServer("x", MCPServerConfig{Type: "streamable", Timeout: 2 * time.Second}, nil)
+	err := s.Start(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "endpoint")
+	require.Equal(t, StateFailed, s.State())
+}
+
 func TestMain(m *testing.M) {
 	// Some CI shells lack `go`; ensure we error early in that case.
 	if _, err := exec.LookPath("go"); err != nil {

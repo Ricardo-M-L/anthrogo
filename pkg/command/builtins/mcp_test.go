@@ -7,7 +7,24 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ricardo/anthrogo/internal/mcp"
+	"github.com/ricardo/anthrogo/pkg/tool"
 )
+
+// stubSentinelTool is a minimal tool.Tool used in reload tests.
+type stubSentinelTool struct {
+	tool.DefaultPermission
+	name string
+}
+
+func (s stubSentinelTool) Name() string                                            { return s.name }
+func (s stubSentinelTool) Description(context.Context) string                      { return "sentinel" }
+func (s stubSentinelTool) Schema() map[string]any                                   { return map[string]any{} }
+func (s stubSentinelTool) UserFacingName(map[string]any) string                     { return s.name }
+func (s stubSentinelTool) IsReadOnly() bool                                         { return true }
+func (s stubSentinelTool) IsConcurrencySafe() bool                                  { return true }
+func (s stubSentinelTool) Call(_ context.Context, _ map[string]any, _ *tool.Context) (tool.Result, error) {
+	return tool.Result{}, nil
+}
 
 func TestMCP_NoManager(t *testing.T) {
 	h := newFakeHost()
@@ -35,4 +52,25 @@ func TestMCP_UnknownSubcommand(t *testing.T) {
 	h.mgr = mcp.NewManager(nil)
 	res, _ := (MCP{}).Run(context.Background(), "garbage", h)
 	require.Contains(t, res.Text, "usage:")
+}
+
+func TestMCP_Reload_RemovesAndReregisters(t *testing.T) {
+	h := newFakeHost()
+	h.mgr = mcp.NewManager(nil) // empty manager — no servers, no live procs
+
+	// Seed the registry with a sentinel mcp__ tool and a non-mcp tool.
+	h.tools.Register(tool.Read{})
+	h.tools.Register(stubSentinelTool{name: "mcp__test__sentinel"})
+
+	res, err := (MCP{}).Run(context.Background(), "reload", h)
+	require.NoError(t, err)
+	// The sentinel mcp__ tool must be gone.
+	_, stillThere := h.tools.Get("mcp__test__sentinel")
+	require.False(t, stillThere, "mcp__ sentinel should have been removed by reload")
+	// Non-mcp tools must survive.
+	_, readThere := h.tools.Get("Read")
+	require.True(t, readThere, "Read tool must survive reload")
+	// Result text must mention counts.
+	require.Contains(t, res.Text, "removed 1 MCP tools")
+	require.Contains(t, res.Text, "registered 0")
 }

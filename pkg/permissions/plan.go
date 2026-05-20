@@ -2,13 +2,14 @@ package permissions
 
 import "strings"
 
-// IsWriteTool reports whether a tool name is in the M2 plan-mode write list.
+// IsWriteTool reports whether a tool name is in the plan-mode write list.
+// All mcp__* tools are treated as write tools.
 func IsWriteTool(name string) bool {
 	switch name {
 	case "Write", "Edit", "NotebookEdit":
 		return true
 	}
-	return false
+	return strings.HasPrefix(name, "mcp__")
 }
 
 var readOnlyBashPrefixes = []string{

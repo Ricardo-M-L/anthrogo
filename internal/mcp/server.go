@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -53,9 +54,9 @@ func NewServer(name string, cfg MCPServerConfig, notifyLog func(string, string))
 	}
 }
 
-// Start spawns the subprocess (via CommandTransport), performs the initialize
-// handshake, and calls tools/list. State is StateReady on success or
-// StateFailed on any error. It may be called again after Close to reload.
+// Start spawns or connects the server, performs the initialize handshake, and
+// calls tools/list. State is StateReady on success or StateFailed on any
+// error. It may be called again after Close to reload.
 func (s *Server) Start(parent context.Context) error {
 	startCtx, cancel := context.WithTimeout(parent, s.cfg.Timeout)
 	defer cancel()
@@ -65,15 +66,6 @@ func (s *Server) Start(parent context.Context) error {
 	s.state = StateInit
 	s.err = nil
 	s.tools = nil
-	s.mu.Unlock()
-
-	cmd := exec.CommandContext(parent, s.cfg.Command, s.cfg.Args...)
-	cmd.Dir = s.cfg.Cwd
-	cmd.Env = mergeEnv(s.cfg.Env)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	s.mu.Lock()
-	s.cmd = cmd
 	s.mu.Unlock()
 
 	// Build the client with a logging handler that fans out to s.notifyLog.
@@ -88,9 +80,43 @@ func (s *Server) Start(parent context.Context) error {
 	}
 	client := sdk.NewClient(impl, opts)
 
-	transport := &sdk.CommandTransport{
-		Command:           cmd,
-		TerminateDuration: 2 * time.Second,
+	// Pick transport based on Type.
+	var transport sdk.Transport
+	switch strings.ToLower(s.cfg.Type) {
+	case "", "stdio":
+		if s.cfg.Command == "" {
+			s.fail(fmt.Errorf("stdio MCP server %s requires command", s.Name))
+			return s.err
+		}
+		cmd := exec.CommandContext(parent, s.cfg.Command, s.cfg.Args...)
+		cmd.Dir = s.cfg.Cwd
+		cmd.Env = mergeEnv(s.cfg.Env)
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		s.mu.Lock()
+		s.cmd = cmd
+		s.mu.Unlock()
+		transport = &sdk.CommandTransport{
+			Command:           cmd,
+			TerminateDuration: 2 * time.Second,
+		}
+	case "sse":
+		if s.cfg.Endpoint == "" {
+			s.fail(fmt.Errorf("sse MCP server %s requires endpoint", s.Name))
+			return s.err
+		}
+		transport = &sdk.SSEClientTransport{Endpoint: s.cfg.Endpoint}
+	case "streamable":
+		if s.cfg.Endpoint == "" {
+			s.fail(fmt.Errorf("streamable MCP server %s requires endpoint", s.Name))
+			return s.err
+		}
+		transport = &sdk.StreamableClientTransport{
+			Endpoint:   s.cfg.Endpoint,
+			MaxRetries: s.cfg.MaxRetries,
+		}
+	default:
+		s.fail(fmt.Errorf("unknown MCP server type %q for %s", s.cfg.Type, s.Name))
+		return s.err
 	}
 
 	session, err := client.Connect(startCtx, transport, nil)

@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.4.4-dev] — 2026-05-20
+
+M4.5 — MCP debt sweep (3 of 7 deferred items).
+
+### Added
+- `tool.Registry.RemoveByPrefix(prefix string) int` — removes every tool whose name starts with prefix; returns count.
+- `MCPServerConfig.Type` — defaults to `"stdio"`. New values: `"sse"` (2024-11-05 SSE protocol, uses `Endpoint`), `"streamable"` (newer streamable HTTP, uses `Endpoint` + optional `MaxRetries`).
+- `Server.Start` picks transport based on `Type`: `*sdk.CommandTransport`, `*sdk.SSEClientTransport`, or `*sdk.StreamableClientTransport`. Validation: stdio requires `command`, sse/streamable require `endpoint`; bad combinations → `StateFailed` with a clear error.
+
+### Changed
+- `/mcp reload` now actually re-registers MCP tools: removes every `mcp__*` from `tool.Registry` then registers from `mgr.AllTools()`. (The model's system prompt is still built at startup; restart to refresh model awareness — `/mcp reload`'s response message mentions this.)
+- `permissions.IsWriteTool` now returns true for any tool name starting with `mcp__`. **Plan mode therefore blocks every MCP tool call by default.** To use a specific MCP tool while planning, exit plan mode (`/mode default`).
+
+### Known issues / deferred (M5)
+- WebSocket transport (no native SDK support yet)
+- OAuth 2.1 client flow for HTTP transports
+- Elicitations (server-initiated user prompts via MCP)
+- Resources (`resources/list`, `resources/read`)
+
 ## [0.4.3-dev] — 2026-05-20
 
 M4.4 — Plugins (third-party content bundles).

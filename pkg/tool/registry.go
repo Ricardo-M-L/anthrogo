@@ -1,6 +1,9 @@
 package tool
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Registry stores Tools in registration order so the API-side tool list is
 // stable run-to-run (important for prompt caching).
@@ -32,4 +35,21 @@ func (r *Registry) All() []Tool {
 		out = append(out, r.byName[n])
 	}
 	return out
+}
+
+// RemoveByPrefix unregisters every tool whose Name() starts with prefix.
+// Returns the number removed.
+func (r *Registry) RemoveByPrefix(prefix string) int {
+	removed := 0
+	kept := r.order[:0]
+	for _, n := range r.order {
+		if strings.HasPrefix(n, prefix) {
+			delete(r.byName, n)
+			removed++
+			continue
+		}
+		kept = append(kept, n)
+	}
+	r.order = kept
+	return removed
 }

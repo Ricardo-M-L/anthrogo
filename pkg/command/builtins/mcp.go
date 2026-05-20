@@ -30,7 +30,15 @@ func (MCP) Run(ctx context.Context, args string, host command.Host) (command.Res
 		if err := mgr.Start(ctx); err != nil {
 			return command.Result{}, err
 		}
-		return command.Result{Text: "MCP servers reloaded"}, nil
+		removed := host.Tools().RemoveByPrefix("mcp__")
+		added := 0
+		for _, t := range mgr.AllTools() {
+			host.Tools().Register(t)
+			added++
+		}
+		out := fmt.Sprintf("MCP servers reloaded (removed %d MCP tools, registered %d)", removed, added)
+		out += "\n\nnote: the model's system prompt was built at startup and still lists original tools; restart anthrogo to refresh model awareness of newly-added MCP tools."
+		return command.Result{Text: out}, nil
 	case strings.HasPrefix(args, "status "):
 		name := strings.TrimSpace(strings.TrimPrefix(args, "status "))
 		return command.Result{Text: statusDetail(mgr, name)}, nil

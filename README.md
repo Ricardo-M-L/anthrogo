@@ -99,14 +99,22 @@ mcpServers:
   filesystem:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-  fetch:
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-fetch"]
+  remote-fetch:
+    type: streamable
+    endpoint: https://example.com/mcp
+    max_retries: 3
+  legacy-sse:
+    type: sse
+    endpoint: https://legacy.example.com/mcp
 ```
 
-Tools surface as `mcp__<server>__<tool>` (names exceeding 64 chars get a sha-8 suffix). Inspect status with `/mcp`, view one server's last error with `/mcp status <name>`, restart all servers with `/mcp reload` (note: tool registry is refreshed at startup only; reloaded servers' tool list changes won't surface until restart — fixed in M4). Server log notifications render dim-styled in the TUI; in headless they go to stderr.
+`type` defaults to `stdio`. Other values: `sse` (2024-11-05 SSE), `streamable` (newer streamable HTTP).
 
-Stdio-spawned servers only. SSE / WebSocket / OAuth / elicitations / resources are deferred to M4–M5.
+Tools surface as `mcp__<server>__<tool>` (names exceeding 64 chars get a sha-8 suffix). Inspect status with `/mcp`, view one server's last error with `/mcp status <name>`, restart all servers with `/mcp reload` (removes and re-registers all `mcp__*` tools; the model's system prompt is still built at startup, so restart anthrogo to refresh model awareness of newly-added tools). Server log notifications render dim-styled in the TUI; in headless they go to stderr.
+
+**Plan mode blocks all MCP tool calls** (`mcp__*` tools are treated as write tools). Switch to default mode (`/mode default`) to invoke MCP tools.
+
+WebSocket / OAuth / elicitations / resources are deferred to M5.
 
 ## Hooks
 
