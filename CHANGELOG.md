@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.10-dev] — 2026-05-21
+
+M10.11 — Anthropic count_tokens API (opt-in).
+
+### Added
+- `tokens.SetAnthropicAPICounter(fn)` hook — when set, Claude-prefixed model token counts go through the provided callback (intended to wrap Anthropic SDK's Messages.CountTokens). Returns -1 on error → falls back to char/4.
+- `Config.UseAnthropicTokenAPI` (YAML `use_anthropic_token_api`) — opts in. Requires a valid Anthropic API key. Off by default (network round-trip + quota cost per call).
+- cmd/anthrogo wires the counter via `buildAnthropicCounter(apiKey)` when enabled.
+
+### Known issues / deferred
+- Each count is a 5s-timeout HTTP round-trip. Heavy for /compact which calls it during summarization.
+- Only text blocks marshaled to the API (image/tool_use blocks dropped client-side; minor undercount).
+- OpenAI/DeepSeek/etc. unchanged — they still use tiktoken-go.
+- Bedrock/Vertex Anthropic variants: ignored by this hook (they use their own model name prefix matching).
+
 ## [0.10.9-dev] — 2026-05-21
 
 M10.10 — Bash AST safety scan.

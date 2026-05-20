@@ -81,6 +81,12 @@ type Config struct {
 	// the cumulative estimated session cost reaches or exceeds this amount (USD).
 	CostLimitUSD float64 `yaml:"cost_limit_usd,omitempty"`
 
+	// UseAnthropicTokenAPI, when true and the active provider is Anthropic,
+	// uses the Anthropic SDK's Messages.CountTokens endpoint for Claude-family
+	// models instead of the char/4 approximation. Each call is a network
+	// round-trip and counts against quota. Off by default.
+	UseAnthropicTokenAPI bool `yaml:"use_anthropic_token_api,omitempty"`
+
 	// ProvidersFailover lists profile names to try after the active provider
 	// fails (EventError before any committed event). Each profile is resolved
 	// via the same buildFromProfile logic as --provider.

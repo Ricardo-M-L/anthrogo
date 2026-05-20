@@ -15,6 +15,9 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	sdk "github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
+
 	"github.com/ricardo/anthrogo/internal/config"
 	"github.com/ricardo/anthrogo/internal/headless"
 	"github.com/ricardo/anthrogo/internal/hooks"
@@ -39,6 +42,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/query"
 	"github.com/ricardo/anthrogo/pkg/skill"
 	"github.com/ricardo/anthrogo/pkg/subagent"
+	"github.com/ricardo/anthrogo/pkg/tokens"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -545,6 +549,16 @@ func main() {
 			}
 			cfg.Model = effectiveModel
 
+			// M10.11: opt-in Anthropic token-counting API for Claude models.
+			if cfg.UseAnthropicTokenAPI {
+				apiKey := expandEnvKey(cfg.APIKey)
+				if apiKey == "" {
+					fmt.Fprintln(os.Stderr, "warning: use_anthropic_token_api set but no Anthropic API key resolved; falling back to char/4")
+				} else {
+					tokens.SetAnthropicAPICounter(buildAnthropicCounter(apiKey))
+				}
+			}
+
 			userRates := make(map[string]pricing.Rate, len(cfg.Pricing))
 			for k, v := range cfg.Pricing {
 				userRates[k] = pricing.Rate{InputPerM: v.InputPerM, OutputPerM: v.OutputPerM}
@@ -815,6 +829,45 @@ func skipRelativeHookPaths(cfg *hooks.Config, logSink func(string, string)) {
 	cfg.PreCompact = fix("PreCompact", cfg.PreCompact)
 	cfg.SessionStart = fix("SessionStart", cfg.SessionStart)
 	cfg.SessionEnd = fix("SessionEnd", cfg.SessionEnd)
+}
+
+// buildAnthropicCounter returns a token-counting callback that calls the
+// Anthropic SDK's Messages.CountTokens endpoint. The callback returns -1 on
+// any error, signalling the caller to fall back to char/4.
+func buildAnthropicCounter(apiKey string) func(model string, blocks []message.Block) int {
+	client := sdk.NewClient(option.WithAPIKey(apiKey))
+	return func(model string, blocks []message.Block) int {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		msgs := []sdk.MessageParam{
+			sdk.NewUserMessage(toContentBlocks(blocks)...),
+		}
+		result, err := client.Messages.CountTokens(ctx, sdk.MessageCountTokensParams{
+			Model:    sdk.F(sdk.Model(model)),
+			Messages: sdk.F(msgs),
+		})
+		if err != nil {
+			return -1
+		}
+		return int(result.InputTokens)
+	}
+}
+
+// toContentBlocks converts []message.Block to SDK content block params.
+// Only text blocks are marshalled; image/tool_use blocks are dropped
+// (minor undercount, deferred to a future milestone).
+func toContentBlocks(blocks []message.Block) []sdk.ContentBlockParamUnion {
+	out := make([]sdk.ContentBlockParamUnion, 0, len(blocks))
+	for _, b := range blocks {
+		if b.Type == message.BlockText && b.Text != "" {
+			out = append(out, sdk.NewTextBlock(b.Text))
+		}
+	}
+	if len(out) == 0 {
+		// The API requires at least one content block.
+		out = append(out, sdk.NewTextBlock(" "))
+	}
+	return out
 }
 
 // buildFromProfile constructs a provider.Provider from a named profile entry.

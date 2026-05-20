@@ -97,6 +97,41 @@ func TestCounter_Nil_DoesNotPanic(t *testing.T) {
 	})
 }
 
+func TestCounter_UsesAnthropicAPICounter_WhenSet(t *testing.T) {
+	called := false
+	SetAnthropicAPICounter(func(model string, blocks []message.Block) int {
+		called = true
+		return 99
+	})
+	defer SetAnthropicAPICounter(nil)
+	c := NewCounter("claude-sonnet-4-6")
+	n := c.CountBlocks([]message.Block{{Type: message.BlockText, Text: "hi"}})
+	require.True(t, called)
+	require.Equal(t, 99, n)
+}
+
+func TestCounter_FallsBackOnAPICounterError(t *testing.T) {
+	SetAnthropicAPICounter(func(model string, blocks []message.Block) int { return -1 })
+	defer SetAnthropicAPICounter(nil)
+	c := NewCounter("claude-sonnet-4-6")
+	n := c.CountBlocks([]message.Block{{Type: message.BlockText, Text: "hi"}})
+	// Should fall back to char/4: "hi" is 2 chars → (2+3)/4 = 1
+	require.GreaterOrEqual(t, n, 1)
+	require.LessOrEqual(t, n, 3)
+}
+
+func TestCounter_OpenAIModelIgnoresAnthropicAPICounter(t *testing.T) {
+	called := false
+	SetAnthropicAPICounter(func(string, []message.Block) int {
+		called = true
+		return 999
+	})
+	defer SetAnthropicAPICounter(nil)
+	c := NewCounter("gpt-4o")
+	_ = c.CountBlocks([]message.Block{{Type: message.BlockText, Text: "hi"}})
+	require.False(t, called)
+}
+
 func TestEncodingForModel(t *testing.T) {
 	tests := []struct {
 		model    string
