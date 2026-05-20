@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.4-dev] — 2026-05-20
+
+M9.5 — LSP-style code intel tools.
+
+### Added
+- `SymbolSearch` tool — finds a symbol's definition by name. `.go` files parsed via `go/parser` for accurate position + kind classification (func/type/var/const). Other languages (`.js`/`.ts`/`.tsx`/`.py`/`.rs`/`.rb`) use language-specific regex heuristics. Returns up to 50 hits as `path:line: matched-line`. `kind` parameter filters; `path` defaults to cwd.
+- `References` tool — finds usages of a name via word-boundary regex `\b<name>\b` across the tree. Skips binary files (heuristic: any 0x00 byte in first 512). Returns up to 200 hits as `path:line:col: matched-line`.
+- Both tools skip `vendor/`, `node_modules/`, `.git/`, `.anthrogo/`, and respect 1MB per-file size cap.
+
+### Known issues / deferred
+- Not a real LSP. No semantic xref (e.g., distinguishing `pkg1.Foo` from `pkg2.Foo` by import path). No type info.
+- Go AST resolution mode is lossy (SkipObjectResolution) — accurate for top-level decls, but doesn't catch method receivers, nested types.
+- Non-Go regex heuristics produce false positives for shadowed/local names.
+- No incremental indexing; each call walks the tree.
+
 ## [0.9.3-dev] — 2026-05-20
 
 M9.4 — Subagent real-time stream to parent TUI.

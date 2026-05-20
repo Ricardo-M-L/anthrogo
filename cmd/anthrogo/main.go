@@ -655,6 +655,8 @@ func registerTools(cfg config.Config) *tool.Registry {
 	r.Register(tool.Diff{})
 	r.Register(tool.Format{})
 	r.Register(tool.Git{})
+	r.Register(tool.SymbolSearch{})
+	r.Register(tool.References{})
 	return r
 }
 

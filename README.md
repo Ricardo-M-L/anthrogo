@@ -33,6 +33,7 @@ update/view loops.
 | M6.5      | OAuth 2.1 PKCE client flow for MCP HTTP transports                         | shipped  |
 | M6.6      | KAIROS coordinator (minimal cross-process subagent dispatch)               | shipped  |
 | M9.4      | Subagent real-time stream to parent TUI (OnTextDelta callback + buffering)  | shipped  |
+| M9.5      | LSP-style code intel tools: SymbolSearch + References                       | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout
@@ -611,6 +612,8 @@ Use `/sessions reindex` (alias `search-rebuild-index`) to clear the in-memory LR
 | Diff        | yes       | `git diff` wrapper; options: `path`, `cached`, `context`, `stat`  |
 | Format      | no        | Format a file: gofmt / prettier / black / ruff / rustfmt          |
 | Git         | yes       | Read-only git subcommands: status, log, branch, show, blame, remote |
+| SymbolSearch | yes      | Find a symbol's definition by name; Go via `go/parser`, others via regex heuristics |
+| References  | yes       | Find all word-boundary usages of a name across the tree           |
 
 ## Permission model
 
