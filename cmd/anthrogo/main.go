@@ -23,6 +23,7 @@ import (
 	"github.com/ricardo/anthrogo/internal/version"
 	"github.com/ricardo/anthrogo/pkg/command"
 	"github.com/ricardo/anthrogo/pkg/command/builtins"
+	"github.com/ricardo/anthrogo/pkg/kairos"
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/plugin"
@@ -35,13 +36,14 @@ import (
 
 func main() {
 	var (
-		prompt    string
-		modelFlag string
-		modeFlag  string
-		cwdFlag   string
-		resumeID  string
-		cont      bool
-		showVer   bool
+		prompt          string
+		modelFlag       string
+		modeFlag        string
+		cwdFlag         string
+		resumeID        string
+		cont            bool
+		showVer         bool
+		kairosServeAddr string
 	)
 
 	root := &cobra.Command{
@@ -52,6 +54,73 @@ func main() {
 				fmt.Println("anthrogo", version.Version)
 				return nil
 			}
+
+			// --kairos-serve: run as a KAIROS worker. Build a minimal engine
+			// setup (provider + tools + permissions from config) and serve subagent
+			// requests over HTTP. The worker excludes Remote subagent types from its
+			// own registry to prevent multi-hop redirect loops.
+			if kairosServeAddr != "" {
+				cfg, err := config.Load()
+				if err != nil {
+					return err
+				}
+				if modelFlag != "" {
+					cfg.Model = modelFlag
+				}
+				workerPerms := cfg.ToPermissionContext()
+				workerCwd, err := resolveCwd(cwdFlag)
+				if err != nil {
+					return err
+				}
+				claudeMd, _ := system.LoadClaudeMd(workerCwd, os.Getenv("HOME"))
+				gitStatus, _ := system.GitStatusSnapshot(workerCwd)
+				workerTools := registerTools(cfg)
+				workerSystemPrompt := system.BuildSystemPrompt(system.Options{
+					ToolNames:   toolNameList(workerTools),
+					ClaudeMd:    claudeMd,
+					GitStatus:   gitStatus,
+					CurrentDate: time.Now().Format("2006-01-02"),
+					Cwd:         workerCwd,
+				})
+				// Build a subagent registry that only contains local (non-Remote) types.
+				// This prevents multi-hop: the worker will not forward requests to
+				// another remote worker.
+				workerSubReg := subagent.DefaultRegistry()
+				homeSubRoot := filepath.Join(os.Getenv("HOME"), ".anthrogo", "subagents")
+				cwdSubRoot := filepath.Join(workerCwd, ".anthrogo", "subagents")
+				userSubs, _, _ := subagent.LoadAll(homeSubRoot, cwdSubRoot)
+				for _, s := range userSubs {
+					if s.Remote != nil {
+						continue // exclude remote types to prevent multi-hop
+					}
+					if s.Name == "general-purpose" {
+						continue
+					}
+					workerSubReg.Register(s)
+				}
+				p := anthropic.New(cfg.APIKey, cfg.Model)
+				kHandler := func(ctx context.Context, req kairos.RunRequest, emit func(string)) (string, error) {
+					eng := query.NewEngine(query.Config{
+						Provider:         p,
+						Model:            cfg.Model,
+						Tools:            workerTools,
+						Permissions:      workerPerms,
+						SystemPrompt:     workerSystemPrompt,
+						Cwd:              workerCwd,
+						SubagentRegistry: workerSubReg,
+					})
+					return eng.RunSubagent(ctx, query.SubagentOptions{
+						Type:        req.SubagentType,
+						Description: req.Description,
+						Prompt:      req.Prompt,
+					})
+				}
+				authToken := os.Getenv("KAIROS_AUTH_TOKEN")
+				srv := kairos.NewServer(kHandler, authToken)
+				fmt.Fprintln(os.Stderr, "anthrogo kairos worker listening on", kairosServeAddr)
+				return srv.Run(context.Background(), kairosServeAddr)
+			}
+
 			cfg, err := config.Load()
 			if err != nil {
 				return err
@@ -381,6 +450,7 @@ func main() {
 	root.Flags().StringVarP(&resumeID, "resume", "r", "", "Resume a session by id prefix")
 	root.Flags().BoolVarP(&cont, "continue", "c", false, "Resume the most-recent session for this cwd")
 	root.Flags().BoolVar(&showVer, "version", false, "Print version and exit")
+	root.Flags().StringVar(&kairosServeAddr, "kairos-serve", "", "Serve as a KAIROS worker on this addr (e.g. :9001)")
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

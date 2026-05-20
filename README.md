@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M6.5 complete (v0.5.7-dev). OAuth 2.1 PKCE flow for MCP HTTP transports landed. See `docs/superpowers/specs/` for design docs.
+> **Status**: M6.6 complete (v0.6.0-dev). KAIROS cross-process subagent coordinator landed. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -29,6 +29,7 @@ update/view loops.
 | M5.3      | Concurrent subagents, isolated perms, user-defined YAML types              | shipped  |
 | M6.3      | Real TUI form elicitation handler (JSON-blob form modal)                   | shipped  |
 | M6.5      | OAuth 2.1 PKCE client flow for MCP HTTP transports                         | shipped  |
+| M6.6      | KAIROS coordinator (minimal cross-process subagent dispatch)               | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout
@@ -171,6 +172,26 @@ When `oauth:` is set on an `sse`, `streamable`, or `websocket` server:
 5. The access token is injected as `Authorization: Bearer <token>` on every outgoing request.
 
 `client_secret` is optional — public clients (PKCE-only) can omit it.
+
+## KAIROS — cross-process subagent
+
+anthrogo can route specific subagent types to another anthrogo instance running as a worker:
+
+```bash
+# Worker process:
+KAIROS_AUTH_TOKEN=secret123 anthrogo --kairos-serve :9001
+```
+
+```yaml
+# Client subagent yaml: ~/.anthrogo/subagents/heavy-research.yaml
+name: heavy-research
+description: Use for long research that benefits from the worker's tools.
+remote:
+  endpoint: http://worker.example.com:9001
+  auth_token: env:KAIROS_AUTH_TOKEN
+```
+
+The client sends `POST /kairos/run` with `{subagent_type, prompt}`; the worker spawns a local subagent, streams `event: text` deltas, ends with `event: done`. Bearer auth via `Authorization: Bearer <token>`. M6.6 limits to one hop (the worker excludes Remote types from its own registry).
 
 ## Hooks
 

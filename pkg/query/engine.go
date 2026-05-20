@@ -10,6 +10,7 @@ import (
 
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/compact"
+	"github.com/ricardo/anthrogo/pkg/kairos"
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
@@ -113,6 +114,23 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 	spec, ok := e.cfg.SubagentRegistry.Get(opts.Type)
 	if !ok {
 		return "", fmt.Errorf("subagent: unknown type %q", opts.Type)
+	}
+
+	// 2a. Remote dispatch: if the spec has a RemoteSpec, route via HTTP instead
+	// of spawning a local child Engine. Hooks still fire locally.
+	if spec.Remote != nil {
+		text, err := kairos.DispatchRemote(ctx,
+			spec.Remote.Endpoint, spec.Remote.AuthToken,
+			opts.Type, opts.Description, opts.Prompt,
+		)
+		if e.cfg.Hooks != nil {
+			if err != nil {
+				e.cfg.Hooks.FireSubagentStop(ctx, "error")
+			} else {
+				e.cfg.Hooks.FireSubagentStop(ctx, "end_turn")
+			}
+		}
+		return text, err
 	}
 
 	// 2b. Mint a subagent ID and create an independent JSONL store when a

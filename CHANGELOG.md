@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.6.0-dev] — 2026-05-20
+
+M6.6 — KAIROS coordinator (minimal cross-process subagent).
+
+### Added
+- `pkg/kairos/` package: minimal SSE-based RPC for cross-process subagent dispatch.
+  - Server: `POST /kairos/run` with `{subagent_type, prompt, description?}`; streams `event: text` deltas, ends with `event: done` (final text) or `event: error`. Optional Bearer auth via `KAIROS_AUTH_TOKEN` env on the worker side.
+  - Client: `DispatchRemote(ctx, endpoint, token, type, description, prompt) (string, error)` consumes SSE stream and returns accumulated/final text.
+- `subagent.Spec.Remote *RemoteSpec` (YAML `remote: {endpoint, auth_token}`) — auth_token supports `env:VARNAME` syntax. When set, `Engine.RunSubagent` dispatches via HTTP instead of spawning a local child Engine. Hooks (SubagentStop) still fire locally with success/error reason.
+- `--kairos-serve <addr>` CLI flag — anthrogo runs as a worker that services subagent dispatches on demand using its own provider + tools + permissions. The worker excludes Remote subagent types from its registry to prevent multi-hop redirect.
+
+This completes the M6 group: hooks/compact/skills/plugins (M4), subagents/MCP-resources-elicit/concurrent-isolated-yaml (M5), list_changed/independent-JSONL/form-elicit/websocket/oauth/kairos (M6).
+
+### Known issues / deferred
+- No remote hooks, no remote permission context, no remote tool execution — the worker uses its own.
+- No bidirectional streaming (client can't cancel or feed back to the running subagent).
+- No remote JSONL upload back to the caller.
+- No multi-hop (worker rejects remote types in its registry).
+- No connection pooling / retry / circuit-breaker.
+- Worker uses the calling process's HOME / model / permissions, not the client's — pin your worker config carefully.
+- No TLS termination (use a reverse proxy if needed); KAIROS_AUTH_TOKEN over plain HTTP leaks.
+
 ## [0.5.7-dev] — 2026-05-20
 
 M6.5 — OAuth 2.1 client flow for MCP HTTP transports.

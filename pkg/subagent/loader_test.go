@@ -118,3 +118,43 @@ func TestLoadAll_NonexistentRoot(t *testing.T) {
 	require.Empty(t, specs)
 	require.Empty(t, warnings)
 }
+
+func TestLoadAll_ParsesRemoteSpec(t *testing.T) {
+	tmp := t.TempDir()
+	content := `name: remote-worker
+description: Routes to a KAIROS worker.
+remote:
+  endpoint: http://worker.example.com:9001
+  auth_token: secret123
+`
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "remote-worker.yaml"), []byte(content), 0o644))
+
+	specs, warnings, err := LoadAll(tmp, "")
+	require.NoError(t, err)
+	require.Empty(t, warnings)
+	require.Len(t, specs, 1)
+	s := specs[0]
+	require.Equal(t, "remote-worker", s.Name)
+	require.NotNil(t, s.Remote, "Remote field must be non-nil")
+	require.Equal(t, "http://worker.example.com:9001", s.Remote.Endpoint)
+	require.Equal(t, "secret123", s.Remote.AuthToken)
+}
+
+func TestLoadAll_ResolvesEnvAuthToken(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("TEST_KAIROS_TOKEN", "resolved-from-env")
+	content := `name: env-worker
+description: Uses env var for auth token.
+remote:
+  endpoint: http://worker.example.com:9001
+  auth_token: env:TEST_KAIROS_TOKEN
+`
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "env-worker.yaml"), []byte(content), 0o644))
+
+	specs, warnings, err := LoadAll(tmp, "")
+	require.NoError(t, err)
+	require.Empty(t, warnings)
+	require.Len(t, specs, 1)
+	require.NotNil(t, specs[0].Remote)
+	require.Equal(t, "resolved-from-env", specs[0].Remote.AuthToken)
+}

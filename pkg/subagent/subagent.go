@@ -2,6 +2,14 @@ package subagent
 
 import "sort"
 
+// RemoteSpec configures cross-process dispatch for a subagent type.
+// When non-nil, Engine.RunSubagent dispatches via HTTP to the KAIROS worker
+// instead of spawning a local child Engine.
+type RemoteSpec struct {
+	Endpoint  string `yaml:"endpoint"`   // http://host:port
+	AuthToken string `yaml:"auth_token"` // optional; supports "env:VARNAME" prefix
+}
+
 // Spec describes a subagent type: its name, description (shown to the model in
 // the Task tool schema), a system prompt suffix appended to the parent's prompt,
 // and an optional tool allowlist (empty = inherit all parent tools).
@@ -9,7 +17,8 @@ type Spec struct {
 	Name               string
 	Description        string
 	SystemPromptSuffix string
-	ToolAllowlist      []string // empty = inherit all
+	ToolAllowlist      []string    // empty = inherit all
+	Remote             *RemoteSpec // when non-nil, RunSubagent dispatches via HTTP
 }
 
 // Registry holds named subagent Specs.

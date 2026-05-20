@@ -13,10 +13,11 @@ import (
 var nameRE = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 
 type yamlSpec struct {
-	Name               string   `yaml:"name"`
-	Description        string   `yaml:"description"`
-	SystemPromptSuffix string   `yaml:"system_prompt_suffix"`
-	ToolAllowlist      []string `yaml:"tool_allowlist"`
+	Name               string      `yaml:"name"`
+	Description        string      `yaml:"description"`
+	SystemPromptSuffix string      `yaml:"system_prompt_suffix"`
+	ToolAllowlist      []string    `yaml:"tool_allowlist"`
+	Remote             *RemoteSpec `yaml:"remote"`
 }
 
 // LoadAll scans homeRoot and cwdRoot for *.yaml / *.yml files (non-recursive).
@@ -93,11 +94,16 @@ func loadDir(root string) ([]Spec, []string) {
 			warnings = append(warnings, fmt.Sprintf("subagent %q: empty description", stem))
 			continue
 		}
+		// Resolve env:VARNAME in auth_token.
+		if y.Remote != nil && strings.HasPrefix(y.Remote.AuthToken, "env:") {
+			y.Remote.AuthToken = os.Getenv(strings.TrimPrefix(y.Remote.AuthToken, "env:"))
+		}
 		specs = append(specs, Spec{
 			Name:               stem,
 			Description:        y.Description,
 			SystemPromptSuffix: y.SystemPromptSuffix,
 			ToolAllowlist:      y.ToolAllowlist,
+			Remote:             y.Remote,
 		})
 	}
 	return specs, warnings

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ricardo/anthrogo/internal/session"
+	"github.com/ricardo/anthrogo/pkg/kairos"
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
@@ -647,6 +650,97 @@ func TestEngine_RunSubagent_WritesSubagentJSONL(t *testing.T) {
 	require.NoError(t, err)
 	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
 	require.GreaterOrEqual(t, len(lines), 1)
+}
+
+// TestEngine_RunSubagent_RemoteDispatch verifies that when a subagent spec has
+// a RemoteSpec, RunSubagent dispatches via HTTP to a kairos server instead of
+// spawning a local child Engine.
+func TestEngine_RunSubagent_RemoteDispatch(t *testing.T) {
+	// Start a kairos httptest server that returns a fixed response.
+	kHandler := func(ctx context.Context, req kairos.RunRequest, emit func(string)) (string, error) {
+		emit("remote ")
+		emit("answer")
+		return "remote answer", nil
+	}
+	kSrv := kairos.NewServer(kHandler, "")
+	ts := httptest.NewServer(kSrv.Handler())
+	defer ts.Close()
+
+	// Build a registry with a remote spec pointing at the httptest server.
+	reg := subagent.NewRegistry()
+	reg.Register(subagent.Spec{
+		Name:        "remote-type",
+		Description: "a remote subagent",
+		Remote: &subagent.RemoteSpec{
+			Endpoint: ts.URL,
+		},
+	})
+
+	rec := &recordingHookSink{}
+	// The fake provider should NOT be called for remote dispatch.
+	fp := fake.New(nil)
+	e := NewEngine(Config{
+		Provider:         fp,
+		Tools:            tool.NewRegistry(),
+		Permissions:      permissions.Empty(),
+		Model:            "x",
+		SubagentRegistry: reg,
+		Hooks:            rec,
+	})
+
+	result, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type:        "remote-type",
+		Description: "remote test",
+		Prompt:      "do something remotely",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "remote answer", result)
+	require.True(t, rec.subagentStopCalled, "SubagentStop hook must fire for remote dispatch")
+	require.Equal(t, "end_turn", rec.subagentStopReason)
+}
+
+// TestEngine_RunSubagent_RemoteDispatch_AuthError verifies that auth failures
+// from the remote server are returned as errors and fire the SubagentStop hook.
+func TestEngine_RunSubagent_RemoteDispatch_AuthError(t *testing.T) {
+	// Server requires a token we won't provide.
+	kHandler := func(ctx context.Context, req kairos.RunRequest, emit func(string)) (string, error) {
+		return "ok", nil
+	}
+	kSrv := kairos.NewServer(kHandler, "required-token")
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Delegate to the kairos handler (which checks auth).
+		kSrv.Handler().ServeHTTP(w, r)
+	}))
+	defer ts.Close()
+
+	reg := subagent.NewRegistry()
+	reg.Register(subagent.Spec{
+		Name:        "auth-remote",
+		Description: "needs auth",
+		Remote: &subagent.RemoteSpec{
+			Endpoint:  ts.URL,
+			AuthToken: "wrong-token",
+		},
+	})
+
+	rec := &recordingHookSink{}
+	fp := fake.New(nil)
+	e := NewEngine(Config{
+		Provider:         fp,
+		Tools:            tool.NewRegistry(),
+		Permissions:      permissions.Empty(),
+		Model:            "x",
+		SubagentRegistry: reg,
+		Hooks:            rec,
+	})
+
+	_, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type:   "auth-remote",
+		Prompt: "hi",
+	})
+	require.Error(t, err)
+	require.True(t, rec.subagentStopCalled, "SubagentStop hook must fire on remote error")
+	require.Equal(t, "error", rec.subagentStopReason)
 }
 
 // alwaysEndTurnProvider returns an immediate end_turn for every call.
