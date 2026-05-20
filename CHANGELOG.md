@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.9-dev] — 2026-05-20
+
+M7.10 — TUI markdown rendering (glamour).
+
+### Added
+- Assistant message text passes through glamour `TermRenderer` on `finishAssistant`. Auto-style picks dark/light from the terminal; code fences, headers, lists, bold/italic, blockquotes, and inline code render properly in the TUI chat viewport.
+- During streaming, deltas accumulate as plain text under the "assistant > " prefix; the markdown render happens once at end-of-turn.
+- User messages and tool output stay plain (no glamour) — user input is literal, tool output is usually compact JSON/text.
+- Backing `chat.lines` reshaped from `[]string` to `[]chatLine{rendered, rawText}` so the streaming-then-finalize re-render can recover the source markdown.
+
+### Known issues / deferred
+- No mid-stream re-render (would flicker; one-shot at turn end is the right tradeoff).
+- Glamour's word-wrap disabled; bubbletea viewport handles vertical scroll, horizontal overflow may clip on very narrow terminals.
+- Tool output stays plain — adding glamour there would slow down repeated short outputs.
+
 ## [0.7.8-dev] — 2026-05-20
 
 M7.9 — /sessions export markdown.

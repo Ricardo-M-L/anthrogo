@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,13 @@ import (
 	"github.com/ricardo/anthrogo/pkg/provider/fake"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
+
+// stripANSI removes ANSI escape sequences from a string.
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+func stripANSI(s string) string {
+	return ansiEscape.ReplaceAllString(s, "")
+}
 
 func TestApp_ScriptedTurn_RendersAssistantText(t *testing.T) {
 	fp := fake.New([]provider.Event{
@@ -47,5 +55,10 @@ func TestApp_ScriptedTurn_RendersAssistantText(t *testing.T) {
 		}
 		m, _ = m.(*App).Update(engineEventMsg{ev: ev})
 	}
-	require.Contains(t, strings.Join(m.(*App).chat.lines, "\n"), "hi there")
+	var renderedLines []string
+	for _, ln := range m.(*App).chat.lines {
+		renderedLines = append(renderedLines, ln.rendered)
+	}
+	plain := stripANSI(strings.Join(renderedLines, "\n"))
+	require.Contains(t, plain, "hi there")
 }

@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M7.8 complete (v0.7.7-dev). Image/vision blocks + `@image:` prompt syntax landed. See `docs/superpowers/specs/` for design docs.
+> **Status**: M7.10 complete (v0.7.9-dev). TUI assistant messages render via glamour at end of turn (code fences, headers, lists, bold). See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
