@@ -308,7 +308,7 @@ Limitations: only local file paths are supported (no URLs or data URIs in the `@
 
 ## Provider profiles
 
-anthrogo ships an Anthropic provider by default but can route to any OpenAI Chat Completions compatible endpoint (DeepSeek, Kimi, MiniMax, GLM, vllm, ollama-openai, etc.) or AWS Bedrock via profiles:
+anthrogo ships an Anthropic provider by default but can route to any OpenAI Chat Completions compatible endpoint (DeepSeek, Kimi, MiniMax, GLM, vllm, ollama-openai, etc.), AWS Bedrock, or Google Cloud Vertex AI via profiles:
 
 ```yaml
 provider: deepseek           # active profile
@@ -337,6 +337,11 @@ profiles:
     type: bedrock
     model: anthropic.claude-sonnet-4-6-v1:0
     region: us-west-2   # optional; falls back to AWS_REGION or ~/.aws/config
+  vertex-sonnet:
+    type: vertex
+    model: claude-sonnet-4-6@20260101
+    region: us-east5      # mandatory
+    project_id: my-gcp-project  # mandatory
 ```
 
 ### AWS Bedrock
@@ -348,6 +353,19 @@ Bedrock model IDs follow the AWS naming convention (`anthropic.claude-*`), which
 ```yaml
 pricing:
   "anthropic.claude-sonnet-4-6-v1:0":
+    input_per_m: 3.0
+    output_per_m: 15.0
+```
+
+### Google Cloud Vertex AI
+
+Profile `type: vertex` uses Google Application Default Credentials — `GOOGLE_APPLICATION_CREDENTIALS` env var pointing to a service-account key file, `gcloud auth application-default login` for local development, or workload identity on GKE/Cloud Run. No `api_key` is needed; `ANTHROPIC_API_KEY` is not used.
+
+Both `region` and `project_id` are mandatory. Vertex model IDs follow the Model Garden convention (`claude-sonnet-4-6@20260101`), which differs from the direct Anthropic API names. Add explicit `pricing:` entries if needed:
+
+```yaml
+pricing:
+  "claude-sonnet-4-6@20260101":
     input_per_m: 3.0
     output_per_m: 15.0
 ```

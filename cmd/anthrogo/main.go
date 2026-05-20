@@ -34,6 +34,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/provider/anthropic"
 	bedrockProvider "github.com/ricardo/anthrogo/pkg/provider/bedrock"
 	openaiProvider "github.com/ricardo/anthrogo/pkg/provider/openai"
+	vertexProvider "github.com/ricardo/anthrogo/pkg/provider/vertex"
 	"github.com/ricardo/anthrogo/pkg/query"
 	"github.com/ricardo/anthrogo/pkg/skill"
 	"github.com/ricardo/anthrogo/pkg/subagent"
@@ -686,6 +687,12 @@ func buildProvider(cfg config.Config, providerFlagValue string) (provider.Provid
 			p, err := bedrockProvider.New(context.Background(), prof.Region, model)
 			if err != nil {
 				return nil, "", fmt.Errorf("bedrock provider: %w", err)
+			}
+			return p, model, nil
+		case "vertex":
+			p, err := vertexProvider.New(context.Background(), prof.Region, prof.ProjectID, model)
+			if err != nil {
+				return nil, "", fmt.Errorf("vertex provider: %w", err)
 			}
 			return p, model, nil
 		default:

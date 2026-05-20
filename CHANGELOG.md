@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.9.1-dev] — 2026-05-20
+
+M9.2 — Vertex provider (Anthropic via GCP).
+
+### Added
+- `pkg/provider/vertex/` — wraps Anthropic SDK's vertex subpackage. Uses Google application default credentials (`gcloud auth application-default login`, GOOGLE_APPLICATION_CREDENTIALS env, or workload identity).
+- Profile fields: `region` (mandatory; e.g. `us-east5`), `project_id` (mandatory).
+- Vertex model IDs follow GCP's published name convention: `claude-sonnet-4-6@20260101` (publisher/anthropic models in Model Garden).
+
+### Example
+
+```yaml
+provider: vertex-sonnet
+profiles:
+  vertex-sonnet:
+    type: vertex
+    model: claude-sonnet-4-6@20260101
+    region: us-east5
+    project_id: my-gcp-project
+```
+
+### Known issues / deferred
+- No explicit credential file path option; relies on default chain (GOOGLE_APPLICATION_CREDENTIALS env or `gcloud auth application-default login`).
+- Vertex model IDs differ from direct Anthropic API names; pricing lookups won't match without YAML aliases.
+- Stream-level testing requires real GCP creds; CI skips.
+
 ## [0.9.0-dev] — 2026-05-20
 
 M9.1 — Bedrock provider (Anthropic via AWS).
