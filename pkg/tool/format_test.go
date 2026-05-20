@@ -40,6 +40,60 @@ func TestFormat_MissingPath(t *testing.T) {
 	require.Contains(t, res.Text, "path is required")
 }
 
+func TestFormat_BatchOfThree(t *testing.T) {
+	if _, err := exec.LookPath("gofmt"); err != nil {
+		t.Skip("gofmt not on PATH")
+	}
+
+	dir := t.TempDir()
+	unformatted := "package main\n\nfunc f()   {\n}\n"
+
+	var paths []string
+	for _, name := range []string{"a.go", "b.go", "c.go"} {
+		p := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(p, []byte(unformatted), 0644))
+		paths = append(paths, p)
+	}
+
+	res, err := Format{}.Call(context.Background(),
+		map[string]any{"paths": []any{paths[0], paths[1], paths[2]}},
+		&Context{})
+	require.NoError(t, err)
+	require.False(t, res.IsError, "unexpected error: %s", res.Text)
+	require.Contains(t, res.Text, "formatted 3/3")
+	for _, p := range paths {
+		require.Contains(t, res.Text, filepath.Base(p))
+	}
+}
+
+func TestFormat_PartialFailure(t *testing.T) {
+	if _, err := exec.LookPath("gofmt"); err != nil {
+		t.Skip("gofmt not on PATH")
+	}
+	// Only test partial-failure if python formatter also absent (so .py fails).
+	if _, err := exec.LookPath("black"); err == nil {
+		t.Skip("black is on PATH; skipping partial-failure test")
+	}
+	if _, err := exec.LookPath("ruff"); err == nil {
+		t.Skip("ruff is on PATH; skipping partial-failure test")
+	}
+
+	dir := t.TempDir()
+	goFile := filepath.Join(dir, "ok.go")
+	pyFile := filepath.Join(dir, "fail.py")
+	require.NoError(t, os.WriteFile(goFile, []byte("package main\n\nfunc f()   {\n}\n"), 0644))
+	require.NoError(t, os.WriteFile(pyFile, []byte("x=1\n"), 0644))
+
+	res, err := Format{}.Call(context.Background(),
+		map[string]any{"paths": []any{goFile, pyFile}},
+		&Context{})
+	require.NoError(t, err)
+	// 1 succeeded (go), 1 failed (py) → IsError=false (partial success still returns a result)
+	require.False(t, res.IsError, "partial success must not be IsError: %s", res.Text)
+	require.Contains(t, res.Text, "formatted 1/2")
+	require.Contains(t, res.Text, "FAILED")
+}
+
 func TestFormat_UnsupportedExtension(t *testing.T) {
 	res, err := Format{}.Call(context.Background(), map[string]any{"path": "/tmp/file.xyz"}, nil)
 	require.NoError(t, err)

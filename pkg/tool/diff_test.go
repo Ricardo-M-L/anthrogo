@@ -95,6 +95,39 @@ func TestDiff_NoDiff_Empty(t *testing.T) {
 	require.Empty(t, res.Text)
 }
 
+func TestDiff_Range(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not on PATH")
+	}
+
+	dir := initGitRepo(t)
+
+	f := filepath.Join(dir, "file.txt")
+	require.NoError(t, os.WriteFile(f, []byte("first\n"), 0644))
+	gitExec(t, dir, "add", "file.txt")
+	gitExec(t, dir, "commit", "-m", "first commit")
+
+	require.NoError(t, os.WriteFile(f, []byte("first\nsecond\n"), 0644))
+	gitExec(t, dir, "add", "file.txt")
+	gitExec(t, dir, "commit", "-m", "second commit")
+
+	tcx := &Context{Cwd: dir}
+	res, err := Diff{}.Call(context.Background(), map[string]any{"range": "HEAD~1..HEAD"}, tcx)
+	require.NoError(t, err)
+	require.False(t, res.IsError, "unexpected error: %s", res.Text)
+	require.Contains(t, res.Text, "+second")
+}
+
+func TestDiff_RangeAndCachedMutuallyExclusive(t *testing.T) {
+	res, err := Diff{}.Call(context.Background(), map[string]any{
+		"range":  "HEAD~1..HEAD",
+		"cached": true,
+	}, nil)
+	require.NoError(t, err)
+	require.True(t, res.IsError)
+	require.Contains(t, res.Text, "mutually exclusive")
+}
+
 // initGitRepo creates a temp dir with a git repo configured for testing.
 func initGitRepo(t *testing.T) string {
 	t.Helper()

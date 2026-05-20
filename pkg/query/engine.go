@@ -301,7 +301,7 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 		Hooks:            e.cfg.Hooks,
 		Cwd:              e.cfg.Cwd,
 		RecordHook:       childRecordHook,
-		Session:          nil, // nested sub-sub-agents share the immediate subagent's JSONL
+		Session:          childSessionStore, // enables nested sub-sub-agent JSONL at <parent>/<sub-id>/subagents/<sub-sub-id>.jsonl
 		SubagentRegistry: e.cfg.SubagentRegistry,
 		SubagentDepth:    currentDepth,
 		MaxSubagentDepth: maxDepth,

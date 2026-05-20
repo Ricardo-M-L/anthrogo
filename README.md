@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M9.7 complete (v0.9.6-dev). Form UI completion: cursor nav, enum cycler, multiline, default values. See `docs/superpowers/specs/` for design docs.
+> **Status**: M9.8 complete (v0.9.7-dev). Tool & subagent JSONL polish: `Diff.range`, `Format.paths` batch, per-nest subagent JSONL. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -35,6 +35,7 @@ update/view loops.
 | M9.4      | Subagent real-time stream to parent TUI (OnTextDelta callback + buffering)  | shipped  |
 | M9.5      | LSP-style code intel tools: SymbolSearch + References                       | shipped  |
 | M9.7      | Form UI completion: cursor nav, enum cycler, Ctrl+J newline, schema defaults | shipped  |
+| M9.8      | `Diff.range` commit-range, `Format.paths` batch, per-nest subagent JSONL     | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout

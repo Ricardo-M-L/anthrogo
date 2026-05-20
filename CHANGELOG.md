@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.7-dev] — 2026-05-21
+
+M9.8 — Tool & subagent JSONL polish.
+
+### Added
+- `Diff.range` field — commit-range diff like `HEAD~3..HEAD` or `main..feature`. Mutually exclusive with `cached` (returns IsError on conflict).
+- `Format.paths` field — array of paths formatted in a batch. `paths` array preferred; legacy singular `path` still accepted. Aggregated result reports per-file success/failure: `formatted 2/3: a.go b.go FAILED c.py: <reason>`.
+- Per-nest subagent JSONL: a sub-sub-agent (subagent calling Task) now writes to `<parent>/<sub-id>/subagents/<sub-sub-id>.jsonl`. M6.2 deferred this by setting Session=nil on the child Config; M9.8 plumbs childSessionStore through so the recursive layout works.
+
+### Known issues / deferred
+- Diff range doesn't combine with `path` filtering for multiple paths (single path only).
+- Format aggregated output doesn't surface per-file diff/changed-line counts (just "formatted" / "FAILED").
+- /sessions stats and search don't recurse into nested subagent JSONLs by default; --recurse-subagents only goes one level deep.
+
 ## [0.9.6-dev] — 2026-05-20
 
 M9.7 — Form UI completion.

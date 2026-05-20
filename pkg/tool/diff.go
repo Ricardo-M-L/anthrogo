@@ -43,14 +43,27 @@ func (Diff) Schema() map[string]any {
 				"type":        "boolean",
 				"description": "Show --stat summary only.",
 			},
+			"range": map[string]any{
+				"type":        "string",
+				"description": "Commit range like 'HEAD~3..HEAD' or 'main..feature'. Mutually exclusive with cached.",
+			},
 		},
 	}
 }
 
 func (Diff) Call(_ context.Context, input map[string]any, tcx *Context) (Result, error) {
+	rangeVal, _ := input["range"].(string)
+	cached, _ := input["cached"].(bool)
+
+	if rangeVal != "" && cached {
+		return errResult("range and cached are mutually exclusive"), nil
+	}
+
 	args := []string{"diff"}
 
-	if cached, _ := input["cached"].(bool); cached {
+	if rangeVal != "" {
+		args = append(args, rangeVal)
+	} else if cached {
 		args = append(args, "--cached")
 	}
 	if stat, _ := input["stat"].(bool); stat {
@@ -93,4 +106,4 @@ func (Diff) Call(_ context.Context, input map[string]any, tcx *Context) (Result,
 	return Result{Type: ResultText, Text: combined, ForLLM: combined}, nil
 }
 
-const diffDescription = `Show git diff for the working tree, staged area (cached), or a path. Supports --stat, custom context lines.`
+const diffDescription = `Show git diff for the working tree, staged area (cached), a commit range (range), or a path. Supports --stat, custom context lines.`

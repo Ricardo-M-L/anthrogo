@@ -1008,6 +1008,59 @@ func TestEngine_RunSubagent_StreamsTextDeltaCallback(t *testing.T) {
 	require.Equal(t, []string{"alpha", " beta", " gamma"}, captured)
 }
 
+// TestEngine_NestedSubagent_WritesNestedJSONL verifies that when an Engine whose
+// Session is a subagent Store calls RunSubagent, the resulting child JSONL is
+// written at the expected nested path:
+//   <parent>/subagents/<first-sub-id>/subagents/<second-sub-id>.jsonl
+func TestEngine_NestedSubagent_WritesNestedJSONL(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	// Create a real parent session.
+	parentSess, err := session.New(session.NewOptions{Cwd: tmpHome, Model: "m"})
+	require.NoError(t, err)
+	defer parentSess.Close()
+
+	// Simulate the first-level subagent store (as if RunSubagent had already been
+	// called once on the parent engine).
+	firstSubID := "first-sub-id"
+	firstSubStore, err := session.NewSubagent(parentSess, firstSubID)
+	require.NoError(t, err)
+	defer firstSubStore.Close()
+
+	// Build a child engine whose Session IS the first-sub store.
+	// When this engine calls RunSubagent, it should write JSONL one level deeper.
+	fp := fake.New([]provider.Event{
+		{Kind: provider.EventStart},
+		{Kind: provider.EventTextDelta, Text: "nested response"},
+		{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+	})
+	subreg := subagent.NewRegistry()
+	subreg.Register(subagent.Spec{Name: "general-purpose", Description: "x"})
+	e := NewEngine(Config{
+		Provider:         fp,
+		Model:            "m",
+		Tools:            tool.NewRegistry(),
+		Permissions:      permissions.Empty(),
+		SubagentRegistry: subreg,
+		Session:          firstSubStore,
+	})
+
+	out, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type: "general-purpose", Description: "nested", Prompt: "go",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "nested response", out)
+
+	// The nested JSONL must live at:
+	//   <firstSubStore.Path without .jsonl>/subagents/<uuid>.jsonl
+	// i.e., <parentSess dir>/subagents/first-sub-id/subagents/<uuid>.jsonl
+	nestedDir := filepath.Join(strings.TrimSuffix(firstSubStore.Path(), ".jsonl"), "subagents")
+	entries, err := os.ReadDir(nestedDir)
+	require.NoError(t, err)
+	require.NotEmpty(t, entries, "expected nested subagent JSONL to exist")
+}
+
 // alwaysEndTurnProvider returns an immediate end_turn for every call.
 type alwaysEndTurnProvider struct{}
 
