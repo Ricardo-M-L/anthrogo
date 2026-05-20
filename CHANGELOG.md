@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.8.9-dev] — 2026-05-20
+
+M8.9 — Real multi-field form elicitation UI.
+
+### Added
+- Multi-field form rendering when MCP server's elicitation schema is a flat object with only primitive properties (string / number / integer / boolean). Each property gets its own input row with type hint + required marker; Tab/Shift-Tab navigates; Enter submits; Esc cancels.
+- Type coercion: string → as-is, integer/number → strconv.Atoi/ParseFloat (decline with reason on parse error), boolean → "yes/no/y/n/true/false/1/0" mapped to bool.
+- Required-field empty-check: declines with reason; optional empty fields omitted from FormData.
+- Schemas with nested objects, arrays, enums fall back to the M6.3 single-textarea JSON path.
+
+### Known issues / deferred
+- No enum dropdown UI (enum schemas drop to textarea fallback).
+- No multi-line strings in any single field (Enter is reserved for submit).
+- Cursor rendering is a static block; no left/right arrow support yet.
+- No default values from schema applied to buffer at start.
+
 ## [0.8.8-dev] — 2026-05-20
 
 M8.8 — Inline $EDITOR via tea.ExecProcess.

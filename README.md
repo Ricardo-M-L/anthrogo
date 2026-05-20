@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M8.2 complete (v0.8.2-dev). Per-project system prompt overlay (`<cwd>/.anthrogo/system_overlay.md`) layered after the home overlay, with `/system show/edit [home|project]/reset [home|project]`. See `docs/superpowers/specs/` for design docs.
+> **Status**: M8.9 complete (v0.8.9-dev). Multi-field form elicitation UI — per-field input rows with Tab/Shift-Tab navigation, type coercion, and required-field validation. Flat primitive schemas render multi-field; complex schemas fall back to the M6.3 JSON-blob textarea. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -28,6 +28,7 @@ update/view loops.
 | M5.2      | MCP resources + minimal elicitations (decline handler)                    | shipped  |
 | M5.3      | Concurrent subagents, isolated perms, user-defined YAML types              | shipped  |
 | M6.3      | Real TUI form elicitation handler (JSON-blob form modal)                   | shipped  |
+| M8.9      | Multi-field form elicitation UI (per-field input, Tab nav, type coercion)  | shipped  |
 | M6.5      | OAuth 2.1 PKCE client flow for MCP HTTP transports                         | shipped  |
 | M6.6      | KAIROS coordinator (minimal cross-process subagent dispatch)               | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
@@ -215,7 +216,12 @@ The `MCPResource` tool has a default `alwaysAllow` rule at the CLI level (read-o
 
 ### Elicitations
 
-When an MCP server sends an `elicitation/create` request, TUI users get a form modal displaying the server's message and the requested JSON schema. Type a JSON object that matches the schema and press Enter to submit, or press Esc to decline. Headless mode (`-p`) always declines. To opt out entirely (suppress the capability advertisement), set `elicitation_mode: "disabled"` on the server config:
+When an MCP server sends an `elicitation/create` request, TUI users get a form modal. The form behaviour depends on the schema:
+
+- **Multi-field mode (M8.9):** If the schema is a flat `object` whose properties are all primitive types (`string`, `number`, `integer`, `boolean`), each property is rendered as its own input row showing the field name, type hint, and a `(required)` marker. Tab/Shift-Tab moves focus between fields; Enter submits; Esc cancels. Type coercion is applied on submit (boolean accepts `yes/no/y/n/true/false/1/0`; integer/number are parsed and declined with a reason on invalid input; required-empty fields are declined with a reason; optional empty fields are omitted from the response).
+- **Single-textarea fallback (M6.3):** Schemas with nested objects, arrays, or enums fall back to the original single-textarea JSON-blob form. Type a JSON object that matches the schema, then press Enter to submit.
+
+Headless mode (`-p`) always declines. To opt out entirely (suppress the capability advertisement), set `elicitation_mode: "disabled"` on the server config:
 
 ```yaml
 mcpServers:
@@ -224,8 +230,6 @@ mcpServers:
     args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
     elicitation_mode: "disabled"   # don't advertise elicitation capability
 ```
-
-Multi-field structured input (one widget per schema property) is deferred to a later milestone; currently the form accepts a single typed JSON blob.
 
 ### OAuth 2.1 (PKCE)
 
