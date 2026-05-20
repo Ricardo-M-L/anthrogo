@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/provider/fake"
+	"github.com/ricardo/anthrogo/pkg/subagent"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -201,9 +203,11 @@ func TestEngine_HookModifiedInput_ReachesTool(t *testing.T) {
 	require.False(t, hasOrig, "orig key must be absent after mutation")
 }
 
-// recordingHookSink records FirePreCompact calls for compact tests.
+// recordingHookSink records FirePreCompact and FireSubagentStop calls for tests.
 type recordingHookSink struct {
-	preCompactCalled bool
+	preCompactCalled    bool
+	subagentStopReason  string
+	subagentStopCalled  bool
 }
 
 func (r *recordingHookSink) FirePostToolUse(_ context.Context, _ string, _, _ map[string]any) string {
@@ -212,6 +216,10 @@ func (r *recordingHookSink) FirePostToolUse(_ context.Context, _ string, _, _ ma
 func (r *recordingHookSink) FireStop(_ context.Context, _ string) {}
 func (r *recordingHookSink) FirePreCompact(_ context.Context, _ string) {
 	r.preCompactCalled = true
+}
+func (r *recordingHookSink) FireSubagentStop(_ context.Context, reason string) {
+	r.subagentStopCalled = true
+	r.subagentStopReason = reason
 }
 
 func TestEngine_Compact_FiresHookAndReplaces(t *testing.T) {
@@ -318,4 +326,196 @@ func (s *slowFakeProvider) Stream(ctx context.Context, _ provider.Request) (<-ch
 		out <- provider.Event{Kind: provider.EventMessageStop, StopReason: "end_turn"}
 	}()
 	return out, nil
+}
+
+// --- RunSubagent tests ---
+
+func makeSubagentEngine(t *testing.T, fp provider.Provider, hooks HookSink) (*Engine, *subagent.Registry) {
+	t.Helper()
+	reg := subagent.DefaultRegistry()
+	e := NewEngine(Config{
+		Provider:         fp,
+		Tools:            tool.NewRegistry(),
+		Permissions:      permissions.Empty(),
+		Model:            "x",
+		SubagentRegistry: reg,
+		Hooks:            hooks,
+	})
+	return e, reg
+}
+
+func TestEngine_RunSubagent_HappyPath(t *testing.T) {
+	fp := fake.New([]provider.Event{
+		{Kind: provider.EventTextDelta, Text: "SUB ANSWER"},
+		{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+	})
+	rec := &recordingHookSink{}
+	e, _ := makeSubagentEngine(t, fp, rec)
+
+	result, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type:        "general-purpose",
+		Description: "test task",
+		Prompt:      "what is 2+2?",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "SUB ANSWER", result)
+	require.True(t, rec.subagentStopCalled, "SubagentStop hook must fire")
+	require.Equal(t, "end_turn", rec.subagentStopReason)
+}
+
+func TestEngine_RunSubagent_DepthLimit(t *testing.T) {
+	fp := &alwaysEndTurnProvider{}
+	reg := subagent.DefaultRegistry()
+
+	// Create engine already at the max depth — any call should be rejected.
+	e := NewEngine(Config{
+		Provider:         fp,
+		Tools:            tool.NewRegistry(),
+		Permissions:      permissions.Empty(),
+		Model:            "x",
+		SubagentRegistry: reg,
+		SubagentDepth:    3,
+		MaxSubagentDepth: 3,
+	})
+
+	_, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type:   "general-purpose",
+		Prompt: "hello",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "depth limit")
+}
+
+func TestEngine_RunSubagent_UnknownType(t *testing.T) {
+	fp := fake.New(nil)
+	e, _ := makeSubagentEngine(t, fp, nil)
+
+	_, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type:   "nonexistent-weird-type",
+		Prompt: "hello",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unknown type")
+}
+
+func TestEngine_RunSubagent_NoRegistry(t *testing.T) {
+	fp := fake.New(nil)
+	e := NewEngine(Config{
+		Provider:    fp,
+		Tools:       tool.NewRegistry(),
+		Permissions: permissions.Empty(),
+		Model:       "x",
+		// SubagentRegistry intentionally nil
+	})
+	_, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type:   "general-purpose",
+		Prompt: "hi",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no registry")
+}
+
+// alwaysEndTurnProvider returns an immediate end_turn for every call.
+type alwaysEndTurnProvider struct{}
+
+func (a *alwaysEndTurnProvider) Stream(_ context.Context, _ provider.Request) (<-chan provider.Event, error) {
+	ch := make(chan provider.Event, 2)
+	ch <- provider.Event{Kind: provider.EventTextDelta, Text: "done"}
+	ch <- provider.Event{Kind: provider.EventMessageStop, StopReason: "end_turn"}
+	close(ch)
+	return ch, nil
+}
+
+// echoTool is a minimal tool used in buffer-reset tests: it accepts any JSON
+// object input and returns a fixed text result.
+type echoTool struct{ tool.DefaultPermission }
+
+func (echoTool) Name() string                         { return "echo" }
+func (echoTool) Description(context.Context) string   { return "echo" }
+func (echoTool) UserFacingName(map[string]any) string { return "echo" }
+func (echoTool) IsReadOnly() bool                     { return true }
+func (echoTool) IsConcurrencySafe() bool              { return true }
+func (echoTool) Schema() map[string]any               { return map[string]any{"type": "object"} }
+func (echoTool) Call(_ context.Context, _ map[string]any, _ *tool.Context) (tool.Result, error) {
+	return tool.Result{Text: "echoed", ForLLM: "echoed"}, nil
+}
+
+// TestEngine_RunSubagent_BufferResetsOnIntermediateTurn verifies that when a
+// subagent run has an intermediate tool_use turn followed by a final end_turn,
+// only the final turn's text is returned (not a concatenation of all turns).
+func TestEngine_RunSubagent_BufferResetsOnIntermediateTurn(t *testing.T) {
+	reg := tool.NewRegistry()
+	reg.Register(echoTool{})
+
+	fp := fake.New(
+		// First turn: text "WRONG" + tool_use echo + StopReason=tool_use
+		[]provider.Event{
+			{Kind: provider.EventStart},
+			{Kind: provider.EventTextDelta, Text: "WRONG"},
+			{Kind: provider.EventToolUseStart, ToolUseID: "u1", ToolName: "echo"},
+			{Kind: provider.EventToolInputDelta, PartialJSON: "{}"},
+			{Kind: provider.EventBlockStop, StopReason: "tool_use"},
+			{Kind: provider.EventMessageStop, StopReason: "tool_use"},
+		},
+		// Second turn: text "RIGHT" + end_turn
+		[]provider.Event{
+			{Kind: provider.EventStart},
+			{Kind: provider.EventTextDelta, Text: "RIGHT"},
+			{Kind: provider.EventBlockStop},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+
+	perms := permissions.Empty()
+	perms.AlwaysAllowRules[permissions.SourceUser] = []permissions.Rule{{Tool: "echo"}}
+	subreg := subagent.NewRegistry()
+	subreg.Register(subagent.Spec{Name: "general-purpose", Description: "x"})
+
+	e := NewEngine(Config{
+		Provider:         fp,
+		Model:            "m",
+		Tools:            reg,
+		Permissions:      perms,
+		SubagentRegistry: subreg,
+	})
+
+	out, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type:        "general-purpose",
+		Description: "test",
+		Prompt:      "go",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "RIGHT", out, "RunSubagent must return only the final turn's text, not WRONG or WRONGRIGHT")
+}
+
+// TestEngine_RunSubagent_FiresSubagentStopOnError verifies that the
+// SubagentStop hook fires with reason "error" when the provider emits an error.
+func TestEngine_RunSubagent_FiresSubagentStopOnError(t *testing.T) {
+	rec := &recordingHookSink{}
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventStart},
+			{Kind: provider.EventError, Err: errors.New("upstream down")},
+		},
+	)
+	subreg := subagent.NewRegistry()
+	subreg.Register(subagent.Spec{Name: "general-purpose", Description: "x"})
+
+	e := NewEngine(Config{
+		Provider:         fp,
+		Model:            "m",
+		Tools:            tool.NewRegistry(),
+		Permissions:      permissions.Empty(),
+		Hooks:            rec,
+		SubagentRegistry: subreg,
+	})
+
+	_, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type:        "general-purpose",
+		Description: "t",
+		Prompt:      "p",
+	})
+	require.Error(t, err)
+	require.True(t, rec.subagentStopCalled, "SubagentStop hook must fire on error path")
+	require.Equal(t, "error", rec.subagentStopReason)
 }

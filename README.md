@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M4.1 complete (v0.4.0-dev). Hooks (9 event types) landed. See `docs/superpowers/specs/` for design docs and `docs/superpowers/plans/` for implementation plans.
+> **Status**: M5.1 complete (v0.5.0-dev). Subagents (Task tool + sub-engine) landed. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -18,14 +18,16 @@ update/view loops.
 
 ## Roadmap
 
-| Milestone | Scope                                                                      |
-|-----------|----------------------------------------------------------------------------|
-| M1        | TUI REPL + 7 core tools + Anthropic SDK + permission gate + CLAUDE.md      |
-| M2        | More tools, session persistence, plan mode, slash-command palette          |
-| M3        | MCP client                                                                 |
-| M4        | Hooks, skills, plugins                                                     |
-| M5        | Subagents, KAIROS / coordinator, remote sessions                           |
-| M6        | OAuth + Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM   |
+| Milestone | Scope                                                                      | Status   |
+|-----------|----------------------------------------------------------------------------|----------|
+| M1        | TUI REPL + 7 core tools + Anthropic SDK + permission gate + CLAUDE.md      | shipped  |
+| M2        | More tools, session persistence, plan mode, slash-command palette          | shipped  |
+| M3        | MCP client                                                                 | shipped  |
+| M4        | Hooks, skills, plugins                                                     | shipped  |
+| M5.1      | Subagents (Task tool + sub-engine, depth limit, SubagentStop hook)         | shipped  |
+| M5.2      | WebSocket / OAuth / elicitations / resources MCP debt                     | planned  |
+| M5.3      | Concurrent subagents, per-subagent JSONL, user-defined types               | planned  |
+| M6        | OAuth + Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM   | planned  |
 
 ## Repository layout
 
@@ -223,6 +225,28 @@ Project-level `<cwd>/.anthrogo/plugins/<name>/` overrides a same-named home plug
 Manage with `/plugin` (list), `/plugin info <name>`, `/plugin reload`, `/plugin install <local-path>`, `/plugin remove <name>`. After install/remove anthrogo must be restarted for commands / skills / MCP-server / hook contributions to take effect at runtime.
 
 **Trust:** Plugins execute shell commands (via hooks), spawn subprocesses (via MCP), and inject text into the model's prompt (via skills + commands). **Installing a plugin = trusting its author.** Every action still flows through anthrogo's existing permission gate, but the model's reasoning is fully influenceable by anything the plugin injects.
+
+## Subagents
+
+The model can spawn isolated sub-engines via the `Task` tool to perform self-contained multi-step tasks. Unlike skill invocations (which just return markdown), a subagent runs its own tool-use loop and returns its final answer as a tool result.
+
+```
+Task({
+  "description": "find all TODO comments",
+  "prompt":       "Search the codebase for TODO comments. Return a list.",
+  "subagent_type": "general-purpose"
+})
+```
+
+The subagent has no memory of the parent conversation — brief it fully in `prompt`. It inherits the parent's tools (unless the subagent type restricts them via `ToolAllowlist`), permission gate, and hook manager.
+
+**Recursion limit:** nested subagents are allowed up to depth 3 by default (`MaxSubagentDepth`). Calls beyond the limit return an error to the model.
+
+**Plan mode:** `Task` is treated as a write tool, so plan mode blocks it. Switch to default mode (`/mode default`) to invoke subagents.
+
+**SubagentStop hook:** fires after every subagent completes (success or error). Wire it in `hooks.yaml` under `SubagentStop:`.
+
+Currently subagents run serially (one at a time). Concurrent dispatch and user-defined subagent types are M5.3.
 
 ## Compaction
 

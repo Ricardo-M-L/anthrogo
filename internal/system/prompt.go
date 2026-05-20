@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ricardo/anthrogo/pkg/skill"
+	"github.com/ricardo/anthrogo/pkg/subagent"
 )
 
 //go:embed prompts/core_v2_1_88.txt
@@ -24,6 +25,7 @@ type Options struct {
 	Cwd         string
 	PlanModeOn  bool
 	Skills      []skill.Skill
+	Subagents   []subagent.Spec
 }
 
 // BuildSystemPrompt produces the prompt sent in `system` to the API. It's the
@@ -51,6 +53,12 @@ func BuildSystemPrompt(opts Options) string {
 		b.WriteString("\nAvailable skills (invoke via the Skill tool, e.g. {\"skill\":\"git-flow\"}):\n")
 		for _, sk := range opts.Skills {
 			fmt.Fprintf(&b, "- %s: %s\n", sk.Name, sk.Description)
+		}
+	}
+	if len(opts.Subagents) > 0 {
+		b.WriteString("\nAvailable subagent types (invoke via the Task tool):\n")
+		for _, sa := range opts.Subagents {
+			fmt.Fprintf(&b, "- %s: %s\n", sa.Name, sa.Description)
 		}
 	}
 	if opts.PlanModeOn {

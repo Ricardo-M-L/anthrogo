@@ -10,6 +10,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/query"
+	"github.com/ricardo/anthrogo/pkg/subagent"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -23,6 +24,7 @@ type PromptHookSink interface {
 	FirePostToolUse(ctx context.Context, toolName string, input, response map[string]any) string
 	FireStop(ctx context.Context, reason string)
 	FirePreCompact(ctx context.Context, trigger string)
+	FireSubagentStop(ctx context.Context, reason string)
 }
 
 // Options bundles everything Run needs. The CLI assembles this from cobra flags
@@ -40,6 +42,10 @@ type Options struct {
 	Stdout          io.Writer
 	Stderr          io.Writer
 	Hooks           PromptHookSink
+	Subagents       *subagent.Registry
+	// OnEngineReady, if non-nil, is called with the engine before the first
+	// SubmitMessage. Callers use this to wire deferred runners (e.g. Task tool).
+	OnEngineReady func(*query.Engine)
 }
 
 // Run executes one prompt and writes the assistant's final text to Stdout.
@@ -66,15 +72,19 @@ func Run(ctx context.Context, opts Options) error {
 	}
 
 	e := query.NewEngine(query.Config{
-		Provider:     opts.Provider,
-		Tools:        opts.Tools,
-		Permissions:  opts.Permissions,
-		Model:        opts.Model,
-		SystemPrompt: opts.SystemPrompt,
-		Cwd:          opts.Cwd,
-		RecordHook:   opts.RecordHook,
-		Hooks:        opts.Hooks,
+		Provider:         opts.Provider,
+		Tools:            opts.Tools,
+		Permissions:      opts.Permissions,
+		Model:            opts.Model,
+		SystemPrompt:     opts.SystemPrompt,
+		Cwd:              opts.Cwd,
+		RecordHook:       opts.RecordHook,
+		Hooks:            opts.Hooks,
+		SubagentRegistry: opts.Subagents,
 	})
+	if opts.OnEngineReady != nil {
+		opts.OnEngineReady(e)
+	}
 	if len(opts.InitialMessages) > 0 {
 		e.SetInitialMessages(opts.InitialMessages)
 	}

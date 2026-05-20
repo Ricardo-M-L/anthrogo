@@ -14,6 +14,10 @@ func TestIsWriteTool(t *testing.T) {
 	require.False(t, IsWriteTool("Grep"))
 }
 
+func TestIsWriteTool_BlocksTask(t *testing.T) {
+	require.True(t, IsWriteTool("Task"), "Task must be treated as a write tool in plan mode")
+}
+
 func TestIsWriteTool_MatchesMCPPrefix(t *testing.T) {
 	require.True(t, IsWriteTool("mcp__fs__write_file"))
 	require.True(t, IsWriteTool("mcp__github__create_pull_request"))

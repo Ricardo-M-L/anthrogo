@@ -27,7 +27,9 @@ import (
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/plugin"
 	"github.com/ricardo/anthrogo/pkg/provider/anthropic"
+	"github.com/ricardo/anthrogo/pkg/query"
 	"github.com/ricardo/anthrogo/pkg/skill"
+	"github.com/ricardo/anthrogo/pkg/subagent"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -161,11 +163,32 @@ func main() {
 				}
 			}
 
+			// Build the subagent registry and Task tool.
+			// The Task tool's runner needs the engine (circular dependency);
+			// we break the cycle by capturing engineRef via OnEngineReady.
+			// engineRef is an atomic.Pointer so the Task tool's runner closure
+			// (called on the SubmitMessage goroutine) can safely Load() while
+			// OnEngineReady Store()s from the startup path.
+			subagentReg := subagent.DefaultRegistry()
+			var engineRef atomic.Pointer[query.Engine]
+			taskTool := tool.NewTask(subagentReg, func(ctx context.Context, opts tool.TaskOptions) (string, error) {
+				e := engineRef.Load()
+				if e == nil {
+					return "", fmt.Errorf("Task: engine not initialized")
+				}
+				return e.RunSubagent(ctx, query.SubagentOptions{
+					Type:        opts.SubagentType,
+					Description: opts.Description,
+					Prompt:      opts.Prompt,
+				})
+			})
+
 			tools := registerTools(cfg)
 			for _, t := range mcpMgr.AllTools() {
 				tools.Register(t)
 			}
 			tools.Register(tool.NewSkill(skillReg))
+			tools.Register(taskTool)
 			claudeMd, _ := system.LoadClaudeMd(cwd, os.Getenv("HOME"))
 			gitStatus, _ := system.GitStatusSnapshot(cwd)
 			systemPrompt := system.BuildSystemPrompt(system.Options{
@@ -176,6 +199,7 @@ func main() {
 				Cwd:         cwd,
 				PlanModeOn:  cfg.Mode == permissions.ModePlan,
 				Skills:      skillReg.List(),
+				Subagents:   subagentReg.List(),
 			})
 
 			var sess *session.Store
@@ -264,6 +288,8 @@ func main() {
 					Stdout:          os.Stdout,
 					Stderr:          os.Stderr,
 					Hooks:           hookMgr,
+					Subagents:       subagentReg,
+					OnEngineReady:   func(e *query.Engine) { engineRef.Store(e) },
 				})
 			}
 
@@ -294,6 +320,8 @@ func main() {
 				Hooks:           hookMgr,
 				Skills:          skillReg,
 				Plugins:         pluginReg,
+				Subagents:       subagentReg,
+				OnEngineReady:   func(e *query.Engine) { engineRef.Store(e) },
 			})
 			program := tea.NewProgram(app, tea.WithAltScreen())
 			app.SetProgram(program)

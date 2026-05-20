@@ -6,7 +6,7 @@ import "strings"
 // All mcp__* tools are treated as write tools.
 func IsWriteTool(name string) bool {
 	switch name {
-	case "Write", "Edit", "NotebookEdit":
+	case "Write", "Edit", "NotebookEdit", "Task":
 		return true
 	}
 	return strings.HasPrefix(name, "mcp__")

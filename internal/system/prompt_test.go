@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ricardo/anthrogo/pkg/skill"
+	"github.com/ricardo/anthrogo/pkg/subagent"
 )
 
 func TestBuildSystemPrompt_IncludesAllComponents(t *testing.T) {
@@ -70,4 +71,19 @@ func TestBuildSystemPrompt_ListsSkillsWhenPresent(t *testing.T) {
 func TestBuildSystemPrompt_OmitsSkillsBlockWhenEmpty(t *testing.T) {
 	got := BuildSystemPrompt(Options{})
 	require.NotContains(t, got, "Available skills")
+}
+
+func TestBuildSystemPrompt_ListsSubagentsWhenPresent(t *testing.T) {
+	got := BuildSystemPrompt(Options{
+		Subagents: []subagent.Spec{
+			{Name: "general-purpose", Description: "General-purpose agent for complex tasks."},
+		},
+	})
+	require.Contains(t, got, "Available subagent types")
+	require.Contains(t, got, "- general-purpose: General-purpose agent for complex tasks.")
+}
+
+func TestBuildSystemPrompt_OmitsSubagentsBlockWhenEmpty(t *testing.T) {
+	got := BuildSystemPrompt(Options{})
+	require.NotContains(t, got, "Available subagent types")
 }

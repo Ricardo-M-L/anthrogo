@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.5.0-dev] — 2026-05-20
+
+M5.1 — Subagents (Task tool + sub-Engine).
+
+### Added
+- `Task` built-in tool: model invokes `{description, prompt, subagent_type}` to spawn a sub-engine that runs an isolated multi-step task and returns its final assistant text.
+- `pkg/subagent/` package: `Spec` + `Registry`; ships with one "general-purpose" type pre-registered in `DefaultRegistry()`.
+- `query.Engine.RunSubagent(ctx, opts) (string, error)`: builds child engine with subagent-specific system prompt suffix and optional tool allowlist, runs one turn, drains stream, fires `SubagentStop` hook.
+- Nested depth limit (default 3; configurable via `query.Config.MaxSubagentDepth`); recursion past limit returns a clear error to the model.
+- `SubagentStop` hook event from M4.1 now actually fires after every subagent run (success or error).
+- System prompt lists available subagent types as `- name: description` in a section after tools/skills.
+- Plan mode treats `Task` as a write tool — `IsWriteTool("Task") == true`. Switch to default mode to dispatch subagents while in plan mode.
+
+### Changed
+- `query.HookSink` gains `FireSubagentStop(ctx context.Context, reason string)`.
+- `tui.PromptHookSink` and `headless.PromptHookSink` both gain `FireSubagentStop` to match.
+- `query.Config` gains `SubagentRegistry *subagent.Registry`, `SubagentDepth int`, `MaxSubagentDepth int`.
+- `tui.Options` gains `Subagents *subagent.Registry` and `OnEngineReady func(*query.Engine)`.
+- `headless.Options` gains `Subagents *subagent.Registry` and `OnEngineReady func(*query.Engine)`.
+- `internal/system.Options` gains `Subagents []subagent.Spec`; `BuildSystemPrompt` emits the subagent types section.
+- Version bumped to `0.5.0-dev`.
+
+### Known issues / deferred (M5.2 / M5.3)
+- Subagents run serially (one Task at a time); concurrent multi-Task dispatch is M5.3.
+- Subagents share the parent's permission context, hooks, and JSONL session; independent contexts + per-subagent JSONL are M5.3.
+- User-defined subagent types via YAML are M5.3 (M5.1 ships one built-in type).
+- WebSocket / OAuth / elicitations / resources MCP debt is M5.2.
+
 ## [0.4.4-dev] — 2026-05-20
 
 M4.5 — MCP debt sweep (3 of 7 deferred items).

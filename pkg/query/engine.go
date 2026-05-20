@@ -2,6 +2,8 @@ package query
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/ricardo/anthrogo/internal/session"
@@ -9,6 +11,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
+	"github.com/ricardo/anthrogo/pkg/subagent"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -18,6 +21,7 @@ type HookSink interface {
 	FirePostToolUse(ctx context.Context, toolName string, input, response map[string]any) string
 	FireStop(ctx context.Context, reason string)
 	FirePreCompact(ctx context.Context, trigger string)
+	FireSubagentStop(ctx context.Context, reason string)
 }
 
 type Config struct {
@@ -36,25 +40,145 @@ type Config struct {
 	AppendUIMessage func(msg string)
 	RecordHook      func(session.Record)
 
-	// Hooks is an optional hook sink for PostToolUse and Stop events.
+	// Hooks is an optional hook sink for PostToolUse, Stop, and SubagentStop events.
 	Hooks HookSink
+
+	// Subagent configuration.
+	SubagentRegistry *subagent.Registry
+	SubagentDepth    int // set by parent engine when constructing child; 0 at top level
+	MaxSubagentDepth int // default 3 if zero
 }
 
 // Engine owns one conversation. Each SubmitMessage starts a new turn within
 // the same conversation; messages, usage, cwd persist across turns.
 type Engine struct {
-	mu       sync.Mutex
-	cfg      Config
-	messages []message.Message
-	usage    message.Usage
-	denials  []PermissionDenial
+	mu            sync.Mutex
+	cfg           Config
+	messages      []message.Message
+	usage         message.Usage
+	denials       []PermissionDenial
+	subagentDepth int
 }
 
 func NewEngine(cfg Config) *Engine {
 	if cfg.MaxTokens == 0 {
 		cfg.MaxTokens = 4096
 	}
-	return &Engine{cfg: cfg}
+	return &Engine{cfg: cfg, subagentDepth: cfg.SubagentDepth}
+}
+
+// SubagentOptions carries the parameters for running a subagent.
+type SubagentOptions struct {
+	Type        string
+	Description string
+	Prompt      string
+}
+
+// RunSubagent spawns a child Engine for the named subagent type, runs one turn
+// with opts.Prompt, drains the stream collecting the last assistant turn's text,
+// fires the SubagentStop hook, and returns the result.
+func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string, error) {
+	// 1. Depth check + increment under lock.
+	e.mu.Lock()
+	maxDepth := e.cfg.MaxSubagentDepth
+	if maxDepth <= 0 {
+		maxDepth = 3
+	}
+	if e.subagentDepth >= maxDepth {
+		e.mu.Unlock()
+		return "", fmt.Errorf("subagent depth limit (%d) exceeded", maxDepth)
+	}
+	e.subagentDepth++
+	currentDepth := e.subagentDepth
+	e.mu.Unlock()
+
+	defer func() {
+		e.mu.Lock()
+		e.subagentDepth--
+		e.mu.Unlock()
+	}()
+
+	// 2. Registry lookup.
+	if e.cfg.SubagentRegistry == nil {
+		return "", fmt.Errorf("subagent: no registry configured")
+	}
+	spec, ok := e.cfg.SubagentRegistry.Get(opts.Type)
+	if !ok {
+		return "", fmt.Errorf("subagent: unknown type %q", opts.Type)
+	}
+
+	// 3. Build filtered tool registry (or share parent's).
+	var childTools *tool.Registry
+	if len(spec.ToolAllowlist) > 0 {
+		childTools = tool.NewRegistry()
+		allow := make(map[string]bool, len(spec.ToolAllowlist))
+		for _, n := range spec.ToolAllowlist {
+			allow[n] = true
+		}
+		for _, t := range e.cfg.Tools.All() {
+			if allow[t.Name()] {
+				childTools.Register(t)
+			}
+		}
+	} else {
+		// Share parent's tool registry. Safe today because tool.Registry is
+		// frozen at startup (cmd/anthrogo populates it once before Run). If a
+		// future change makes the registry hot-mutable, defensive copy here.
+		childTools = e.cfg.Tools
+	}
+
+	// 4. Build child Config.
+	childCfg := Config{
+		Provider:         e.cfg.Provider,
+		Model:            e.cfg.Model,
+		Tools:            childTools,
+		Permissions:      e.cfg.Permissions,
+		SystemPrompt:     e.cfg.SystemPrompt + spec.SystemPromptSuffix,
+		Hooks:            e.cfg.Hooks,
+		Cwd:              e.cfg.Cwd,
+		RecordHook:       nil, // child messages do not pollute parent JSONL
+		SubagentRegistry: e.cfg.SubagentRegistry,
+		SubagentDepth:    currentDepth,
+		MaxSubagentDepth: maxDepth,
+		MaxTokens:        e.cfg.MaxTokens,
+		Temperature:      e.cfg.Temperature,
+		MaxTurns:         e.cfg.MaxTurns,
+	}
+
+	child := NewEngine(childCfg)
+
+	// 5. Run one turn, drain the channel collecting the LAST assistant turn's text.
+	// We reset the buffer on every KindAssistantStop so we end up with only the
+	// final assistant turn (the child may cycle through tool_use sub-turns).
+	ch := child.SubmitMessage(ctx, opts.Prompt)
+	var buf strings.Builder
+	for ev := range ch {
+		switch ev.Kind {
+		case KindAssistantDelta:
+			buf.WriteString(ev.Text)
+		case KindAssistantStop:
+			// KindAssistantStop fires after every assistant message (including
+			// intermediate ones before tool_use cycles). Reset to keep only the
+			// final assistant message text.
+			if ev.StopReason == "tool_use" {
+				// intermediate turn — clear for next accumulation
+				buf.Reset()
+			}
+			// if end_turn / other, keep (will be returned)
+		case KindError:
+			if e.cfg.Hooks != nil {
+				e.cfg.Hooks.FireSubagentStop(ctx, "error")
+			}
+			return "", ev.Err
+		}
+	}
+
+	// 6. Fire SubagentStop with success.
+	if e.cfg.Hooks != nil {
+		e.cfg.Hooks.FireSubagentStop(ctx, "end_turn")
+	}
+
+	return strings.TrimSpace(buf.String()), nil
 }
 
 func (e *Engine) Messages() []message.Message {

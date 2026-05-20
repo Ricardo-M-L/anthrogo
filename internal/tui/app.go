@@ -15,6 +15,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/query"
 	"github.com/ricardo/anthrogo/pkg/skill"
+	"github.com/ricardo/anthrogo/pkg/subagent"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -30,6 +31,7 @@ type PromptHookSink interface {
 	FirePostToolUse(ctx context.Context, toolName string, input, response map[string]any) string
 	FireStop(ctx context.Context, reason string)
 	FirePreCompact(ctx context.Context, trigger string)
+	FireSubagentStop(ctx context.Context, reason string)
 }
 
 type Options struct {
@@ -47,9 +49,14 @@ type Options struct {
 	MCP             *mcp.Manager
 	Hooks           PromptHookSink
 	Skills          *skill.Registry
+	Subagents       *subagent.Registry
 	// Plugins is the *plugin.Registry. Typed as any to avoid an import cycle
 	// between tui and pkg/plugin (which imports pkg/command which tui uses).
 	Plugins any
+	// OnEngineReady, if non-nil, is called with the newly-constructed engine
+	// before New returns. Callers can use this to wire deferred runners (e.g.
+	// the Task tool's runner).
+	OnEngineReady func(*query.Engine)
 }
 
 // serverLogMsg is dispatched via tea.Program.Send from AppendServerLog so that
@@ -92,14 +99,15 @@ func New(opts Options) *App {
 	a.palette = newPalette(theme, opts.Commands)
 
 	a.engine = query.NewEngine(query.Config{
-		Provider:     opts.Provider,
-		Tools:        opts.Tools,
-		Permissions:  opts.Permissions,
-		Model:        opts.Model,
-		SystemPrompt: opts.SystemPrompt,
-		Cwd:          opts.Cwd,
-		RecordHook:   opts.RecordHook,
-		Hooks:        opts.Hooks,
+		Provider:         opts.Provider,
+		Tools:            opts.Tools,
+		Permissions:      opts.Permissions,
+		Model:            opts.Model,
+		SystemPrompt:     opts.SystemPrompt,
+		Cwd:              opts.Cwd,
+		RecordHook:       opts.RecordHook,
+		Hooks:            opts.Hooks,
+		SubagentRegistry: opts.Subagents,
 		RequestPrompt: func(_ string, req tool.PromptRequest) (tool.PromptResponse, error) {
 			if opts.Hooks != nil {
 				opts.Hooks.FireNotification(context.Background(), "permission ask: "+req.ToolName, "permission_ask")
@@ -109,6 +117,9 @@ func New(opts Options) *App {
 			return <-reply, nil
 		},
 	})
+	if opts.OnEngineReady != nil {
+		opts.OnEngineReady(a.engine)
+	}
 
 	// Fire SessionStart hook now that construction is complete.
 	if opts.Hooks != nil {
