@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M10.2 complete (v0.10.1-dev). Bash sandbox (lightweight). See `docs/superpowers/specs/` for design docs.
+> **Status**: M10.9 complete (v0.10.8-dev). Self-check via `/version`. See `docs/superpowers/specs/` for design docs.
 
 ## Input history
 
@@ -93,6 +93,21 @@ Set `ANTHROPIC_API_KEY` in your environment, then:
 ./bin/anthrogo --model claude-haiku-4-5-20251001
 ./bin/anthrogo --cwd /path/to/project
 ```
+
+## Update check
+
+Run `/version` inside the TUI to see the current version and check GitHub for a
+newer release:
+
+```
+/version           # prints version + checks github.com/Ricardo-M-L/anthrogo
+/version no-check  # prints version only, no network call
+```
+
+Override the release repo with `ANTHROGO_RELEASE_REPO=owner/repo`. Set
+`GITHUB_TOKEN` for a higher API rate limit. When a newer tag is found, the
+command prints the release URL — download and install manually for now
+(automatic binary update is deferred).
 
 ## Pipe / scripting
 

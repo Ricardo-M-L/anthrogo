@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.10.8-dev] — 2026-05-21
+
+M10.9 — Update self-check.
+
+### Added
+- `pkg/selfupdate/` — minimal GitHub Releases API client. `LatestRelease(ctx, repo)` fetches the latest tag; `IsNewer(latest, current)` compares semver (handles -dev suffixes).
+- `/version` slash command — prints anthrogo version + checks GitHub for newer release. Skip the network check with `/version no-check`.
+- Repo override via `ANTHROGO_RELEASE_REPO` env var; uses `Ricardo-M-L/anthrogo` by default. `GITHUB_TOKEN` honored for higher rate-limit.
+- No actual binary download yet; the command prints the HTML release URL and lets the user manually `curl -L | tar`.
+
+### Known issues / deferred
+- No automatic binary download/install (would need to write to the running binary's path with safety).
+- Semver parser is lenient — handles `vX.Y.Z` + optional `-foo` suffix; ignores pre-release ordering nuances.
+- No release-channel selection (stable vs nightly).
+- Network check times out after 10s; if it hangs longer, /version blocks the modal.
+
 ## [0.10.7-dev] — 2026-05-21
 
 M10.8 — Pipe-friendly mode.

@@ -751,6 +751,7 @@ func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOv
 	reg.Register(builtins.System{HomeOverlayPath: homeOverlayPath, ProjectOverlayPath: projectOverlayPath})
 	reg.Register(builtins.Audit{})
 	reg.Register(builtins.Theme{})
+	reg.Register(builtins.Version{})
 	return reg
 }
 
