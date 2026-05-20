@@ -44,6 +44,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/query"
 	"github.com/ricardo/anthrogo/pkg/skill"
 	"github.com/ricardo/anthrogo/pkg/subagent"
+	"github.com/ricardo/anthrogo/pkg/telemetry"
 	"github.com/ricardo/anthrogo/pkg/tokens"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
@@ -267,6 +268,34 @@ func main() {
 			if costLimitFlag > 0 {
 				cfg.CostLimitUSD = costLimitFlag
 			}
+
+			// M11.8 — opt-in anonymous telemetry.
+			sessionStart := time.Now()
+			tel := telemetry.NewReporter(
+				cfg.Telemetry.Enabled,
+				cfg.Telemetry.Endpoint,
+				filepath.Join(os.Getenv("HOME"), ".anthrogo"),
+			)
+			defer tel.Close()
+			if cfg.Telemetry.Enabled {
+				providerName := cfg.Provider
+				if strings.TrimSpace(providerFlag) != "" {
+					providerName = providerFlag
+				}
+				if providerName == "" {
+					providerName = "anthropic"
+				}
+				tel.Event("session_start", map[string]any{
+					"model":    cfg.Model,
+					"provider": providerName,
+				})
+				defer func() {
+					tel.Event("session_end", map[string]any{
+						"duration_s": time.Since(sessionStart).Seconds(),
+					})
+				}()
+			}
+
 			perms := cfg.ToPermissionContext()
 			// Skill tool is benign on its own (returns prepared markdown); ship a CLI-level
 			// alwaysAllow so it doesn't prompt by default. User alwaysDeny / PreToolUse
@@ -628,6 +657,7 @@ func main() {
 				config.ProjectSystemOverlayPath(cwd),
 				searchCache,
 				loginCfg,
+				tel,
 			)
 			// Register plugin commands; warn on duplicates (last-writer-wins).
 			for _, p := range loadedPlugins {
@@ -762,7 +792,7 @@ func registerTools(cfg config.Config) *tool.Registry {
 	return r
 }
 
-func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOverlayPath, projectOverlayPath string, replayCache builtins.SessionCache, loginCfg oauth.Config) *command.Registry {
+func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOverlayPath, projectOverlayPath string, replayCache builtins.SessionCache, loginCfg oauth.Config, tel *telemetry.Reporter) *command.Registry {
 	reg := command.NewRegistry()
 	reg.Register(&builtins.Help{Reg: reg})
 	reg.Register(builtins.Login{Config: loginCfg})
@@ -785,6 +815,7 @@ func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOv
 	reg.Register(builtins.Audit{})
 	reg.Register(builtins.Theme{})
 	reg.Register(builtins.Version{})
+	reg.Register(builtins.Telemetry{Reporter: tel})
 	return reg
 }
 

@@ -102,6 +102,17 @@ type Config struct {
 	// fails (EventError before any committed event). Each profile is resolved
 	// via the same buildFromProfile logic as --provider.
 	ProvidersFailover []string `yaml:"providers_failover,omitempty"`
+
+	// Telemetry configures opt-in anonymous usage telemetry. Disabled by default.
+	Telemetry TelemetryConfig `yaml:"telemetry,omitempty"`
+}
+
+// TelemetryConfig holds opt-in telemetry settings.
+// Telemetry is OFF by default; the user must set enabled=true in settings.yaml
+// and supply their own endpoint. No central anthrogo collector exists.
+type TelemetryConfig struct {
+	Enabled  bool   `yaml:"enabled,omitempty"`
+	Endpoint string `yaml:"endpoint,omitempty"`
 }
 
 func defaults() Config {

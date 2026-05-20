@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.11.7-dev] — 2026-05-21
+
+M11.8 — Telemetry opt-in.
+
+### Added
+- `pkg/telemetry/` — `Reporter` with `Event(kind, data)` API, opt-in only.
+- Sensitive keys auto-stripped on every event: path/command/prompt/text/cwd/input/args/stdout/stderr/url/endpoint/api_key/token/secret.
+- Buffered batches flushed every 60s via background goroutine to a user-supplied HTTP endpoint; silently re-queued on failure.
+- Per-install random machine ID stored at `~/.anthrogo/machine_id` (no PII; rotates on file delete).
+- `Config.Telemetry {enabled, endpoint}` YAML stanza.
+- `/telemetry status` shows current state.
+- cmd/anthrogo fires `session_start` and `session_end` (duration) events when enabled.
+
+### Privacy guarantees
+- Default OFF. Must be explicitly enabled.
+- User supplies their own endpoint (no central anthrogo collector).
+- Only sends: model name, provider name, GOOS/GOARCH, session duration, machine ID. NO prompts, paths, tool inputs, or outputs.
+- No background opt-in dialog.
+
+### Known issues / deferred
+- /telemetry off doesn't disable in-process; user must edit YAML + restart.
+- No event types for tool calls / compact / hooks yet (would add cardinality).
+- No batched retry exponential backoff.
+- No TLS pinning on the endpoint.
+
 ## [0.11.6-dev] — 2026-05-21
 
 M11.7 — ContainerExec enhancements.

@@ -189,6 +189,34 @@ Override the release repo with `ANTHROGO_RELEASE_REPO=owner/repo`. Set
 command prints the release URL — download and install manually for now
 (automatic binary update is deferred).
 
+## Telemetry
+
+anthrogo has **opt-in** anonymous usage telemetry. It is **disabled by default** and will never be silently enabled.
+
+To opt in, add the following to `~/.anthrogo/settings.yaml`:
+
+```yaml
+telemetry:
+  enabled: true
+  endpoint: https://your-collector.example.com/events   # you supply the endpoint
+```
+
+There is no central anthrogo collector. You configure your own HTTP endpoint that receives `POST` requests with a JSON body `{"events": [...]}`.
+
+**What is sent:**
+- Event kind (`session_start` / `session_end`)
+- Model name and provider name
+- Session duration (seconds)
+- GOOS / GOARCH
+- A random per-install machine ID (no PII; delete `~/.anthrogo/machine_id` to reset)
+
+**What is never sent:**
+- Prompts, file paths, command output, tool inputs/outputs, API keys, or any user content.
+
+Check the current status in the TUI with `/telemetry status`.
+
+To disable after enabling: remove `telemetry.enabled` from `settings.yaml` and restart.
+
 ## Pipe / scripting
 
 When stdin is piped (not a terminal), its content is merged into the prompt:
