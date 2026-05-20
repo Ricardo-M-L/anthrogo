@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.11-dev] — 2026-05-20
+
+M8.11 — Diff / Format / Git built-in tools.
+
+### Added
+- `Diff` tool — wraps `git diff`. Options: `path` (file/dir), `cached`, `context` (lines), `stat`. Read-only. Returns the diff text.
+- `Format` tool — language-aware formatter dispatch. `.go` → gofmt, `.js/.ts/.tsx/.css/.html/.yaml/.md` → prettier (if on PATH), `.py` → black or ruff, `.rs` → rustfmt. Writes file in place. Errors if formatter not on PATH.
+- `Git` tool — read-only subset: status, log, branch, show, blame, remote. Args sanitized against shell metacharacters; destructive subcommands (commit, push, reset, etc.) NOT allowlisted — the model uses Bash with the existing permission gate for those.
+
+### Known issues / deferred
+- No support for diff of a specific commit range (use Bash for git diff sha1..sha2).
+- Format doesn't queue / batch across multiple files (one path per call).
+- Git tool's arg sanitization is a denylist (`;`, `&&`, `||`, `|`, `>`, `<`, backtick); won't catch all shell-injection vectors. Allowlist commands provide the primary safety; users still see the permission ask before each Git call.
+- No JSON-formatted git output (porcelain v2) — text only.
+
 ## [0.8.10-dev] — 2026-05-20
 
 M8.10 — Real tokenizer (tiktoken-go).

@@ -543,6 +543,9 @@ func registerTools(cfg config.Config) *tool.Registry {
 	r.Register(tool.NotebookEdit{})
 	r.Register(tool.EnterPlanMode{})
 	r.Register(tool.ExitPlanMode{})
+	r.Register(tool.Diff{})
+	r.Register(tool.Format{})
+	r.Register(tool.Git{})
 	return r
 }
 

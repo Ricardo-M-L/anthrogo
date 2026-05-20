@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M8.9 complete (v0.8.9-dev). Multi-field form elicitation UI — per-field input rows with Tab/Shift-Tab navigation, type coercion, and required-field validation. Flat primitive schemas render multi-field; complex schemas fall back to the M6.3 JSON-blob textarea. See `docs/superpowers/specs/` for design docs.
+> **Status**: M8.11 complete (v0.8.11-dev). Diff / Format / Git built-in tools. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -29,6 +29,7 @@ update/view loops.
 | M5.3      | Concurrent subagents, isolated perms, user-defined YAML types              | shipped  |
 | M6.3      | Real TUI form elicitation handler (JSON-blob form modal)                   | shipped  |
 | M8.9      | Multi-field form elicitation UI (per-field input, Tab nav, type coercion)  | shipped  |
+| M8.11     | Diff / Format / Git built-in tools                                         | shipped  |
 | M6.5      | OAuth 2.1 PKCE client flow for MCP HTTP transports                         | shipped  |
 | M6.6      | KAIROS coordinator (minimal cross-process subagent dispatch)               | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
@@ -550,6 +551,9 @@ Use `/sessions stats` to aggregate metrics across all session JSONLs for the cur
 | Grep        | yes       | Go regexp recursive search with `output_mode` and glob filter      |
 | Bash        | no        | Run a shell command with `timeout_ms` (default 120000)             |
 | TodoWrite   | no        | Maintain a replace-on-write task list                              |
+| Diff        | yes       | `git diff` wrapper; options: `path`, `cached`, `context`, `stat`  |
+| Format      | no        | Format a file: gofmt / prettier / black / ruff / rustfmt          |
+| Git         | yes       | Read-only git subcommands: status, log, branch, show, blame, remote |
 
 ## Permission model
 
