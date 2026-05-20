@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.11.5-dev] — 2026-05-21
+
+M11.6 — Speech I/O tools.
+
+### Added
+- `SpeechToText` tool — transcribes an audio file via the `whisper` CLI (install: `pip install openai-whisper`). Supports tiny/base/small/medium/large models. Default base.
+- `TextToSpeech` tool — synthesizes audio via `say` (macOS) or `espeak`/`espeak-ng` (Linux). Optional `output` file path; otherwise speaks live.
+
+### Known issues / deferred
+- No streaming transcription (whisper writes the whole transcript to a file then we read it).
+- No Windows support for TTS (would need PowerShell System.Speech invocation).
+- No native Go bindings — both tools shell out. Cold-start latency for whisper is ~5s on first model load.
+- No live microphone capture; user supplies pre-recorded audio.
+- No voice list query — user must know the system's voice names.
+
 ## [0.11.4-dev] — 2026-05-21
 
 M11.5 — /login Anthropic OAuth flow.

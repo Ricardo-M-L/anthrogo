@@ -757,6 +757,8 @@ func registerTools(cfg config.Config) *tool.Registry {
 	r.Register(&tool.BackgroundStatus{Manager: bgMgr})
 	r.Register(&tool.BackgroundOutput{Manager: bgMgr})
 	r.Register(&tool.BackgroundCancel{Manager: bgMgr})
+	r.Register(&tool.SpeechToText{})
+	r.Register(&tool.TextToSpeech{})
 	return r
 }
 

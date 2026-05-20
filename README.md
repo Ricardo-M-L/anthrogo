@@ -5,7 +5,7 @@ source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
 **Documentation:** https://Ricardo-M-L.github.io/anthrogo/
 
-> **Status**: M11.5 complete (v0.11.4-dev). /login OAuth flow. See `docs/superpowers/specs/` for design docs.
+> **Status**: M11.6 complete (v0.11.5-dev). Speech I/O tools. See `docs/superpowers/specs/` for design docs.
 
 ## Input history
 
@@ -60,6 +60,7 @@ update/view loops.
 | M11.3     | Plugin remote install: `/plugin install <url>` and `git+https://` specs        | shipped  |
 | M11.4     | mkdocs documentation site                                                      | shipped  |
 | M11.5     | `/login` OAuth 2.1 PKCE flow; Anthropic provider prefers saved token           | shipped  |
+| M11.6     | Speech I/O tools: `SpeechToText` (whisper CLI) + `TextToSpeech` (say/espeak)  | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout
@@ -139,6 +140,39 @@ has expired and `/login` has not been re-run.
 > **Note:** Anthropic Console doesn't publish a public OAuth flow today. Common
 > use cases are corporate SSO (Auth0, Okta, Entra ID) and self-hosted IdPs
 > (Keycloak, Authelia).
+
+## Speech I/O tools
+
+### SpeechToText
+
+Transcribes an audio file using the [OpenAI Whisper](https://github.com/openai/whisper) CLI.
+
+```
+# install the whisper CLI first
+pip install openai-whisper
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `path`    | required | Audio file (wav / mp3 / m4a / flac) |
+| `model`   | `base`  | Whisper model: tiny / base / small / medium / large |
+| `binary`  | `whisper` | Override the whisper binary path |
+
+### TextToSpeech
+
+Synthesizes speech from text using the platform's built-in synthesizer.
+
+| Platform | Binary used |
+|----------|-------------|
+| macOS    | `say` (built-in) |
+| Linux    | `espeak` or `espeak-ng` |
+| Windows  | not yet supported |
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `text`    | required | Text to speak |
+| `output`  | (play live) | Optional output file path (AIFF on macOS, WAV on Linux) |
+| `voice`   | system default | Voice name (system-specific) |
 
 ## Update check
 
