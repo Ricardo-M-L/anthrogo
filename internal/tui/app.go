@@ -3,6 +3,8 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -107,10 +109,11 @@ type App struct {
 
 func New(opts Options) *App {
 	theme := DefaultTheme()
+	historyPath := filepath.Join(os.Getenv("HOME"), ".anthrogo", "input_history")
 	a := &App{
 		theme: theme,
 		chat:  newChat(theme),
-		input: newPromptInput(theme),
+		input: newPromptInput(theme, historyPath),
 		perm:  newPermission(theme),
 		opts:  opts,
 		asks:  make(chan permissionAsk, 4),

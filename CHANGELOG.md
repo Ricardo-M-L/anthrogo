@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.9-dev] — 2026-05-21
+
+M9.10 — Input history + /history command.
+
+### Added
+- Persistent input history at `~/.anthrogo/input_history`. Every submitted prompt is appended (consecutive duplicates skipped, rolling cap 1000 entries).
+- Up/Down arrow keys in the TUI input scroll through history. The current draft is preserved when you start scrolling — return to it by pressing Down past the bottom.
+- `/history` slash command: `list [N]` (default 20 most recent), `search <keyword>` (case-insensitive substring), `clear` (delete the file).
+
+### Already shipped (in original M9.10 plan)
+- `/help` is already dynamic — iterates `command.Registry.All()` and emits `name — description` per builtin.
+- Tab/Shift+Tab completion exists via the M2 slash-command palette overlay (visible while typing a `/` prefix).
+
+### Known issues / deferred
+- History entries are plaintext on disk; sensitive prompts (with paths or secrets) are stored verbatim. Use `/history clear` if needed.
+- No fuzzy search (substring only).
+- No per-session filter (history is global, not per-cwd).
+
 ## [0.9.8-dev] — 2026-05-21
 
 M9.9 — Model + path + visibility polish.

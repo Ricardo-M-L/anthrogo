@@ -3,7 +3,20 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M9.8 complete (v0.9.7-dev). Tool & subagent JSONL polish: `Diff.range`, `Format.paths` batch, per-nest subagent JSONL. See `docs/superpowers/specs/` for design docs.
+> **Status**: M9.10 complete (v0.9.9-dev). Input history + `/history` command. See `docs/superpowers/specs/` for design docs.
+
+## Input history
+
+Every prompt you submit is appended to `~/.anthrogo/input_history` (one entry per line, rolling cap of 1000, consecutive duplicates skipped). In the TUI, press **Up/Down** to scroll back and forward through history — your current draft is saved when you start scrolling and restored when you press Down past the newest entry.
+
+Use the `/history` slash command to inspect or manage history:
+
+| Command | Effect |
+|---------|--------|
+| `/history` or `/history list` | Show the 20 most recent prompts |
+| `/history list N` | Show the last N prompts |
+| `/history search <keyword>` | Case-insensitive substring search across all history |
+| `/history clear` | Delete the history file |
 
 ## Why
 
@@ -36,6 +49,8 @@ update/view loops.
 | M9.5      | LSP-style code intel tools: SymbolSearch + References                       | shipped  |
 | M9.7      | Form UI completion: cursor nav, enum cycler, Ctrl+J newline, schema defaults | shipped  |
 | M9.8      | `Diff.range` commit-range, `Format.paths` batch, per-nest subagent JSONL     | shipped  |
+| M9.9      | Model + path + visibility polish, KAIROS hook resolver, nested prefix chain  | shipped  |
+| M9.10     | Persistent input history (Up/Down nav), `/history` slash command             | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout

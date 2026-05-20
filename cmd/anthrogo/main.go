@@ -594,6 +594,7 @@ func main() {
 				}
 			}
 			cmds.Register(builtins.Plugin{HomeRoot: homePluginsRoot, CwdRoot: cwdPluginsRoot})
+			cmds.Register(builtins.History{})
 			app := tui.New(tui.Options{
 				Provider:              p,
 				Tools:                 tools,
