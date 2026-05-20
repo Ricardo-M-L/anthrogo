@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.7-dev] — 2026-05-20
+
+M6.5 — OAuth 2.1 client flow for MCP HTTP transports.
+
+### Added
+- `internal/oauth/` package: PKCE challenge generator + `Token{AccessToken, RefreshToken, ExpiresAt, Scopes}` + `FetchToken`/`SaveToken`/`LoadToken`.
+- Authorization code + PKCE flow with local loopback callback server (default port 8765, configurable via `redirect_port`). Browser launch via `open` / `xdg-open` / `rundll32`.
+- Automatic refresh-token grant on expiry; full re-auth on refresh failure.
+- Tokens cached at `~/.anthrogo/oauth/<server-name>.json` (0600 mode, 0700 dir).
+- `MCPServerConfig.OAuth *OAuthConfig` — when set + Type is sse/streamable/websocket, anthrogo fetches a token before transport construction and injects `Authorization: Bearer <token>` via a custom HTTP RoundTripper (or HTTPHeader for websocket).
+- 30s clock-skew margin on expiry checks.
+
+### Known issues / deferred
+- No device-code / client-credentials grants (only PKCE authorization code).
+- No token revocation endpoint integration.
+- Browser-launch failure is silent (user must read stderr for the URL).
+- Static `redirect_port`; collision with another anthrogo instance returns a setup error.
+- No keychain integration (file mode 0600 only).
+
 ## [0.5.6-dev] — 2026-05-20
 
 M6.4 — WebSocket MCP transport.

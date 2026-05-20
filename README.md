@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M5.3 complete (v0.5.2-dev). Concurrent subagents, per-subagent permission isolation, and user-defined YAML types landed. See `docs/superpowers/specs/` for design docs.
+> **Status**: M6.5 complete (v0.5.7-dev). OAuth 2.1 PKCE flow for MCP HTTP transports landed. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -28,7 +28,8 @@ update/view loops.
 | M5.2      | MCP resources + minimal elicitations (decline handler)                    | shipped  |
 | M5.3      | Concurrent subagents, isolated perms, user-defined YAML types              | shipped  |
 | M6.3      | Real TUI form elicitation handler (JSON-blob form modal)                   | shipped  |
-| M6        | OAuth + Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM   | planned  |
+| M6.5      | OAuth 2.1 PKCE client flow for MCP HTTP transports                         | shipped  |
+| M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout
 
@@ -145,7 +146,31 @@ mcpServers:
 
 Multi-field structured input (one widget per schema property) is deferred to a later milestone; currently the form accepts a single typed JSON blob.
 
-WebSocket transport and OAuth 2.1 client flow are deferred to M5.3.
+### OAuth 2.1 (PKCE)
+
+For HTTP/WebSocket MCP servers that require authentication, anthrogo supports the OAuth 2.1 authorization-code + PKCE flow:
+
+```yaml
+mcpServers:
+  api-with-oauth:
+    type: streamable
+    endpoint: https://example.com/mcp
+    oauth:
+      authorization_url: https://example.com/oauth/authorize
+      token_url: https://example.com/oauth/token
+      client_id: my-anthrogo-app
+      scopes: [mcp.read, mcp.write]
+      redirect_port: 8765
+```
+
+When `oauth:` is set on an `sse`, `streamable`, or `websocket` server:
+1. anthrogo checks `~/.anthrogo/oauth/<server-name>.json` for a cached token.
+2. If the token is valid (not expired within a 30s margin), it is reused.
+3. If the token is expired but a `refresh_token` is present, a refresh-token grant is attempted.
+4. Otherwise anthrogo opens your browser to the `authorization_url`, starts a local HTTP listener on `redirect_port` (default 8765) to catch the callback, exchanges the code + PKCE verifier for tokens, and caches the result.
+5. The access token is injected as `Authorization: Bearer <token>` on every outgoing request.
+
+`client_secret` is optional — public clients (PKCE-only) can omit it.
 
 ## Hooks
 

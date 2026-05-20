@@ -4,14 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/ricardo/anthrogo/internal/oauth"
 )
 
 // State is the public lifecycle phase of one MCP server.
@@ -182,6 +186,27 @@ func (s *Server) Start(parent context.Context) error {
 
 	client := sdk.NewClient(impl, opts)
 
+	// Fetch OAuth bearer token when OAuth config is present and transport is HTTP-based.
+	var bearer string
+	if s.cfg.OAuth != nil && (strings.ToLower(s.cfg.Type) == "sse" ||
+		strings.ToLower(s.cfg.Type) == "streamable" ||
+		strings.ToLower(s.cfg.Type) == "websocket") {
+		cacheRoot := filepath.Join(os.Getenv("HOME"), ".anthrogo", "oauth")
+		tok, err := oauth.FetchToken(parent, oauth.Config{
+			AuthorizationURL: s.cfg.OAuth.AuthorizationURL,
+			TokenURL:         s.cfg.OAuth.TokenURL,
+			ClientID:         s.cfg.OAuth.ClientID,
+			ClientSecret:     s.cfg.OAuth.ClientSecret,
+			Scopes:           s.cfg.OAuth.Scopes,
+			RedirectPort:     s.cfg.OAuth.RedirectPort,
+		}, cacheRoot, s.Name)
+		if err != nil {
+			s.fail(fmt.Errorf("oauth fetch token: %w", err))
+			return s.err
+		}
+		bearer = tok.AccessToken
+	}
+
 	// Pick transport based on Type.
 	var transport sdk.Transport
 	switch strings.ToLower(s.cfg.Type) {
@@ -206,22 +231,41 @@ func (s *Server) Start(parent context.Context) error {
 			s.fail(fmt.Errorf("sse MCP server %s requires endpoint", s.Name))
 			return s.err
 		}
-		transport = &sdk.SSEClientTransport{Endpoint: s.cfg.Endpoint}
+		sseT := &sdk.SSEClientTransport{Endpoint: s.cfg.Endpoint}
+		if bearer != "" {
+			sseT.HTTPClient = &http.Client{
+				Transport: bearerInjector{base: http.DefaultTransport, token: bearer},
+			}
+		}
+		transport = sseT
 	case "streamable":
 		if s.cfg.Endpoint == "" {
 			s.fail(fmt.Errorf("streamable MCP server %s requires endpoint", s.Name))
 			return s.err
 		}
-		transport = &sdk.StreamableClientTransport{
+		stT := &sdk.StreamableClientTransport{
 			Endpoint:   s.cfg.Endpoint,
 			MaxRetries: s.cfg.MaxRetries,
 		}
+		if bearer != "" {
+			stT.HTTPClient = &http.Client{
+				Transport: bearerInjector{base: http.DefaultTransport, token: bearer},
+			}
+		}
+		transport = stT
 	case "websocket":
 		if s.cfg.Endpoint == "" {
 			s.fail(fmt.Errorf("websocket MCP server %s requires endpoint", s.Name))
 			return s.err
 		}
-		transport = &WebSocketClientTransport{Endpoint: s.cfg.Endpoint}
+		wsT := &WebSocketClientTransport{Endpoint: s.cfg.Endpoint}
+		if bearer != "" {
+			if wsT.HTTPHeader == nil {
+				wsT.HTTPHeader = make(http.Header)
+			}
+			wsT.HTTPHeader.Set("Authorization", "Bearer "+bearer)
+		}
+		transport = wsT
 	default:
 		s.fail(fmt.Errorf("unknown MCP server type %q for %s", s.cfg.Type, s.Name))
 		return s.err

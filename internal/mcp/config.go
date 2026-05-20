@@ -6,6 +6,7 @@ import "time"
 //   - "" or "stdio": spawn a subprocess via Command/Args (default)
 //   - "sse": connect to a remote 2024-11-05 SSE endpoint
 //   - "streamable": connect to a remote streamable HTTP endpoint
+//   - "websocket": connect via WebSocket (ws:// or wss://)
 type MCPServerConfig struct {
 	// Type selects the transport. Defaults to "stdio".
 	Type string `yaml:"type,omitempty"`
@@ -16,7 +17,7 @@ type MCPServerConfig struct {
 	Env     map[string]string `yaml:"env,omitempty"`
 	Cwd     string            `yaml:"cwd,omitempty"`
 
-	// HTTP transport fields (sse / streamable)
+	// HTTP transport fields (sse / streamable / websocket)
 	Endpoint   string `yaml:"endpoint,omitempty"`
 	MaxRetries int    `yaml:"max_retries,omitempty"`
 
@@ -29,6 +30,21 @@ type MCPServerConfig struct {
 	//   - "disabled": handler is not registered (capability not advertised).
 	// Any other value is treated as "decline" with a log warning.
 	ElicitationMode string `yaml:"elicitation_mode,omitempty"`
+
+	// OAuth, when non-nil, enables the OAuth 2.1 PKCE authorization-code flow for
+	// sse / streamable / websocket transports. The fetched token is injected as
+	// "Authorization: Bearer <token>" on every outgoing HTTP request.
+	OAuth *OAuthConfig `yaml:"oauth,omitempty"`
+}
+
+// OAuthConfig holds the OAuth 2.1 parameters needed to obtain an access token.
+type OAuthConfig struct {
+	AuthorizationURL string   `yaml:"authorization_url"`
+	TokenURL         string   `yaml:"token_url"`
+	ClientID         string   `yaml:"client_id"`
+	ClientSecret     string   `yaml:"client_secret,omitempty"` // optional (PKCE-only public clients)
+	Scopes           []string `yaml:"scopes,omitempty"`
+	RedirectPort     int      `yaml:"redirect_port,omitempty"` // local loopback port; default 8765
 }
 
 // DefaultInitTimeout is applied when MCPServerConfig.Timeout == 0.
