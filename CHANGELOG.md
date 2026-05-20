@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.4-dev] — 2026-05-21
+
+M10.5 — Theme customization (YAML themes).
+
+### Added
+- **Built-in themes**: `dark` (existing default) and `light`.
+- `ThemeByName(name)`, `ThemeNames()`, `DarkTheme()`, `LightTheme()`, `DefaultTheme()` (back-compat alias for dark) in `internal/tui`.
+- `ThemeFromConfig(name, overrides)` — resolves from YAML config; supports `custom` with per-field hex colour overrides.
+- **Config field** `theme:` in `settings.yaml` — `name` selects a built-in, `name: custom` + per-field hex values override individual colours.
+- **`/theme` builtin** with subcommands: `list`, `show`, `set <name>`.
+  - `set` calls `SetTheme(name)` on the host (tui.App) if available; bubbletea re-renders on next event.
+- `tui.Options.Theme *Theme` — passes a pre-resolved theme into `tui.New`.
+- `App.ThemeName() string` and `App.SetTheme(name string) error` methods on `tui.App`.
+
 ## [0.10.3-dev] — 2026-05-21
 
 M10.4 — /audit log viewer.

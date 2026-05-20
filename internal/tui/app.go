@@ -75,6 +75,9 @@ type Options struct {
 
 	// CostLimitUSD, when > 0, enables hard budget enforcement via IsOverBudget().
 	CostLimitUSD float64
+
+	// Theme, when non-nil, overrides the default dark theme.
+	Theme *Theme
 }
 
 // serverLogMsg is dispatched via tea.Program.Send from AppendServerLog so that
@@ -109,6 +112,9 @@ type App struct {
 
 func New(opts Options) *App {
 	theme := DefaultTheme()
+	if opts.Theme != nil {
+		theme = *opts.Theme
+	}
 	historyPath := filepath.Join(os.Getenv("HOME"), ".anthrogo", "input_history")
 	a := &App{
 		theme: theme,
@@ -448,6 +454,24 @@ func (a *App) MCP() *mcp.Manager                 { return a.opts.MCP }
 func (a *App) Skills() *skill.Registry           { return a.opts.Skills }
 func (a *App) Subagents() *subagent.Registry     { return a.opts.Subagents }
 func (a *App) Plugins() any                      { return a.opts.Plugins }
+
+// ThemeName returns the name of the currently active theme.
+func (a *App) ThemeName() string { return a.theme.Name }
+
+// SetTheme swaps the active theme by name and propagates it to all
+// sub-components. bubbletea will re-render on the next event automatically.
+func (a *App) SetTheme(name string) error {
+	t, ok := ThemeByName(name)
+	if !ok {
+		return fmt.Errorf("unknown theme: %s", name)
+	}
+	a.theme = t
+	a.chat.theme = t
+	a.input.theme = t
+	a.perm.theme = t
+	a.palette.theme = t
+	return nil
+}
 
 // SetProgram must be called with the tea.Program before Run so that
 // AppendServerLog can route through Program.Send instead of mutating chat

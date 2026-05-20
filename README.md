@@ -116,6 +116,38 @@ alwaysDeny:
 
 `CLAUDE.md` is auto-loaded by walking from cwd up to `$HOME`; merged contents are appended to the system prompt.
 
+### Theme
+
+anthrogo ships two built-in themes: `dark` (default) and `light`. Select one in `settings.yaml`:
+
+```yaml
+theme:
+  name: light   # "dark" | "light" | "custom"
+```
+
+For a fully custom palette use `name: custom` with per-field hex colour values:
+
+```yaml
+theme:
+  name: custom
+  user_prompt:  "#ff79c6"
+  assistant:    "#f8f8f2"
+  tool_header:  "#50fa7b"
+  tool_body:    "#8be9fd"
+  error:        "#ff5555"
+  status_line:  "#6272a4"
+  border:       "#44475a"
+  modal_border: "#bd93f9"
+```
+
+Switch theme at runtime with the `/theme` builtin:
+
+| Command | Effect |
+|---------|--------|
+| `/theme` or `/theme list` | Show available themes |
+| `/theme show` | Print the currently active theme name |
+| `/theme set light` | Switch to the light theme immediately |
+
 ### Custom system prompt overlay
 
 anthrogo supports two overlay layers, both loaded at startup and appended to the system prompt in order:

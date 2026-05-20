@@ -597,6 +597,39 @@ func main() {
 			}
 			cmds.Register(builtins.Plugin{HomeRoot: homePluginsRoot, CwdRoot: cwdPluginsRoot})
 			cmds.Register(builtins.History{})
+
+			// Resolve theme from config.
+			themeName := cfg.Theme.Name
+			if themeName == "" {
+				themeName = "dark"
+			}
+			overrides := map[string]string{}
+			if cfg.Theme.UserPrompt != "" {
+				overrides["user_prompt"] = cfg.Theme.UserPrompt
+			}
+			if cfg.Theme.Assistant != "" {
+				overrides["assistant"] = cfg.Theme.Assistant
+			}
+			if cfg.Theme.ToolHeader != "" {
+				overrides["tool_header"] = cfg.Theme.ToolHeader
+			}
+			if cfg.Theme.ToolBody != "" {
+				overrides["tool_body"] = cfg.Theme.ToolBody
+			}
+			if cfg.Theme.Error != "" {
+				overrides["error"] = cfg.Theme.Error
+			}
+			if cfg.Theme.StatusLine != "" {
+				overrides["status_line"] = cfg.Theme.StatusLine
+			}
+			if cfg.Theme.Border != "" {
+				overrides["border"] = cfg.Theme.Border
+			}
+			if cfg.Theme.ModalBorder != "" {
+				overrides["modal_border"] = cfg.Theme.ModalBorder
+			}
+			resolvedTheme := tui.ThemeFromConfig(themeName, overrides)
+
 			app := tui.New(tui.Options{
 				Provider:              p,
 				Tools:                 tools,
@@ -620,6 +653,7 @@ func main() {
 				AutoCompactKeepRecent: cfg.AutoCompactKeepRecent,
 				Pricing:               pricingTable,
 				CostLimitUSD:          cfg.CostLimitUSD,
+				Theme:                 &resolvedTheme,
 			})
 			program := tea.NewProgram(app, tea.WithAltScreen())
 			app.SetProgram(program)
@@ -696,6 +730,7 @@ func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOv
 	reg.Register(builtins.Sessions{ReplayCache: replayCache})
 	reg.Register(builtins.System{HomeOverlayPath: homeOverlayPath, ProjectOverlayPath: projectOverlayPath})
 	reg.Register(builtins.Audit{})
+	reg.Register(builtins.Theme{})
 	return reg
 }
 

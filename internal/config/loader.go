@@ -38,6 +38,19 @@ type Pricing struct {
 	OutputPerM float64 `yaml:"output_per_m"`
 }
 
+// ThemeConfig holds theme selection and optional per-field colour overrides.
+type ThemeConfig struct {
+	Name        string `yaml:"name,omitempty"`        // "dark" | "light" | "custom"
+	UserPrompt  string `yaml:"user_prompt,omitempty"` // hex colour override
+	Assistant   string `yaml:"assistant,omitempty"`
+	ToolHeader  string `yaml:"tool_header,omitempty"`
+	ToolBody    string `yaml:"tool_body,omitempty"`
+	Error       string `yaml:"error,omitempty"`
+	StatusLine  string `yaml:"status_line,omitempty"`
+	Border      string `yaml:"border,omitempty"`
+	ModalBorder string `yaml:"modal_border,omitempty"`
+}
+
 // Config mirrors the on-disk settings.yaml shape.
 type Config struct {
 	Mode        permissions.Mode               `yaml:"mode"`
@@ -51,6 +64,7 @@ type Config struct {
 	AlwaysDeny  []permissions.Rule             `yaml:"alwaysDeny"`
 	AlwaysAsk   []permissions.Rule             `yaml:"alwaysAsk"`
 	Hooks       hooks.Config                   `yaml:"hooks,omitempty"`
+	Theme       ThemeConfig                    `yaml:"theme,omitempty"`
 
 	AutoCompactThreshold  int `yaml:"auto_compact_threshold,omitempty"`
 	AutoCompactKeepRecent int `yaml:"auto_compact_keep_recent,omitempty"`
