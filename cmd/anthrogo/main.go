@@ -72,6 +72,7 @@ func main() {
 			perms.AlwaysAllowRules[permissions.SourceCLI] = append(
 				perms.AlwaysAllowRules[permissions.SourceCLI],
 				permissions.Rule{Tool: "Skill", Source: permissions.SourceCLI},
+				permissions.Rule{Tool: "MCPResource", Source: permissions.SourceCLI},
 			)
 			// Validate hook configuration; print any warnings but don't abort.
 			for _, w := range cfg.Hooks.Validate() {
@@ -121,6 +122,11 @@ func main() {
 			_ = mcpMgr.Start(mcpStartCtx)
 			mcpStartCancelTimeout()
 			defer mcpMgr.Close()
+
+			// Collect advertised MCP resources (short timeout; failures are logged, not fatal).
+			resCtx, resCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			mcpResources := mcpMgr.AllResources(resCtx)
+			resCancel()
 
 			homeSkillsRoot := config.SkillsDir(os.Getenv("HOME"))
 			cwdSkillsRoot := filepath.Join(cwd, ".anthrogo", "skills")
@@ -189,17 +195,19 @@ func main() {
 			}
 			tools.Register(tool.NewSkill(skillReg))
 			tools.Register(taskTool)
+			tools.Register(tool.NewMCPResource(mcpMgr))
 			claudeMd, _ := system.LoadClaudeMd(cwd, os.Getenv("HOME"))
 			gitStatus, _ := system.GitStatusSnapshot(cwd)
 			systemPrompt := system.BuildSystemPrompt(system.Options{
-				ToolNames:   toolNameList(tools),
-				ClaudeMd:    claudeMd,
-				GitStatus:   gitStatus,
-				CurrentDate: time.Now().Format("2006-01-02"),
-				Cwd:         cwd,
-				PlanModeOn:  cfg.Mode == permissions.ModePlan,
-				Skills:      skillReg.List(),
-				Subagents:   subagentReg.List(),
+				ToolNames:    toolNameList(tools),
+				ClaudeMd:     claudeMd,
+				GitStatus:    gitStatus,
+				CurrentDate:  time.Now().Format("2006-01-02"),
+				Cwd:          cwd,
+				PlanModeOn:   cfg.Mode == permissions.ModePlan,
+				Skills:       skillReg.List(),
+				Subagents:    subagentReg.List(),
+				MCPResources: mcpResources,
 			})
 
 			var sess *session.Store

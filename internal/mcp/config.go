@@ -22,6 +22,13 @@ type MCPServerConfig struct {
 
 	// Timeout for the initial handshake (initialize + tools/list). Defaults to 10s.
 	Timeout time.Duration `yaml:"timeout,omitempty"`
+
+	// ElicitationMode controls how elicitation requests from this server are handled.
+	//   - "" or "decline" (default): handler is registered (capability advertised);
+	//     all requests are declined with Action="decline".
+	//   - "disabled": handler is not registered (capability not advertised).
+	// Any other value is treated as "decline" with a log warning.
+	ElicitationMode string `yaml:"elicitation_mode,omitempty"`
 }
 
 // DefaultInitTimeout is applied when MCPServerConfig.Timeout == 0.

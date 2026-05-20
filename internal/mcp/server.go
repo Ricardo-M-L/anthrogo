@@ -54,6 +54,44 @@ func NewServer(name string, cfg MCPServerConfig, notifyLog func(string, string))
 	}
 }
 
+// ListResources returns the server's currently-advertised resources.
+// Follows pagination via NextCursor. Returns an error if the server is not Ready.
+func (s *Server) ListResources(ctx context.Context) ([]*sdk.Resource, error) {
+	s.mu.RLock()
+	sess := s.session
+	state := s.state
+	s.mu.RUnlock()
+	if state != StateReady || sess == nil {
+		return nil, fmt.Errorf("mcp server %s not ready", s.Name)
+	}
+	var out []*sdk.Resource
+	var cursor string
+	for {
+		res, err := sess.ListResources(ctx, &sdk.ListResourcesParams{Cursor: cursor})
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, res.Resources...)
+		if res.NextCursor == "" {
+			break
+		}
+		cursor = res.NextCursor
+	}
+	return out, nil
+}
+
+// ReadResource reads a resource by URI. Returns an error if the server is not Ready.
+func (s *Server) ReadResource(ctx context.Context, uri string) (*sdk.ReadResourceResult, error) {
+	s.mu.RLock()
+	sess := s.session
+	state := s.state
+	s.mu.RUnlock()
+	if state != StateReady || sess == nil {
+		return nil, fmt.Errorf("mcp server %s not ready", s.Name)
+	}
+	return sess.ReadResource(ctx, &sdk.ReadResourceParams{URI: uri})
+}
+
 // Start spawns or connects the server, performs the initialize handshake, and
 // calls tools/list. State is StateReady on success or StateFailed on any
 // error. It may be called again after Close to reload.
@@ -78,6 +116,32 @@ func (s *Server) Start(parent context.Context) error {
 			s.notifyLog(s.Name, formatLogData(p.Params.Data))
 		},
 	}
+
+	// Wire the elicitation handler unless explicitly disabled.
+	mode := s.cfg.ElicitationMode
+	if mode == "" {
+		mode = "decline"
+	}
+	if mode != "disabled" {
+		if mode != "decline" {
+			if s.notifyLog != nil {
+				s.notifyLog(s.Name, "unknown elicitation_mode "+mode+"; treating as 'decline'")
+			}
+		}
+		// Capture s for use in the closure.
+		srv := s
+		opts.ElicitationHandler = func(ctx context.Context, req *sdk.ElicitRequest) (*sdk.ElicitResult, error) {
+			msg := req.Params.Message
+			if msg == "" {
+				msg = "(no message)"
+			}
+			if srv.notifyLog != nil {
+				srv.notifyLog(srv.Name, fmt.Sprintf("elicitation requested: %s — declining", msg))
+			}
+			return &sdk.ElicitResult{Action: "decline"}, nil
+		}
+	}
+
 	client := sdk.NewClient(impl, opts)
 
 	// Pick transport based on Type.

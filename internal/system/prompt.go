@@ -3,7 +3,10 @@ package system
 import (
 	_ "embed"
 	"fmt"
+	"sort"
 	"strings"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/ricardo/anthrogo/pkg/skill"
 	"github.com/ricardo/anthrogo/pkg/subagent"
@@ -18,14 +21,15 @@ var planModeAddendum string
 // Options are everything BuildSystemPrompt needs. The CLI / TUI gathers these
 // (via LoadClaudeMd, GitStatusSnapshot, etc.) and hands them off.
 type Options struct {
-	ToolNames   []string
-	ClaudeMd    string
-	GitStatus   string
-	CurrentDate string
-	Cwd         string
-	PlanModeOn  bool
-	Skills      []skill.Skill
-	Subagents   []subagent.Spec
+	ToolNames    []string
+	ClaudeMd     string
+	GitStatus    string
+	CurrentDate  string
+	Cwd          string
+	PlanModeOn   bool
+	Skills       []skill.Skill
+	Subagents    []subagent.Spec
+	MCPResources map[string][]*sdk.Resource
 }
 
 // BuildSystemPrompt produces the prompt sent in `system` to the API. It's the
@@ -59,6 +63,39 @@ func BuildSystemPrompt(opts Options) string {
 		b.WriteString("\nAvailable subagent types (invoke via the Task tool):\n")
 		for _, sa := range opts.Subagents {
 			fmt.Fprintf(&b, "- %s: %s\n", sa.Name, sa.Description)
+		}
+	}
+	if len(opts.MCPResources) > 0 {
+		var servers []string
+		for s := range opts.MCPResources {
+			servers = append(servers, s)
+		}
+		sort.Strings(servers)
+		b.WriteString("\nAvailable MCP resources (use the MCPResource tool to inspect or read):\n")
+		for _, srv := range servers {
+			list := opts.MCPResources[srv]
+			if len(list) == 0 {
+				continue
+			}
+			fmt.Fprintf(&b, "- %s:\n", srv)
+			limit := len(list)
+			if limit > 50 {
+				limit = 50
+			}
+			for i := 0; i < limit; i++ {
+				r := list[i]
+				line := fmt.Sprintf("  - %s", r.URI)
+				if r.MIMEType != "" {
+					line += " (" + r.MIMEType + ")"
+				}
+				if r.Description != "" {
+					line += " — " + r.Description
+				}
+				fmt.Fprintln(&b, line)
+			}
+			if len(list) > 50 {
+				fmt.Fprintf(&b, "  - ... %d more (use MCPResource tool with just {server: %q} to list all)\n", len(list)-50, srv)
+			}
 		}
 	}
 	if opts.PlanModeOn {

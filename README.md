@@ -25,7 +25,7 @@ update/view loops.
 | M3        | MCP client                                                                 | shipped  |
 | M4        | Hooks, skills, plugins                                                     | shipped  |
 | M5.1      | Subagents (Task tool + sub-engine, depth limit, SubagentStop hook)         | shipped  |
-| M5.2      | WebSocket / OAuth / elicitations / resources MCP debt                     | planned  |
+| M5.2      | MCP resources + minimal elicitations (decline handler)                    | shipped  |
 | M5.3      | Concurrent subagents, per-subagent JSONL, user-defined types               | planned  |
 | M6        | OAuth + Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM   | planned  |
 
@@ -116,7 +116,30 @@ Tools surface as `mcp__<server>__<tool>` (names exceeding 64 chars get a sha-8 s
 
 **Plan mode blocks all MCP tool calls** (`mcp__*` tools are treated as write tools). Switch to default mode (`/mode default`) to invoke MCP tools.
 
-WebSocket / OAuth / elicitations / resources are deferred to M5.
+### MCP resources
+
+anthrogo lists resources advertised by Ready servers in the system prompt at startup and provides a built-in `MCPResource` tool the model can use to list or read them:
+
+- **List resources on a server:** `{server: "filesystem"}` — returns a JSON array of `{uri, name, description, mime_type, size}`.
+- **Read a resource:** `{server: "filesystem", uri: "file:///tmp/notes.md"}` — returns the resource text (or a blob summary for binary content).
+
+The `MCPResource` tool has a default `alwaysAllow` rule at the CLI level (read-only; deny rules and `PreToolUse` hooks still take precedence).
+
+### Elicitations
+
+When an MCP server sends an `elicitation/create` request, anthrogo records it via the log sink and returns `Action: "decline"`. This advertises the elicitation capability so servers know anthrogo is reachable. To opt out entirely (suppress the capability advertisement), set `elicitation_mode: "disabled"` on the server config:
+
+```yaml
+mcpServers:
+  filesystem:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    elicitation_mode: "disabled"   # don't advertise elicitation capability
+```
+
+Full TUI form-input elicitation handling defers to M5.3.
+
+WebSocket transport and OAuth 2.1 client flow are deferred to M5.3.
 
 ## Hooks
 

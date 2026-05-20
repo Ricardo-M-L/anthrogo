@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.5.1-dev] — 2026-05-20
+
+M5.2 — MCP resources + minimal elicitations.
+
+### Added
+- `internal/mcp.Server` gains `ListResources(ctx)` (with NextCursor pagination) and `ReadResource(ctx, uri)`.
+- `internal/mcp.Manager` gains `AllResources(ctx) map[server][]*Resource` (per-server errors logged via LogSink, not propagated) and `ReadResource(ctx, server, uri)`.
+- New `MCPResource` built-in tool: `{server, uri?}` — list or read MCP resources. Read-only; default `alwaysAllow` rule at CLI level.
+- System prompt lists every Ready server's resources (capped at 50/server with "... N more" line).
+- `MCPServerConfig.ElicitationMode` (`"decline"` default | `"disabled"`). When not disabled, anthrogo registers an ElicitationHandler that records the request via LogSink and returns `Action: "decline"`. This advertises the elicitation capability so servers know anthrogo is reachable; full form-input integration lands in M5.3.
+
+### Changed
+- `system.Options` gains `MCPResources map[string][]*sdk.Resource`.
+- Version bumped to `0.5.1-dev`.
+
+### Known issues / deferred (M5.3)
+- Full TUI form-input elicitation handler (current handler always declines).
+- WebSocket transport (no native SDK support).
+- OAuth 2.1 client flow.
+- Resource list_changed notifications + subscription.
+
 ## [0.5.0-dev] — 2026-05-20
 
 M5.1 — Subagents (Task tool + sub-Engine).

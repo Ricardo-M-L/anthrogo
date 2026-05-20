@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 
@@ -111,6 +112,40 @@ func (m *Manager) AllTools() []tool.Tool {
 		}
 	}
 	return out
+}
+
+// AllResources lists resources from every Ready server. Per-server errors are
+// logged via LogSink and omitted from the result map.
+func (m *Manager) AllResources(ctx context.Context) map[string][]*sdk.Resource {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := map[string][]*sdk.Resource{}
+	for _, name := range m.namesLocked() {
+		srv := m.servers[name]
+		if srv.State() != StateReady {
+			continue
+		}
+		rs, err := srv.ListResources(ctx)
+		if err != nil {
+			if m.logSink != nil {
+				m.logSink(name, fmt.Sprintf("list resources failed: %v", err))
+			}
+			continue
+		}
+		out[name] = rs
+	}
+	return out
+}
+
+// ReadResource reads a resource by URI from a named server.
+func (m *Manager) ReadResource(ctx context.Context, server, uri string) (*sdk.ReadResourceResult, error) {
+	m.mu.RLock()
+	srv, ok := m.servers[server]
+	m.mu.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("unknown MCP server %s", server)
+	}
+	return srv.ReadResource(ctx, uri)
 }
 
 func (m *Manager) namesLocked() []string {
