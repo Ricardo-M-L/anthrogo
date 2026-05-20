@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/ricardo/anthrogo/internal/hooks"
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/compact"
 	"github.com/ricardo/anthrogo/pkg/kairos"
@@ -60,6 +61,11 @@ type Config struct {
 
 	// Hooks is an optional hook sink for PostToolUse, Stop, and SubagentStop events.
 	Hooks HookSink
+
+	// HooksConfig, when non-nil, is the raw hooks.Config that was used to build
+	// the Hooks manager. It is forwarded to KAIROS workers via RemoteContext so
+	// the worker can apply the client's hook rules to its subagent run.
+	HooksConfig *hooks.Config
 
 	// Session is the parent session Store. If non-nil, Engine.RunSubagent
 	// creates an independent JSONL file under <Session.Path>/subagents/<subagent-id>.jsonl
@@ -164,6 +170,24 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 	// 2a. Remote dispatch: if the spec has a RemoteSpec, route via HTTP instead
 	// of spawning a local child Engine. Hooks still fire locally.
 	if spec.Remote != nil {
+		// Build a RemoteContext so the worker can inherit the client's
+		// hook config and permission rules.
+		remoteCtx := &kairos.RemoteContext{
+			HopDepth: 0, // top-level client; worker increments on forward
+		}
+		if e.cfg.HooksConfig != nil {
+			cfg := *e.cfg.HooksConfig // shallow copy — spec slices are immutable at runtime
+			remoteCtx.Hooks = &cfg
+		}
+		if e.cfg.Permissions != nil {
+			remoteCtx.Permissions = &kairos.PermSnapshot{
+				Mode:             string(e.cfg.Permissions.Mode),
+				AlwaysAllowRules: e.cfg.Permissions.AlwaysAllowRules,
+				AlwaysDenyRules:  e.cfg.Permissions.AlwaysDenyRules,
+				AlwaysAskRules:   e.cfg.Permissions.AlwaysAskRules,
+			}
+		}
+
 		var text string
 		var err error
 		if spec.Remote.ExecToolsLocally {
@@ -172,9 +196,10 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 			// permission context.
 			text, err = kairos.DispatchRemoteWithOptions(ctx, spec.Remote.Endpoint,
 				kairos.RunRequest{
-					SubagentType: opts.Type,
-					Description:  opts.Description,
-					Prompt:       opts.Prompt,
+					SubagentType:  opts.Type,
+					Description:   opts.Description,
+					Prompt:        opts.Prompt,
+					RemoteContext: remoteCtx,
 				},
 				kairos.ClientOptions{
 					AuthToken:        spec.Remote.AuthToken,
@@ -184,9 +209,16 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 				},
 			)
 		} else {
-			text, err = kairos.DispatchRemote(ctx,
-				spec.Remote.Endpoint, spec.Remote.AuthToken,
-				opts.Type, opts.Description, opts.Prompt,
+			text, err = kairos.DispatchRemoteWithOptions(ctx, spec.Remote.Endpoint,
+				kairos.RunRequest{
+					SubagentType:  opts.Type,
+					Description:   opts.Description,
+					Prompt:        opts.Prompt,
+					RemoteContext: remoteCtx,
+				},
+				kairos.ClientOptions{
+					AuthToken: spec.Remote.AuthToken,
+				},
 			)
 		}
 		if e.cfg.Hooks != nil {

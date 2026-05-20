@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/ricardo/anthrogo/internal/hooks"
 	"github.com/ricardo/anthrogo/internal/mcp"
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/command"
@@ -49,8 +50,11 @@ type Options struct {
 	InitialMessages []message.Message
 	RecordHook      func(session.Record)
 	MCP             *mcp.Manager
-	Hooks           PromptHookSink
-	Skills          *skill.Registry
+	Hooks       PromptHookSink
+	// HooksConfig is the raw hooks.Config used to build the Hooks manager.
+	// Forwarded to the engine so KAIROS workers can inherit the client's hook rules.
+	HooksConfig *hooks.Config
+	Skills      *skill.Registry
 	Subagents       *subagent.Registry
 	// Plugins is the *plugin.Registry. Typed as any to avoid an import cycle
 	// between tui and pkg/plugin (which imports pkg/command which tui uses).
@@ -123,6 +127,7 @@ func New(opts Options) *App {
 		Cwd:                   opts.Cwd,
 		RecordHook:            opts.RecordHook,
 		Hooks:                 opts.Hooks,
+		HooksConfig:           opts.HooksConfig,
 		Session:               opts.Session,
 		SubagentRegistry:      opts.Subagents,
 		RequestPrompt:         a.RequestPrompt,

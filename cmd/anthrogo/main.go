@@ -92,36 +92,84 @@ func main() {
 					CurrentDate: time.Now().Format("2006-01-02"),
 					Cwd:         workerCwd,
 				})
-				// Build a subagent registry that only contains local (non-Remote) types.
-				// This prevents multi-hop: the worker will not forward requests to
-				// another remote worker.
-				workerSubReg := subagent.DefaultRegistry()
+				// Build the default local subagent registry (no Remote types).
+				// The per-request handler below may add Remote types when HopDepth < MaxHops.
 				homeSubRoot := filepath.Join(os.Getenv("HOME"), ".anthrogo", "subagents")
 				cwdSubRoot := filepath.Join(workerCwd, ".anthrogo", "subagents")
-				userSubs, _, _ := subagent.LoadAll(homeSubRoot, cwdSubRoot)
-				for _, s := range userSubs {
-					if s.Remote != nil {
-						continue // exclude remote types to prevent multi-hop
+				allWorkerSubs, _, _ := subagent.LoadAll(homeSubRoot, cwdSubRoot)
+
+				// buildWorkerSubReg constructs a subagent registry for an incoming
+				// request: Remote-typed specs are included only when hopDepth < MaxHops.
+				buildWorkerSubReg := func(rc *kairos.RemoteContext) *subagent.Registry {
+					hopDepth := 0
+					if rc != nil {
+						hopDepth = rc.HopDepth
 					}
-					if s.Name == "general-purpose" {
-						continue
+					reg := subagent.DefaultRegistry()
+					for _, s := range allWorkerSubs {
+						if s.Remote != nil && hopDepth >= kairos.MaxHops {
+							continue // depth cap: don't allow further hops
+						}
+						if s.Name == "general-purpose" {
+							continue
+						}
+						reg.Register(s)
 					}
-					workerSubReg.Register(s)
+					return reg
 				}
+
+				// buildWorkerPerms returns per-request permissions: uses the
+				// RemoteContext snapshot when present, falling back to the worker's own.
+				buildWorkerPerms := func(rc *kairos.RemoteContext) *permissions.Context {
+					if rc == nil || rc.Permissions == nil {
+						return workerPerms
+					}
+					snap := rc.Permissions
+					return &permissions.Context{
+						Mode:             permissions.Mode(snap.Mode),
+						AlwaysAllowRules: snap.AlwaysAllowRules,
+						AlwaysDenyRules:  snap.AlwaysDenyRules,
+						AlwaysAskRules:   snap.AlwaysAskRules,
+					}
+				}
+
+				// buildWorkerHookMgr builds a hooks.Manager for the worker to use on
+				// this request: uses RemoteContext.Hooks when present.
+				buildWorkerHookMgr := func(rc *kairos.RemoteContext) *hooks.Manager {
+					if rc == nil || rc.Hooks == nil {
+						return nil
+					}
+					hookCfg := *rc.Hooks
+					// Skip Expand — paths are client-side and would mangle on worker.
+					hookCfg.Validate()
+					return hooks.NewManager(hookCfg, hooks.ManagerOptions{
+						SessionID: "remote-worker",
+						Cwd:       workerCwd,
+						Version:   version.Version,
+					})
+				}
+
 				p, workerModel, err := buildProvider(cfg, providerFlag)
 				if err != nil {
 					return err
 				}
 				cfg.Model = workerModel
 				kHandler := func(ctx context.Context, req kairos.RunRequest, emit func(string)) (string, error) {
+					workerSubReg := buildWorkerSubReg(req.RemoteContext)
+					reqPerms := buildWorkerPerms(req.RemoteContext)
+					var reqHookSink query.HookSink
+					if hm := buildWorkerHookMgr(req.RemoteContext); hm != nil {
+						reqHookSink = hm
+					}
 					eng := query.NewEngine(query.Config{
 						Provider:         p,
 						Model:            cfg.Model,
 						Tools:            workerTools,
-						Permissions:      workerPerms,
+						Permissions:      reqPerms,
 						SystemPrompt:     workerSystemPrompt,
 						Cwd:              workerCwd,
 						SubagentRegistry: workerSubReg,
+						Hooks:            reqHookSink,
 					})
 					return eng.RunSubagent(ctx, query.SubagentOptions{
 						Type:        req.SubagentType,
@@ -140,6 +188,8 @@ func main() {
 					emitToolUse func(kairos.ToolUseRequest),
 					waitForResult func(toolUseID string) (kairos.ToolResult, error),
 				) (string, error) {
+					workerSubReg := buildWorkerSubReg(req.RemoteContext)
+					reqPerms := buildWorkerPerms(req.RemoteContext)
 					dispatcher := query.ToolDispatcher(func(ctx context.Context, toolUseID, toolName string, input map[string]any) (tool.Result, error) {
 						// Emit tool_use_request over SSE; block for the client's response.
 						emitToolUse(kairos.ToolUseRequest{
@@ -160,7 +210,7 @@ func main() {
 						Provider:         p,
 						Model:            cfg.Model,
 						Tools:            workerTools,
-						Permissions:      workerPerms,
+						Permissions:      reqPerms,
 						SystemPrompt:     workerSystemPrompt,
 						Cwd:              workerCwd,
 						SubagentRegistry: workerSubReg,
@@ -503,6 +553,7 @@ func main() {
 					Stdout:                os.Stdout,
 					Stderr:                os.Stderr,
 					Hooks:                 hookMgr,
+					HooksConfig:           &cfg.Hooks,
 					Subagents:             subagentReg,
 					OnEngineReady:         func(e *query.Engine) { engineRef.Store(e) },
 					AutoCompactThreshold:  cfg.AutoCompactThreshold,
@@ -542,6 +593,7 @@ func main() {
 				RecordHook:            sess.NewRecordHook(),
 				MCP:                   mcpMgr,
 				Hooks:                 hookMgr,
+				HooksConfig:           &cfg.Hooks,
 				Skills:                skillReg,
 				Plugins:               pluginReg,
 				Subagents:             subagentReg,

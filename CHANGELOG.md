@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.9.2-dev] — 2026-05-20
+
+M9.3 — Multi-hop KAIROS + remote hook/perm context.
+
+### Added
+- `kairos.RunRequest.RemoteContext` — client populates with hops counter, hooks.Config snapshot, and permissions snapshot. Worker reads it to inherit caller's gate + hook config.
+- `kairos.PermSnapshot{Mode, AlwaysAllowRules, AlwaysDenyRules, AlwaysAskRules}` — JSON-safe permissions.Context projection.
+- `kairos.MaxHops = 2` — workers register their Remote-type subagents only when incoming HopDepth < MaxHops. Outgoing forwards bump HopDepth.
+- Client `Engine.RunSubagent` remote branch fills RemoteContext from `Engine.Config.HooksConfig` + `Engine.Config.Permissions`.
+- `query.Config.HooksConfig *hooks.Config` — new field; set by cmd/anthrogo when building the engine; forwarded into RemoteContext so KAIROS workers can apply the client's hook rules.
+- Worker `cmd/anthrogo --kairos-serve` substitutes the per-request hooks/perms when RemoteContext.Hooks or .Permissions is non-nil; falls back to worker's local settings otherwise.
+- `tui.Options.HooksConfig` and `headless.Options.HooksConfig` — both forward the raw hooks.Config into query.Config.
+
+### Known issues / deferred
+- Hook commands are passed verbatim — paths relative to client cwd won't resolve on worker. Use absolute paths in hooks meant for KAIROS.
+- Hop depth is a number, not a path; a 2-hop chain can't be inspected mid-flight (no audit endpoint).
+- Worker still uses its own provider / model / API keys; remote does NOT proxy back to the client's LLM.
+- Permission gate's HookDecide isn't serialized (it's a Go func); worker uses its own HookDecide via the rebuilt hook manager.
+
 ## [0.9.1-dev] — 2026-05-20
 
 M9.2 — Vertex provider (Anthropic via GCP).

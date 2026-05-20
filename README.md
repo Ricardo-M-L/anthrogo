@@ -289,6 +289,12 @@ remote:
 
 Protocol: worker emits `event: run_id` (UUID), then `event: tool_use_request` per blocking tool call; client POSTs the result to `POST /kairos/run/<rid>/tool-result` before the worker resumes.
 
+**M9.3 — multi-hop + remote hook/perm context.** Workers now support multi-hop chains (depth capped at `MaxHops = 2`). Remote-typed subagents in the worker's registry are registered only when the incoming `HopDepth` < 2; otherwise they are excluded, preventing unbounded recursion. The client automatically attaches a `RemoteContext` to each outgoing `/kairos/run` request that contains:
+
+- `hop_depth` — incremented by each forwarding worker.
+- `hooks` — the client's `hooks.Config` snapshot (PreToolUse, PostToolUse, etc.). The worker builds a `hooks.Manager` from it and applies it to the subagent run. Note: hook command paths are sent verbatim; use absolute paths for hooks meant to run on the worker.
+- `permissions` — a `PermSnapshot` with the client's `Mode`, `AlwaysAllow`, `AlwaysDeny`, and `AlwaysAsk` rules. The worker substitutes its own permission context with this snapshot. `HookDecide` (a Go func) is intentionally not serialised; it is rebuilt from the forwarded hooks config.
+
 ## Vision / images
 
 anthrogo supports sending images to multimodal models using the `@image:<path>` syntax anywhere in your prompt:

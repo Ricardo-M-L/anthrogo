@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/ricardo/anthrogo/internal/hooks"
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/command"
 	"github.com/ricardo/anthrogo/pkg/message"
@@ -45,8 +46,12 @@ type Options struct {
 	Session         *session.Store
 	Stdout          io.Writer
 	Stderr          io.Writer
-	Hooks           PromptHookSink
-	Subagents       *subagent.Registry
+	Hooks       PromptHookSink
+	// HooksConfig is the raw Config that was used to build the Hooks manager.
+	// When set, it is forwarded to KAIROS workers via RemoteContext so they can
+	// apply the client's hook rules. nil-safe.
+	HooksConfig *hooks.Config
+	Subagents   *subagent.Registry
 	// OnEngineReady, if non-nil, is called with the engine before the first
 	// SubmitMessage. Callers use this to wire deferred runners (e.g. Task tool).
 	OnEngineReady func(*query.Engine)
@@ -117,6 +122,7 @@ func Run(ctx context.Context, opts Options) error {
 		RecordHook:            opts.RecordHook,
 		Session:               opts.Session,
 		Hooks:                 opts.Hooks,
+		HooksConfig:           opts.HooksConfig,
 		SubagentRegistry:      opts.Subagents,
 		AutoCompactThreshold:  opts.AutoCompactThreshold,
 		AutoCompactKeepRecent: opts.AutoCompactKeepRecent,

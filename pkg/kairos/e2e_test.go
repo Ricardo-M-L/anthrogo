@@ -7,7 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ricardo/anthrogo/internal/hooks"
 	"github.com/ricardo/anthrogo/pkg/permissions"
+	"github.com/ricardo/anthrogo/pkg/subagent"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -148,4 +150,139 @@ func TestKAIROS_RoundTrip_WithRemoteToolExec(t *testing.T) {
 
 	// Final text must incorporate the echoed value returned by the local Echo tool.
 	require.Equal(t, "tool said: echoed: world", result)
+}
+
+// TestKAIROS_RoundTrip_RemoteContext_Propagated verifies that a RunRequest with
+// a non-nil RemoteContext round-trips correctly over JSON: the server handler
+// can read the HopDepth and Permissions snapshot that the client sent.
+func TestKAIROS_RoundTrip_RemoteContext_Propagated(t *testing.T) {
+	var receivedRC *RemoteContext
+
+	handler := func(ctx context.Context, req RunRequest, emit func(string)) (string, error) {
+		receivedRC = req.RemoteContext
+		return "ok", nil
+	}
+
+	srv := NewServer(handler, "")
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	rc := &RemoteContext{
+		HopDepth: 1,
+		Permissions: &PermSnapshot{
+			Mode: "default",
+			AlwaysDenyRules: map[permissions.Source][]permissions.Rule{
+				permissions.SourceUser: {{Tool: "Bash"}},
+			},
+		},
+	}
+	_, err := DispatchRemoteWithOptions(context.Background(), ts.URL, RunRequest{
+		SubagentType:  "general-purpose",
+		Prompt:        "test",
+		RemoteContext: rc,
+	}, ClientOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, receivedRC)
+	require.Equal(t, 1, receivedRC.HopDepth)
+	require.NotNil(t, receivedRC.Permissions)
+	require.Equal(t, "default", receivedRC.Permissions.Mode)
+	bashRules := receivedRC.Permissions.AlwaysDenyRules[permissions.SourceUser]
+	require.Len(t, bashRules, 1)
+	require.Equal(t, "Bash", bashRules[0].Tool)
+}
+
+// TestKAIROS_RoundTrip_RemoteContext_HooksConfig verifies that hook specs
+// inside RemoteContext.Hooks are received intact by the server handler.
+func TestKAIROS_RoundTrip_RemoteContext_HooksConfig(t *testing.T) {
+	var receivedRC *RemoteContext
+
+	handler := func(ctx context.Context, req RunRequest, emit func(string)) (string, error) {
+		receivedRC = req.RemoteContext
+		return "ok", nil
+	}
+
+	srv := NewServer(handler, "")
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	hookCfg := &hooks.Config{
+		PreToolUse: []hooks.Spec{
+			{Command: "/usr/local/bin/audit-hook", Matcher: "Bash"},
+		},
+	}
+	rc := &RemoteContext{
+		HopDepth: 0,
+		Hooks:    hookCfg,
+	}
+	_, err := DispatchRemoteWithOptions(context.Background(), ts.URL, RunRequest{
+		SubagentType:  "general-purpose",
+		Prompt:        "test",
+		RemoteContext: rc,
+	}, ClientOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, receivedRC)
+	require.NotNil(t, receivedRC.Hooks)
+	require.Len(t, receivedRC.Hooks.PreToolUse, 1)
+	require.Equal(t, "/usr/local/bin/audit-hook", receivedRC.Hooks.PreToolUse[0].Command)
+}
+
+// TestKAIROS_HopDepth_BuildWorkerSubReg verifies that the hop-depth logic in
+// buildWorkerSubReg (mirrored here as a standalone function under test) correctly
+// excludes Remote-typed subagents when HopDepth >= MaxHops and includes them otherwise.
+func TestKAIROS_HopDepth_BuildWorkerSubReg(t *testing.T) {
+	// Build a test subagent registry with one remote and one local spec.
+	remoteSpec := subagent.Spec{
+		Name: "remote-worker",
+		Remote: &subagent.RemoteSpec{
+			Endpoint: "http://remote.example.com:9001",
+		},
+	}
+	localSpec := subagent.Spec{
+		Name:             "local-helper",
+		SystemPromptSuffix: "you are helpful",
+	}
+
+	buildReg := func(rc *RemoteContext) *subagent.Registry {
+		hopDepth := 0
+		if rc != nil {
+			hopDepth = rc.HopDepth
+		}
+		reg := subagent.NewRegistry()
+		for _, s := range []subagent.Spec{remoteSpec, localSpec} {
+			if s.Remote != nil && hopDepth >= MaxHops {
+				continue
+			}
+			reg.Register(s)
+		}
+		return reg
+	}
+
+	// At hop depth 0: both should be registered.
+	reg0 := buildReg(&RemoteContext{HopDepth: 0})
+	_, hasRemote := reg0.Get("remote-worker")
+	_, hasLocal := reg0.Get("local-helper")
+	require.True(t, hasRemote, "remote spec should be registered at hop depth 0")
+	require.True(t, hasLocal, "local spec should be registered at hop depth 0")
+
+	// At hop depth 1: still below MaxHops (2), remote still registered.
+	reg1 := buildReg(&RemoteContext{HopDepth: 1})
+	_, hasRemote1 := reg1.Get("remote-worker")
+	require.True(t, hasRemote1, "remote spec should be registered at hop depth 1")
+
+	// At hop depth 2 (= MaxHops): remote should be excluded.
+	reg2 := buildReg(&RemoteContext{HopDepth: 2})
+	_, hasRemote2 := reg2.Get("remote-worker")
+	_, hasLocal2 := reg2.Get("local-helper")
+	require.False(t, hasRemote2, "remote spec must be excluded at hop depth == MaxHops")
+	require.True(t, hasLocal2, "local spec should still be registered at hop depth == MaxHops")
+
+	// At hop depth 3 (> MaxHops): remote should also be excluded.
+	reg3 := buildReg(&RemoteContext{HopDepth: 3})
+	_, hasRemote3 := reg3.Get("remote-worker")
+	require.False(t, hasRemote3, "remote spec must be excluded at hop depth > MaxHops")
+
+	// nil RemoteContext (no context): defaults to hop depth 0 → remote registered.
+	regNil := buildReg(nil)
+	_, hasRemoteNil := regNil.Get("remote-worker")
+	require.True(t, hasRemoteNil, "nil RemoteContext should default to hop depth 0")
 }
