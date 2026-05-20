@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.10.5-dev] — 2026-05-21
+
+M10.6 — Multi-provider failover.
+
+### Added
+- `pkg/provider/failover/` — `Provider` wrapping a chain of backends. On EventError from the current backend BEFORE any text/tool/usage event has streamed, it switches to the next backend and replays the same Request. After a "committed" event (text/tool_use/etc.), errors pass through — partial streams can't be retried.
+- `Config.ProvidersFailover []string` — list of profile names to try after the active provider. Each profile is constructed via the same `buildFromProfile` path as `--provider`.
+
+### Example
+
+```yaml
+provider: anthropic
+providers_failover: [deepseek, kimi]   # if anthropic stream fails pre-commit, try deepseek; if it also fails, try kimi
+```
+
+### Known issues / deferred
+- No exponential backoff between attempts.
+- No selective retry by error code (e.g., 429 vs 500 vs network).
+- After a "committed" event, errors are surfaced; partial-stream retry would require buffering, deferred.
+- Each retry rebuilds the provider's HTTP client fresh (slow on first call).
+
 ## [0.10.4-dev] — 2026-05-21
 
 M10.5 — Theme customization (YAML themes).

@@ -436,6 +436,19 @@ anthrogo --provider kimi
 anthrogo --provider deepseek -p "summarize this repo"
 ```
 
+### Multi-provider failover
+
+`providers_failover` lists profiles to try in order if the active provider emits an error **before** any text, tool-use, or usage event has been streamed. Once a "committed" event has been forwarded to the client the error passes through unchanged (partial streams cannot be retried transparently).
+
+```yaml
+provider: anthropic
+providers_failover: [deepseek, kimi]
+# On EventError before text/tool/usage from anthropic, anthrogo retries with deepseek.
+# If deepseek also fails (pre-commit), it falls back to kimi.
+```
+
+Known limitations: no backoff between attempts; no selective retry by HTTP status code; partial-stream retry requires buffering (deferred).
+
 ## Hooks
 
 anthrogo runs user-defined shell commands at 9 lifecycle events. Add to `~/.anthrogo/settings.yaml`:

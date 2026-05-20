@@ -80,6 +80,11 @@ type Config struct {
 	// CostLimitUSD, when > 0 and Pricing is configured, denies tool calls once
 	// the cumulative estimated session cost reaches or exceeds this amount (USD).
 	CostLimitUSD float64 `yaml:"cost_limit_usd,omitempty"`
+
+	// ProvidersFailover lists profile names to try after the active provider
+	// fails (EventError before any committed event). Each profile is resolved
+	// via the same buildFromProfile logic as --provider.
+	ProvidersFailover []string `yaml:"providers_failover,omitempty"`
 }
 
 func defaults() Config {

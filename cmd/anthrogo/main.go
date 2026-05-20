@@ -33,6 +33,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/provider/anthropic"
 	bedrockProvider "github.com/ricardo/anthrogo/pkg/provider/bedrock"
+	failoverProvider "github.com/ricardo/anthrogo/pkg/provider/failover"
 	openaiProvider "github.com/ricardo/anthrogo/pkg/provider/openai"
 	vertexProvider "github.com/ricardo/anthrogo/pkg/provider/vertex"
 	"github.com/ricardo/anthrogo/pkg/query"
@@ -796,44 +797,86 @@ func skipRelativeHookPaths(cfg *hooks.Config, logSink func(string, string)) {
 	cfg.SessionEnd = fix("SessionEnd", cfg.SessionEnd)
 }
 
+// buildFromProfile constructs a provider.Provider from a named profile entry.
+// defaultModel is used when the profile does not specify its own model.
+// It returns the constructed provider and the effective model name.
+func buildFromProfile(ctx context.Context, name string, prof config.Profile, defaultModel string) (provider.Provider, string, error) {
+	apiKey := expandEnvKey(prof.APIKey)
+	model := defaultModel
+	if prof.Model != "" {
+		model = prof.Model
+	}
+	switch prof.Type {
+	case "openai":
+		return openaiProvider.New(prof.BaseURL, apiKey), model, nil
+	case "bedrock":
+		p, err := bedrockProvider.New(ctx, prof.Region, model)
+		if err != nil {
+			return nil, "", fmt.Errorf("bedrock provider %q: %w", name, err)
+		}
+		return p, model, nil
+	case "vertex":
+		p, err := vertexProvider.New(ctx, prof.Region, prof.ProjectID, model)
+		if err != nil {
+			return nil, "", fmt.Errorf("vertex provider %q: %w", name, err)
+		}
+		return p, model, nil
+	default:
+		return nil, "", fmt.Errorf("unknown profile type %q for provider %q", prof.Type, name)
+	}
+}
+
 // buildProvider selects and constructs the active provider based on config and
 // optional CLI override flag. It also returns the effective model name (which
-// may be overridden by the active profile).
+// may be overridden by the active profile). When cfg.ProvidersFailover is
+// non-empty, the primary provider is wrapped in a failover.Provider that tries
+// each listed profile in order on pre-commit EventError.
 func buildProvider(cfg config.Config, providerFlagValue string) (provider.Provider, string, error) {
 	providerName := cfg.Provider
 	if v := strings.TrimSpace(providerFlagValue); v != "" {
 		providerName = v
 	}
+
+	var primary provider.Provider
+	var primaryName string
+	var effectiveModel string
+
 	switch {
 	case providerName == "" || providerName == "anthropic":
-		return anthropic.New(expandEnvKey(cfg.APIKey), cfg.Model), cfg.Model, nil
+		primary = anthropic.New(expandEnvKey(cfg.APIKey), cfg.Model)
+		primaryName = "anthropic"
+		effectiveModel = cfg.Model
 	default:
 		prof, ok := cfg.Profiles[providerName]
 		if !ok {
 			return nil, "", fmt.Errorf("provider %q not found in profiles", providerName)
 		}
-		apiKey := expandEnvKey(prof.APIKey)
-		model := cfg.Model
-		if prof.Model != "" {
-			model = prof.Model
+		p, model, err := buildFromProfile(context.Background(), providerName, prof, cfg.Model)
+		if err != nil {
+			return nil, "", err
 		}
-		switch prof.Type {
-		case "openai":
-			return openaiProvider.New(prof.BaseURL, apiKey), model, nil
-		case "bedrock":
-			p, err := bedrockProvider.New(context.Background(), prof.Region, model)
-			if err != nil {
-				return nil, "", fmt.Errorf("bedrock provider: %w", err)
-			}
-			return p, model, nil
-		case "vertex":
-			p, err := vertexProvider.New(context.Background(), prof.Region, prof.ProjectID, model)
-			if err != nil {
-				return nil, "", fmt.Errorf("vertex provider: %w", err)
-			}
-			return p, model, nil
-		default:
-			return nil, "", fmt.Errorf("unknown profile type %q for provider %q", prof.Type, providerName)
-		}
+		primary = p
+		primaryName = providerName
+		effectiveModel = model
 	}
+
+	if len(cfg.ProvidersFailover) > 0 {
+		backends := []provider.Provider{primary}
+		names := []string{primaryName}
+		for _, n := range cfg.ProvidersFailover {
+			prof, ok := cfg.Profiles[n]
+			if !ok {
+				return nil, "", fmt.Errorf("failover profile %q not found", n)
+			}
+			backend, _, err := buildFromProfile(context.Background(), n, prof, effectiveModel)
+			if err != nil {
+				return nil, "", fmt.Errorf("failover %q: %w", n, err)
+			}
+			backends = append(backends, backend)
+			names = append(names, n)
+		}
+		primary = failoverProvider.New(backends, names)
+	}
+
+	return primary, effectiveModel, nil
 }
