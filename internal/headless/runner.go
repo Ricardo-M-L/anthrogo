@@ -105,7 +105,14 @@ func Run(ctx context.Context, opts Options) error {
 	if len(opts.InitialMessages) > 0 {
 		e.SetInitialMessages(opts.InitialMessages)
 	}
-	ch := e.SubmitMessage(ctx, prompt)
+	blocks, parseErr := message.ParseUserPrompt(prompt)
+	if parseErr != nil {
+		return fmt.Errorf("prompt parse: %w", parseErr)
+	}
+	if len(blocks) == 0 {
+		blocks = []message.Block{{Type: message.BlockText, Text: prompt}}
+	}
+	ch := e.SubmitMessageBlocks(ctx, blocks)
 	for ev := range ch {
 		switch ev.Kind {
 		case query.KindAssistantDelta:

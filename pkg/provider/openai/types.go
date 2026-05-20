@@ -16,9 +16,20 @@ type streamOpts struct {
 
 type chatMsg struct {
 	Role       string         `json:"role"`
-	Content    string         `json:"content,omitempty"`
+	Content    any            `json:"content,omitempty"` // string OR []chatContent
 	ToolCalls  []chatToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string         `json:"tool_call_id,omitempty"`
+}
+
+type chatContent struct {
+	Type     string        `json:"type"`               // "text" | "image_url"
+	Text     string        `json:"text,omitempty"`
+	ImageURL *chatImageURL `json:"image_url,omitempty"`
+}
+
+type chatImageURL struct {
+	URL    string `json:"url"`              // "data:image/png;base64,<base64>"
+	Detail string `json:"detail,omitempty"` // "low" | "high" | "auto"
 }
 
 type chatToolCall struct {

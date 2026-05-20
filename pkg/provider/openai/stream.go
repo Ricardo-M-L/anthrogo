@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -30,10 +29,14 @@ func buildRequest(model string, req provider.Request) chatRequest {
 		case message.RoleUser:
 			// Check if any block is tool_result; if so emit per-result tool messages.
 			hasToolResult := false
+			hasImage := false
 			for _, b := range m.Content {
 				if b.Type == message.BlockToolResult {
 					hasToolResult = true
 					break
+				}
+				if b.Type == message.BlockImage {
+					hasImage = true
 				}
 			}
 			if hasToolResult {
@@ -47,6 +50,26 @@ func buildRequest(model string, req provider.Request) chatRequest {
 					}
 					// skip non-tool_result blocks in a tool-result turn
 				}
+			} else if hasImage {
+				// Multimodal user turn: build []chatContent array.
+				var parts []chatContent
+				for _, b := range m.Content {
+					switch b.Type {
+					case message.BlockText:
+						parts = append(parts, chatContent{Type: "text", Text: b.Text})
+					case message.BlockImage:
+						if b.ImageSource != nil {
+							url := "data:" + b.ImageSource.MediaType + ";base64," + b.ImageSource.Data
+							parts = append(parts, chatContent{
+								Type:     "image_url",
+								ImageURL: &chatImageURL{URL: url},
+							})
+						}
+					case message.BlockThinking:
+						// silently drop
+					}
+				}
+				msgs = append(msgs, chatMsg{Role: "user", Content: parts})
 			} else {
 				// Plain user turn: concatenate text blocks.
 				var sb strings.Builder
@@ -54,8 +77,8 @@ func buildRequest(model string, req provider.Request) chatRequest {
 					switch b.Type {
 					case message.BlockText:
 						sb.WriteString(b.Text)
-					case message.BlockImage, message.BlockThinking:
-						fmt.Fprintf(&sb, "") // silently drop
+					case message.BlockThinking:
+						// silently drop
 					}
 				}
 				msgs = append(msgs, chatMsg{Role: "user", Content: sb.String()})

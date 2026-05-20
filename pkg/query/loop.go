@@ -20,12 +20,20 @@ func (e *Engine) recordIfHooked(r session.Record) {
 	}
 }
 
-// SubmitMessage runs one user turn — including any tool_use sub-turns —
-// until the model emits end_turn (or an error/abort).
+// SubmitMessage runs one user turn with a plain-text prompt.
+// It wraps the string in a single BlockText and delegates to SubmitMessageBlocks.
 func (e *Engine) SubmitMessage(ctx context.Context, prompt string) <-chan Event {
+	return e.SubmitMessageBlocks(ctx, []message.Block{{Type: message.BlockText, Text: prompt}})
+}
+
+// SubmitMessageBlocks runs one user turn — including any tool_use sub-turns —
+// until the model emits end_turn (or an error/abort). It accepts a pre-built
+// slice of content blocks (e.g. from message.ParseUserPrompt) so callers can
+// include image blocks alongside text without constructing raw Messages.
+func (e *Engine) SubmitMessageBlocks(ctx context.Context, blocks []message.Block) <-chan Event {
 	out := make(chan Event, 64)
 	e.mu.Lock()
-	e.messages = append(e.messages, message.Text(message.RoleUser, prompt))
+	e.messages = append(e.messages, message.Message{Role: message.RoleUser, Content: blocks})
 	lastContent := e.messages[len(e.messages)-1].Content
 	// Reset lastUsage at the start of each new turn.
 	e.lastUsage = message.Usage{}

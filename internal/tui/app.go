@@ -240,7 +240,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.input.setEnabled(false)
 		turnCtx, cancel := context.WithCancel(context.Background())
 		a.cancelTurn = cancel
-		a.stream = a.engine.SubmitMessage(turnCtx, text)
+		blocks, err := message.ParseUserPrompt(text)
+		if err != nil {
+			a.chat.appendError("prompt: " + err.Error())
+			a.input.setEnabled(true)
+			cancel()
+			a.cancelTurn = nil
+			return a, nil
+		}
+		if len(blocks) == 0 {
+			blocks = []message.Block{{Type: message.BlockText, Text: text}}
+		}
+		a.stream = a.engine.SubmitMessageBlocks(turnCtx, blocks)
 		return a, pumpStream(a.stream)
 
 	case engineEventMsg:

@@ -91,6 +91,60 @@ func TestBuildRequest_Tools(t *testing.T) {
 	require.Equal(t, "bash", req.Tools[0].Function.Name)
 }
 
+func TestBuildRequest_ImageBlock_BecomesMultimodalContent(t *testing.T) {
+	r := provider.Request{
+		Model: "gpt-4o",
+		Messages: []message.Message{
+			{
+				Role: message.RoleUser,
+				Content: []message.Block{
+					{
+						Type:        message.BlockImage,
+						ImageSource: &message.ImageSource{Type: "base64", MediaType: "image/png", Data: "abc123"},
+					},
+				},
+			},
+		},
+	}
+	req := buildRequest("gpt-4o", r)
+	require.Len(t, req.Messages, 1)
+	msg := req.Messages[0]
+	require.Equal(t, "user", msg.Role)
+	parts, ok := msg.Content.([]chatContent)
+	require.True(t, ok, "expected []chatContent, got %T", msg.Content)
+	require.Len(t, parts, 1)
+	require.Equal(t, "image_url", parts[0].Type)
+	require.NotNil(t, parts[0].ImageURL)
+	require.Equal(t, "data:image/png;base64,abc123", parts[0].ImageURL.URL)
+}
+
+func TestBuildRequest_TextAndImageBlocks_BothInParts(t *testing.T) {
+	r := provider.Request{
+		Model: "gpt-4o",
+		Messages: []message.Message{
+			{
+				Role: message.RoleUser,
+				Content: []message.Block{
+					{Type: message.BlockText, Text: "what is this?"},
+					{
+						Type:        message.BlockImage,
+						ImageSource: &message.ImageSource{Type: "base64", MediaType: "image/jpeg", Data: "xyz"},
+					},
+				},
+			},
+		},
+	}
+	req := buildRequest("gpt-4o", r)
+	require.Len(t, req.Messages, 1)
+	parts, ok := req.Messages[0].Content.([]chatContent)
+	require.True(t, ok, "expected []chatContent, got %T", req.Messages[0].Content)
+	require.Len(t, parts, 2)
+	require.Equal(t, "text", parts[0].Type)
+	require.Equal(t, "what is this?", parts[0].Text)
+	require.Equal(t, "image_url", parts[1].Type)
+	require.Equal(t, "data:image/jpeg;base64,xyz", parts[1].ImageURL.URL)
+}
+
 func TestBuildRequest_AssistantToolUse(t *testing.T) {
 	r := provider.Request{
 		Model: "gpt-4",

@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M7.7 complete (v0.7.6-dev). `/sessions delete` landed. See `docs/superpowers/specs/` for design docs.
+> **Status**: M7.8 complete (v0.7.7-dev). Image/vision blocks + `@image:` prompt syntax landed. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -226,6 +226,23 @@ remote:
 ```
 
 The client sends `POST /kairos/run` with `{subagent_type, prompt}`; the worker spawns a local subagent, streams `event: text` deltas, ends with `event: done`. Bearer auth via `Authorization: Bearer <token>`. M6.6 limits to one hop (the worker excludes Remote types from its own registry).
+
+## Vision / images
+
+anthrogo supports sending images to multimodal models using the `@image:<path>` syntax anywhere in your prompt:
+
+```
+@image:./screenshot.png what's wrong with this UI?
+look at @image:/tmp/diagram.png and explain the flow
+describe @image:~/photo.jpg and @image:~/chart.png
+```
+
+Each `@image:<path>` token is replaced with a base64-encoded image block. Supported MIME types: `image/png`, `image/jpeg`, `image/gif`, `image/webp`. The MIME type is detected automatically from the file bytes.
+
+- **Anthropic provider**: image blocks are passed using the native `image` content block (supported since M1).
+- **OpenAI-compatible provider**: image blocks are converted to `{type: "image_url", image_url: {url: "data:<mime>;base64,..."}}` multimodal content arrays. Text-only messages continue to use the string-content path for backward compatibility.
+
+Limitations: only local file paths are supported (no URLs or data URIs in the `@image:` syntax). Tool-result messages remain string-only (OpenAI limitation).
 
 ## Provider profiles
 

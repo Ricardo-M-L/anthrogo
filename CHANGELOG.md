@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.7-dev] — 2026-05-20
+
+M7.8 — Image / vision blocks (OpenAI + prompt syntax).
+
+### Added
+- `message.ParseUserPrompt(prompt) ([]Block, error)` — recognizes `@image:<path>` tokens anywhere in the user's prompt; loads the file, base64-encodes it, validates MIME (image/png|jpeg|gif|webp), and emits a BlockImage at the same position. Surrounding text becomes BlockText.
+- `pkg/provider/openai` now emits multimodal content arrays (`[{type:"text"}, {type:"image_url", image_url:{url: "data:<mime>;base64,..."}}]`) for any message containing an image block. String content path is preserved for text-only messages (no change to existing wire format).
+- `Engine.SubmitMessageBlocks(ctx, []message.Block) <-chan Event` — new sibling to `SubmitMessage`; the string variant now delegates to it.
+- TUI + headless route user prompts through `ParseUserPrompt` before submission.
+
+### Usage
+
+```
+@image:./screenshot.png what's wrong with this UI?
+look at @image:/tmp/diagram.png and explain the flow
+```
+
+### Known issues / deferred
+- Only file paths (no URLs / data URIs in prompt syntax).
+- Doesn't support image-only assistant responses or tool images.
+- Tool-result content stays string-only (OpenAI doesn't support image content in tool messages).
+- No image dimensions / detail level control via prompt syntax (use config later).
+- Anthropic provider already supported BlockImage from M1 — no change.
+
 ## [0.7.6-dev] — 2026-05-20
 
 M7.7 — /sessions delete.
