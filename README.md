@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M11.1 complete (v0.11.0-dev). TUI multi-pane layout (F2 cycles single/split/triple). See `docs/superpowers/specs/` for design docs.
+> **Status**: M11.2 complete (v0.11.1-dev). Background task tools (BackgroundLaunch/Status/Output/Cancel). See `docs/superpowers/specs/` for design docs.
 
 ## Input history
 
@@ -54,6 +54,7 @@ update/view loops.
 | M10.10    | Bash AST safety scan (`pkg/bashscan/`, sandbox binary denylist)              | shipped  |
 | M10.13    | TUI mouse support: wheel scroll, left-click URL open                         | shipped  |
 | M11.1     | TUI multi-pane layout: F2 cycles single/split/triple; log pane; status sidebar | shipped  |
+| M11.2     | Background task tools: BackgroundLaunch/Status/Output/Cancel                  | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout
@@ -289,6 +290,19 @@ input:
 ```
 
 Requirements: `docker` or `podman` must be on PATH. Image must be available locally or pullable (ContainerExec does not pre-pull — if the image is absent docker will pull it on first call).
+
+## Background task tools (M11.2)
+
+Four built-in tools let the model run long-running shell commands without blocking the conversation turn:
+
+| Tool | Purpose |
+|---|---|
+| `BackgroundLaunch` | Start `sh -c <command>` in the background; returns `task_id` immediately |
+| `BackgroundStatus` | Status of one task (pass `task_id`) or list all tasks (omit `task_id`) |
+| `BackgroundOutput` | Fetch captured stdout + stderr for a task |
+| `BackgroundCancel` | Send cancellation signal to a running task |
+
+Tasks are in-memory only — they are lost on process restart. Stdout and stderr are fully buffered in RAM; avoid launching tasks that emit very large output. Tasks inherit anthrogo's environment; combine with `ContainerExec` for isolation.
 
 ## MCP servers
 

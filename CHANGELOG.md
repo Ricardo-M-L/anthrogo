@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.11.1-dev] — 2026-05-21
+
+M11.2 — Background tasks.
+
+### Added
+- `pkg/bgtasks/` package — `Manager` with `Launch(command) id`, `Get(id)`, `Cancel(id)`, `List()`. Tasks run via `sh -c <command>`; manager tracks Status (running/complete/failed/canceled), ExitCode, Stdout, Stderr, StartedAt, FinishedAt.
+- 4 built-in tools:
+  - `BackgroundLaunch` — launches a shell command in the background, returns task_id immediately
+  - `BackgroundStatus` — status of one task (`task_id` arg) or list of all (no arg)
+  - `BackgroundOutput` — captured stdout + stderr
+  - `BackgroundCancel` — cancel a running task
+- Task lifetime tied to the anthrogo process; restart loses all in-memory tasks.
+
+### Known issues / deferred
+- No persistence: process restart kills running tasks and loses status.
+- No timeout per task (manual Cancel only).
+- No OS-level desktop notification on completion (TODO when bubbletea + a cross-platform notification dep land).
+- Stdout/stderr captured into memory; long-running tasks emitting GB of output will OOM the anthrogo process.
+- No sandboxing: tasks inherit anthrogo's full env. Combine with ContainerExec if you need isolation.
+
 ## [0.11.0-dev] — 2026-05-21
 
 M11.1 — TUI multi-pane layout.

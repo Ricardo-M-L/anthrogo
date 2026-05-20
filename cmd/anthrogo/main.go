@@ -26,6 +26,7 @@ import (
 	"github.com/ricardo/anthrogo/internal/system"
 	"github.com/ricardo/anthrogo/internal/tui"
 	"github.com/ricardo/anthrogo/internal/version"
+	"github.com/ricardo/anthrogo/pkg/bgtasks"
 	"github.com/ricardo/anthrogo/pkg/command"
 	"github.com/ricardo/anthrogo/pkg/command/builtins"
 	"github.com/ricardo/anthrogo/pkg/kairos"
@@ -741,6 +742,11 @@ func registerTools(cfg config.Config) *tool.Registry {
 	r.Register(tool.SymbolSearch{})
 	r.Register(tool.References{})
 	r.Register(&tool.ContainerExec{})
+	bgMgr := bgtasks.NewManager()
+	r.Register(&tool.BackgroundLaunch{Manager: bgMgr})
+	r.Register(&tool.BackgroundStatus{Manager: bgMgr})
+	r.Register(&tool.BackgroundOutput{Manager: bgMgr})
+	r.Register(&tool.BackgroundCancel{Manager: bgMgr})
 	return r
 }
 
