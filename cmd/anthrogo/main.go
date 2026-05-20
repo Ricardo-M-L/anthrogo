@@ -13,6 +13,8 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"strings"
+
 	"github.com/ricardo/anthrogo/internal/config"
 	"github.com/ricardo/anthrogo/internal/headless"
 	"github.com/ricardo/anthrogo/internal/hooks"
@@ -27,7 +29,9 @@ import (
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/plugin"
+	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/provider/anthropic"
+	openaiProvider "github.com/ricardo/anthrogo/pkg/provider/openai"
 	"github.com/ricardo/anthrogo/pkg/query"
 	"github.com/ricardo/anthrogo/pkg/skill"
 	"github.com/ricardo/anthrogo/pkg/subagent"
@@ -44,6 +48,7 @@ func main() {
 		cont            bool
 		showVer         bool
 		kairosServeAddr string
+		providerFlag    string
 	)
 
 	root := &cobra.Command{
@@ -98,7 +103,11 @@ func main() {
 					}
 					workerSubReg.Register(s)
 				}
-				p := anthropic.New(cfg.APIKey, cfg.Model)
+				p, workerModel, err := buildProvider(cfg, providerFlag)
+				if err != nil {
+					return err
+				}
+				cfg.Model = workerModel
 				kHandler := func(ctx context.Context, req kairos.RunRequest, emit func(string)) (string, error) {
 					eng := query.NewEngine(query.Config{
 						Provider:         p,
@@ -381,7 +390,11 @@ func main() {
 				}
 			}
 
-			p := anthropic.New(cfg.APIKey, cfg.Model)
+			p, effectiveModel, err := buildProvider(cfg, providerFlag)
+			if err != nil {
+				return err
+			}
+			cfg.Model = effectiveModel
 
 			if prompt != "" {
 				perms.ShouldAvoidPrompts = true
@@ -451,6 +464,7 @@ func main() {
 	root.Flags().BoolVarP(&cont, "continue", "c", false, "Resume the most-recent session for this cwd")
 	root.Flags().BoolVar(&showVer, "version", false, "Print version and exit")
 	root.Flags().StringVar(&kairosServeAddr, "kairos-serve", "", "Serve as a KAIROS worker on this addr (e.g. :9001)")
+	root.Flags().StringVar(&providerFlag, "provider", "", "Override active provider profile (see profiles in settings.yaml)")
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -512,4 +526,43 @@ func resolveCwd(flag string) (string, error) {
 		return flag, nil
 	}
 	return os.Getwd()
+}
+
+// expandEnvKey expands an API key that may be in the form "env:VARNAME".
+// If the value does not start with "env:", it is returned as-is.
+func expandEnvKey(s string) string {
+	if strings.HasPrefix(s, "env:") {
+		return os.Getenv(strings.TrimPrefix(s, "env:"))
+	}
+	return s
+}
+
+// buildProvider selects and constructs the active provider based on config and
+// optional CLI override flag. It also returns the effective model name (which
+// may be overridden by the active profile).
+func buildProvider(cfg config.Config, providerFlagValue string) (provider.Provider, string, error) {
+	providerName := cfg.Provider
+	if v := strings.TrimSpace(providerFlagValue); v != "" {
+		providerName = v
+	}
+	switch {
+	case providerName == "" || providerName == "anthropic":
+		return anthropic.New(expandEnvKey(cfg.APIKey), cfg.Model), cfg.Model, nil
+	default:
+		prof, ok := cfg.Profiles[providerName]
+		if !ok {
+			return nil, "", fmt.Errorf("provider %q not found in profiles", providerName)
+		}
+		apiKey := expandEnvKey(prof.APIKey)
+		model := cfg.Model
+		if prof.Model != "" {
+			model = prof.Model
+		}
+		switch prof.Type {
+		case "openai":
+			return openaiProvider.New(prof.BaseURL, apiKey), model, nil
+		default:
+			return nil, "", fmt.Errorf("unknown profile type %q for provider %q", prof.Type, providerName)
+		}
+	}
 }

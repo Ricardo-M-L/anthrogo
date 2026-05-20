@@ -18,11 +18,22 @@ type WebSearchConfig struct {
 	Endpoint string `yaml:"endpoint,omitempty"`
 }
 
+// Profile defines a named provider profile. Used for OpenAI-compatible
+// endpoints (DeepSeek, Kimi, MiniMax, GLM, etc.).
+type Profile struct {
+	Type    string `yaml:"type"`              // "openai" for M7.1
+	BaseURL string `yaml:"base_url,omitempty"`
+	Model   string `yaml:"model,omitempty"`
+	APIKey  string `yaml:"api_key,omitempty"` // supports "env:VARNAME"
+}
+
 // Config mirrors the on-disk settings.yaml shape.
 type Config struct {
 	Mode        permissions.Mode               `yaml:"mode"`
 	Model       string                         `yaml:"model"`
 	APIKey      string                         `yaml:"apiKey,omitempty"`
+	Provider    string                         `yaml:"provider,omitempty"` // default "anthropic"
+	Profiles    map[string]Profile             `yaml:"profiles,omitempty"`
 	WebSearch   WebSearchConfig                `yaml:"webSearch,omitempty"`
 	MCPServers  map[string]mcp.MCPServerConfig `yaml:"mcpServers,omitempty"`
 	AlwaysAllow []permissions.Rule             `yaml:"alwaysAllow"`

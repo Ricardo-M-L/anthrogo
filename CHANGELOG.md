@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.0-dev] — 2026-05-20
+
+M7.1 — OpenAI-compatible provider (DeepSeek/Kimi/MiniMax/GLM).
+
+### Added
+- `pkg/provider/openai/` — generic OpenAI Chat Completions provider. Direct HTTP+SSE (no client SDK dep). Translates OpenAI stream chunks to anthrogo's EventTextDelta / EventToolUseStart / EventToolInputDelta / EventBlockStop / EventMessageStop / EventUsage. Maps finish_reason: stop→end_turn, tool_calls→tool_use, length→max_tokens.
+- `Config.Profiles map[string]Profile{Type, BaseURL, Model, APIKey}` — user defines named provider profiles in settings.yaml. API key supports `env:VARNAME` syntax.
+- `Config.Provider` field + `--provider <name>` CLI flag select the active profile. Default still "anthropic" (uses the existing Anthropic SDK).
+- Profile's Model overrides Config.Model when active.
+
+### Known issues / deferred
+- Anthropic-style thinking blocks and image blocks are silently dropped when sent to OpenAI-compat endpoints (M7+).
+- No automatic provider failover or retry.
+- No streaming tool input validation (server may send incremental JSON that doesn't parse until the whole arguments string arrives).
+- No Bedrock / Vertex (Anthropic via cloud providers) — M7.2.
+- No native OpenAI vision support — text-only conversations.
+
 ## [0.6.0-dev] — 2026-05-20
 
 M6.6 — KAIROS coordinator (minimal cross-process subagent).

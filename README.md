@@ -193,6 +193,42 @@ remote:
 
 The client sends `POST /kairos/run` with `{subagent_type, prompt}`; the worker spawns a local subagent, streams `event: text` deltas, ends with `event: done`. Bearer auth via `Authorization: Bearer <token>`. M6.6 limits to one hop (the worker excludes Remote types from its own registry).
 
+## Provider profiles
+
+anthrogo ships an Anthropic provider by default but can route to any OpenAI Chat Completions compatible endpoint (DeepSeek, Kimi, MiniMax, GLM, vllm, ollama-openai, etc.) via profiles:
+
+```yaml
+provider: deepseek           # active profile
+profiles:
+  deepseek:
+    type: openai
+    base_url: https://api.deepseek.com
+    model: deepseek-chat
+    api_key: env:DEEPSEEK_API_KEY
+  kimi:
+    type: openai
+    base_url: https://api.moonshot.cn/v1
+    model: kimi-k2-0905-preview
+    api_key: env:KIMI_API_KEY
+  minimax:
+    type: openai
+    base_url: https://api.minimaxi.com/v1
+    model: MiniMax-M2
+    api_key: env:MINIMAX_API_KEY
+  glm:
+    type: openai
+    base_url: https://open.bigmodel.cn/api/paas/v4
+    model: glm-4.6
+    api_key: env:GLM_API_KEY
+```
+
+Switch profiles at runtime:
+
+```bash
+anthrogo --provider kimi
+anthrogo --provider deepseek -p "summarize this repo"
+```
+
 ## Hooks
 
 anthrogo runs user-defined shell commands at 9 lifecycle events. Add to `~/.anthrogo/settings.yaml`:
