@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -107,4 +108,66 @@ func TestTask_Description_ListsTypes(t *testing.T) {
 	desc := tk.Description(context.Background())
 	require.Contains(t, desc, "general-purpose")
 	require.Contains(t, desc, "subagent")
+}
+
+// TestTask_Call_BufferEmitsOnNewlineBoundaries verifies that AppendUIMessage is
+// called with properly prefixed lines at newline boundaries, and the remaining
+// buffer is flushed after the runner returns.
+func TestTask_Call_BufferEmitsOnNewlineBoundaries(t *testing.T) {
+	var mu sync.Mutex
+	var emitted []string
+	appendUI := func(msg string) {
+		mu.Lock()
+		defer mu.Unlock()
+		emitted = append(emitted, msg)
+	}
+
+	tcx := &Context{
+		AppendUIMessage: appendUI,
+	}
+
+	// Runner emits "foo\nbar\n" as two delta chunks plus "baz" without a trailing newline.
+	runner := func(ctx context.Context, opts TaskOptions) (string, error) {
+		opts.OnDelta("foo\n")
+		opts.OnDelta("bar\n")
+		opts.OnDelta("baz") // no trailing newline — flushed after runner returns
+		return "done", nil
+	}
+
+	tk := NewTask(subagent.DefaultRegistry(), runner)
+	res, err := tk.Call(context.Background(), map[string]any{
+		"description":   "test-desc",
+		"prompt":        "do it",
+		"subagent_type": "general-purpose",
+	}, tcx)
+
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, []string{
+		"[Task: test-desc] foo",
+		"[Task: test-desc] bar",
+		"[Task: test-desc] baz",
+	}, emitted)
+}
+
+// TestTask_Call_NilContext_NoEmit verifies that Call works without a TUI context
+// (nil tcx) without panicking.
+func TestTask_Call_NilContext_NoEmit(t *testing.T) {
+	runner := func(ctx context.Context, opts TaskOptions) (string, error) {
+		if opts.OnDelta != nil {
+			opts.OnDelta("should not panic")
+		}
+		return "ok", nil
+	}
+	tk := NewTask(subagent.DefaultRegistry(), runner)
+	res, err := tk.Call(context.Background(), map[string]any{
+		"description":   "safe",
+		"prompt":        "go",
+		"subagent_type": "general-purpose",
+	}, nil)
+	require.NoError(t, err)
+	require.False(t, res.IsError)
 }

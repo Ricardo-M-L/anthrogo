@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.9.3-dev] — 2026-05-20
+
+M9.4 — Subagent real-time stream to parent TUI.
+
+### Added
+- `query.SubagentOptions.OnTextDelta func(string)` — fires for every EventTextDelta from the child engine's stream.
+- `kairos.ClientOptions.OnTextDelta` — invoked per `event: text` SSE message in remote subagent runs.
+- `tool.TaskOptions.OnDelta` — passed through Task tool's runner; cmd/anthrogo wires this to `query.SubagentOptions.OnTextDelta`.
+- Task tool's `Call` uses `tcx.AppendUIMessage` with a per-task prefix `[Task: <description>] ` to emit subagent output to the parent TUI as it streams. Deltas are buffered until newline boundaries to avoid scroll spam; remaining buffer flushed when the subagent finishes.
+- `tool.deltaBuffer` — internal line-buffering helper; mutex-safe for concurrent delta writes.
+
+### Known issues / deferred
+- No interactivity: parent can't interrupt a subagent mid-run (Ctrl+C still cancels the whole turn).
+- Buffered per-line; very long lines (no newline for 10KB) cause one big render at end of stream.
+- Headless mode appends to its progress stream; no special UI layering.
+- For nested subagents (subagent calling Task), only the outermost prefix is shown.
+
 ## [0.9.2-dev] — 2026-05-20
 
 M9.3 — Multi-hop KAIROS + remote hook/perm context.

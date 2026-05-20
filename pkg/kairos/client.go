@@ -23,6 +23,9 @@ type ClientOptions struct {
 	// Permissions is required when ExecToolsLocally is true. The client-side
 	// permission gate is applied before each tool call.
 	Permissions *permissions.Context
+	// OnTextDelta, if non-nil, is invoked for each event: text SSE message.
+	// Called from the SSE parse loop goroutine; implementations must be thread-safe.
+	OnTextDelta func(string)
 }
 
 // DispatchRemote sends a RunRequest to a KAIROS worker at endpoint, streams
@@ -107,6 +110,9 @@ func DispatchRemoteWithOptions(ctx context.Context, endpoint string, req RunRequ
 						Text string `json:"text"`
 					}
 					_ = json.Unmarshal([]byte(data), &p)
+					if opts.OnTextDelta != nil {
+						opts.OnTextDelta(p.Text)
+					}
 					accumulated.WriteString(p.Text)
 
 				case "tool_use_request":

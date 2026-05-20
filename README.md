@@ -32,6 +32,7 @@ update/view loops.
 | M8.11     | Diff / Format / Git built-in tools                                         | shipped  |
 | M6.5      | OAuth 2.1 PKCE client flow for MCP HTTP transports                         | shipped  |
 | M6.6      | KAIROS coordinator (minimal cross-process subagent dispatch)               | shipped  |
+| M9.4      | Subagent real-time stream to parent TUI (OnTextDelta callback + buffering)  | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout
@@ -514,6 +515,8 @@ The subagent has no memory of the parent conversation — brief it fully in `pro
 **Plan mode:** `Task` is treated as a write tool, so plan mode blocks it. Switch to default mode (`/mode default`) to invoke subagents.
 
 **SubagentStop hook:** fires after every subagent completes (success or error). Wire it in `hooks.yaml` under `SubagentStop:`.
+
+**Real-time streaming to TUI (M9.4):** subagent text deltas are forwarded to the parent TUI in real time, prefixed with `[Task: <description>] `. Deltas are buffered until newline boundaries to avoid scroll spam; the remaining buffer is flushed when the subagent finishes. Remote (KAIROS) subagents stream via `event: text` SSE messages, invoking the same callback path.
 
 **Independent JSONL per subagent (M6.2):** each subagent run writes its own JSONL alongside the parent session for later inspection. Files land at `~/.anthrogo/projects/<cwd-hash>/<session-id>/subagents/<subagent-id>.jsonl`. A `subagent_start` record in the parent JSONL provides the ID for cross-referencing.
 

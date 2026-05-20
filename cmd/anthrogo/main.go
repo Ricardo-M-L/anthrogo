@@ -175,6 +175,7 @@ func main() {
 						Type:        req.SubagentType,
 						Description: req.Description,
 						Prompt:      req.Prompt,
+						OnTextDelta: emit,
 					})
 				}
 				// kHandlerWithForward is the exec-tools-locally variant. When the
@@ -409,6 +410,7 @@ func main() {
 					Type:        opts.SubagentType,
 					Description: opts.Description,
 					Prompt:      opts.Prompt,
+					OnTextDelta: opts.OnDelta,
 				})
 			})
 

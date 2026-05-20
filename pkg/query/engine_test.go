@@ -967,6 +967,47 @@ func TestEngine_AutoCompact_UsesCumulativeUsageSinceLastCompact(t *testing.T) {
 	require.True(t, rec.preCompactCalled, "compact must fire after turn 2 (cumulative 220 ≥ 200)")
 }
 
+// TestEngine_RunSubagent_StreamsTextDeltaCallback verifies that SubagentOptions.OnTextDelta
+// is invoked for every EventTextDelta from the child engine's stream.
+func TestEngine_RunSubagent_StreamsTextDeltaCallback(t *testing.T) {
+	fp := fake.New([]provider.Event{
+		{Kind: provider.EventTextDelta, Text: "alpha"},
+		{Kind: provider.EventTextDelta, Text: " beta"},
+		{Kind: provider.EventTextDelta, Text: " gamma"},
+		{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+	})
+
+	var mu sync.Mutex
+	var captured []string
+	onDelta := func(delta string) {
+		mu.Lock()
+		defer mu.Unlock()
+		captured = append(captured, delta)
+	}
+
+	subreg := subagent.DefaultRegistry()
+	e := NewEngine(Config{
+		Provider:         fp,
+		Tools:            tool.NewRegistry(),
+		Permissions:      permissions.Empty(),
+		Model:            "x",
+		SubagentRegistry: subreg,
+	})
+
+	result, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type:        "general-purpose",
+		Description: "delta test",
+		Prompt:      "go",
+		OnTextDelta: onDelta,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "alpha beta gamma", result)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, []string{"alpha", " beta", " gamma"}, captured)
+}
+
 // alwaysEndTurnProvider returns an immediate end_turn for every call.
 type alwaysEndTurnProvider struct{}
 

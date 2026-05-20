@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -71,4 +72,41 @@ func TestDispatchRemote_AccumulatesDeltas_WhenNoDone(t *testing.T) {
 	result, err := DispatchRemote(context.Background(), srv.URL, "", "general-purpose", "", "prompt")
 	require.NoError(t, err)
 	require.Equal(t, "part1 part2", result)
+}
+
+// TestDispatchRemote_InvokesOnTextDeltaCallback verifies that ClientOptions.OnTextDelta
+// is called for each event: text SSE message and receives the correct text.
+func TestDispatchRemote_InvokesOnTextDeltaCallback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher := w.(http.Flusher)
+		fmt.Fprintf(w, "event: text\ndata: {\"text\":\"delta1\"}\n\n")
+		flusher.Flush()
+		fmt.Fprintf(w, "event: text\ndata: {\"text\":\" delta2\"}\n\n")
+		flusher.Flush()
+		fmt.Fprintf(w, "event: done\ndata: {\"final\":\"delta1 delta2\"}\n\n")
+		flusher.Flush()
+	}))
+	defer srv.Close()
+
+	var mu sync.Mutex
+	var captured []string
+
+	result, err := DispatchRemoteWithOptions(context.Background(), srv.URL,
+		RunRequest{SubagentType: "general-purpose", Prompt: "go"},
+		ClientOptions{
+			OnTextDelta: func(delta string) {
+				mu.Lock()
+				defer mu.Unlock()
+				captured = append(captured, delta)
+			},
+		},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, "delta1 delta2", result)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, []string{"delta1", " delta2"}, captured)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/ricardo/anthrogo/pkg/subagent"
 )
@@ -21,6 +22,43 @@ type TaskOptions struct {
 	Description  string
 	Prompt       string
 	SubagentType string
+	// OnDelta, if non-nil, is invoked for each text delta from the subagent stream.
+	// Called from a background goroutine; implementations must be thread-safe.
+	OnDelta func(string)
+}
+
+// deltaBuffer accumulates subagent text deltas and flushes on newline boundaries
+// to avoid per-character TUI scroll spam.
+type deltaBuffer struct {
+	mu     sync.Mutex
+	buf    strings.Builder
+	prefix string
+	emit   func(string)
+}
+
+func (d *deltaBuffer) Write(delta string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.buf.WriteString(delta)
+	for {
+		s := d.buf.String()
+		idx := strings.Index(s, "\n")
+		if idx < 0 {
+			break
+		}
+		d.emit(d.prefix + strings.TrimRight(s[:idx], "\r"))
+		d.buf.Reset()
+		d.buf.WriteString(s[idx+1:])
+	}
+}
+
+func (d *deltaBuffer) Flush() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.buf.Len() > 0 {
+		d.emit(d.prefix + d.buf.String())
+		d.buf.Reset()
+	}
 }
 
 // NewTask creates a Task tool wired with the given subagent registry and runner.
@@ -87,7 +125,7 @@ func (*Task) Schema() map[string]any {
 }
 
 // Call invokes the runner with the parsed inputs.
-func (t *Task) Call(ctx context.Context, input map[string]any, _ *Context) (Result, error) {
+func (t *Task) Call(ctx context.Context, input map[string]any, tcx *Context) (Result, error) {
 	desc, _ := input["description"].(string)
 	prompt, _ := input["prompt"].(string)
 	sub, _ := input["subagent_type"].(string)
@@ -101,11 +139,29 @@ func (t *Task) Call(ctx context.Context, input map[string]any, _ *Context) (Resu
 		return Result{Type: ResultText, Text: msg, ForLLM: msg, IsError: true}, nil
 	}
 
+	// Wire streaming deltas to the TUI if the surface provided AppendUIMessage.
+	var dbuf *deltaBuffer
+	var onDelta func(string)
+	if tcx != nil && tcx.AppendUIMessage != nil {
+		dbuf = &deltaBuffer{
+			prefix: "[Task: " + desc + "] ",
+			emit:   tcx.AppendUIMessage,
+		}
+		onDelta = dbuf.Write
+	}
+
 	out, err := t.runner(ctx, TaskOptions{
 		Description:  desc,
 		Prompt:       prompt,
 		SubagentType: sub,
+		OnDelta:      onDelta,
 	})
+
+	// Flush any remaining buffered content (last line without trailing newline).
+	if dbuf != nil {
+		dbuf.Flush()
+	}
+
 	if err != nil {
 		msg := fmt.Sprintf("task failed: %v", err)
 		return Result{Type: ResultText, Text: msg, ForLLM: msg, IsError: true}, nil

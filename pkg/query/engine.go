@@ -132,6 +132,9 @@ type SubagentOptions struct {
 	Type        string
 	Description string
 	Prompt      string
+	// OnTextDelta, if non-nil, fires for every EventTextDelta from the child.
+	// Called from a background goroutine; implementations must be thread-safe.
+	OnTextDelta func(delta string)
 }
 
 // RunSubagent spawns a child Engine for the named subagent type, runs one turn
@@ -206,6 +209,7 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 					ExecToolsLocally: true,
 					ToolRegistry:     e.cfg.Tools,
 					Permissions:      e.cfg.Permissions,
+					OnTextDelta:      opts.OnTextDelta,
 				},
 			)
 		} else {
@@ -217,7 +221,8 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 					RemoteContext: remoteCtx,
 				},
 				kairos.ClientOptions{
-					AuthToken: spec.Remote.AuthToken,
+					AuthToken:   spec.Remote.AuthToken,
+					OnTextDelta: opts.OnTextDelta,
 				},
 			)
 		}
@@ -315,6 +320,9 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 	for ev := range ch {
 		switch ev.Kind {
 		case KindAssistantDelta:
+			if opts.OnTextDelta != nil {
+				opts.OnTextDelta(ev.Text)
+			}
 			buf.WriteString(ev.Text)
 		case KindAssistantStop:
 			// KindAssistantStop fires after every assistant message (including
