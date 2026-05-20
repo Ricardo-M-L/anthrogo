@@ -71,6 +71,14 @@ func main() {
 								"required": []string{"msg"},
 							},
 						},
+						{
+							"name":        "_emit_list_changed",
+							"description": "Emit tools/list_changed notification and return.",
+							"inputSchema": map[string]any{
+								"type":       "object",
+								"properties": map[string]any{},
+							},
+						},
 					},
 				},
 			})
@@ -80,6 +88,23 @@ func main() {
 				Arguments map[string]any `json:"arguments"`
 			}
 			_ = json.Unmarshal(req.Params, &p)
+			if p.Name == "_emit_list_changed" {
+				// Emit notification first (no id; one-way).
+				_ = enc.Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"method":  "notifications/tools/list_changed",
+					"params":  map[string]any{},
+				})
+				_ = enc.Encode(rpcResponse{
+					JSONRPC: "2.0", ID: req.ID,
+					Result: map[string]any{
+						"content": []map[string]any{
+							{"type": "text", "text": "emitted"},
+						},
+					},
+				})
+				continue
+			}
 			msg, _ := p.Arguments["msg"].(string)
 			_ = enc.Encode(rpcResponse{
 				JSONRPC: "2.0", ID: req.ID,

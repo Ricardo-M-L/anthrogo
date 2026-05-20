@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.3-dev] — 2026-05-20
+
+M6.1 — MCP list_changed notifications.
+
+### Added
+- `internal/mcp.Server` registers `ToolListChangedHandler` and `ResourceListChangedHandler` on `sdk.ClientOptions`.
+- On `notifications/tools/list_changed`: refresh the server's tool cache via `ListTools` + log via LogSink. The `tool.Registry` is NOT auto-rebuilt (would race with in-flight turns); user runs `/mcp reload` to surface new tools to the system prompt.
+- On `notifications/resources/list_changed`: validate connectivity via `ListResources` + log. anthrogo doesn't cache resources at the server level (Manager.AllResources queries on-demand), so no cache update is needed.
+- Echo-server testdata gains a hidden `_emit_list_changed` tool used by the new `TestServer_ToolListChanged_TriggersRefresh` integration test.
+
+### Known issues / deferred (M6+)
+- `tool.Registry` doesn't auto-refresh on list_changed; the model's system prompt still lists startup-cached tools until `/mcp reload` or restart.
+- Resource subscription (`resources/subscribe`) is not wired.
+- Prompt list_changed (`PromptListChangedHandler`) is not wired (anthrogo doesn't surface MCP prompts yet).
+
 ## [0.5.2-dev] — 2026-05-20
 
 M5.3 — Subagent polish (concurrent + isolated perms + YAML types).

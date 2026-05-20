@@ -142,6 +142,20 @@ func (s *Server) Start(parent context.Context) error {
 		}
 	}
 
+	// Wire list-changed notification handlers.
+	opts.ToolListChangedHandler = func(ctx context.Context, _ *sdk.ToolListChangedRequest) {
+		s.refreshTools(ctx)
+		if s.notifyLog != nil {
+			s.notifyLog(s.Name, fmt.Sprintf("tool list changed (%d tools after refresh)", len(s.Tools())))
+		}
+	}
+	opts.ResourceListChangedHandler = func(ctx context.Context, _ *sdk.ResourceListChangedRequest) {
+		s.refreshResources(ctx)
+		if s.notifyLog != nil {
+			s.notifyLog(s.Name, "resource list changed")
+		}
+	}
+
 	client := sdk.NewClient(impl, opts)
 
 	// Pick transport based on Type.
@@ -268,6 +282,49 @@ func (s *Server) Close() error {
 		_ = sess.Close() // owns cmd shutdown via CommandTransport's TerminateDuration
 	}
 	return nil
+}
+
+// refreshTools re-fetches the server's tool list and updates the cache.
+// Safe to call from any goroutine. Errors are logged via notifyLog, never returned.
+func (s *Server) refreshTools(ctx context.Context) {
+	s.mu.RLock()
+	sess := s.session
+	state := s.state
+	s.mu.RUnlock()
+	if state != StateReady || sess == nil {
+		return
+	}
+	res, err := sess.ListTools(ctx, &sdk.ListToolsParams{})
+	if err != nil {
+		if s.notifyLog != nil {
+			s.notifyLog(s.Name, fmt.Sprintf("tool list refresh failed: %v", err))
+		}
+		return
+	}
+	s.mu.Lock()
+	s.tools = res.Tools
+	s.mu.Unlock()
+}
+
+// refreshResources is a placeholder for cache consistency. It re-fetches the
+// resource list but anthrogo doesn't cache resources at the server level
+// (Manager.AllResources queries on-demand). For now this is a no-op aside
+// from validating connectivity.
+func (s *Server) refreshResources(ctx context.Context) {
+	s.mu.RLock()
+	sess := s.session
+	state := s.state
+	s.mu.RUnlock()
+	if state != StateReady || sess == nil {
+		return
+	}
+	// Validate the server responds — but don't store. Manager.AllResources
+	// pulls fresh on every system-prompt build (typically once per process).
+	if _, err := sess.ListResources(ctx, &sdk.ListResourcesParams{}); err != nil {
+		if s.notifyLog != nil {
+			s.notifyLog(s.Name, fmt.Sprintf("resource list refresh failed: %v", err))
+		}
+	}
 }
 
 // formatLogData coerces a logging-message payload to a string.

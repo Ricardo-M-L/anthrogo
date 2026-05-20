@@ -116,6 +116,8 @@ Tools surface as `mcp__<server>__<tool>` (names exceeding 64 chars get a sha-8 s
 
 **Plan mode blocks all MCP tool calls** (`mcp__*` tools are treated as write tools). Switch to default mode (`/mode default`) to invoke MCP tools.
 
+> anthrogo registers list-changed handlers for tools and resources. When a server pushes `notifications/tools/list_changed`, anthrogo refreshes its per-server tool cache and logs the event. The model-facing tool registry is NOT auto-rebuilt (would race with in-flight turns); run `/mcp reload` to surface new tools to the next system prompt.
+
 ### MCP resources
 
 anthrogo lists resources advertised by Ready servers in the system prompt at startup and provides a built-in `MCPResource` tool the model can use to list or read them:
