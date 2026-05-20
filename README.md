@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M7.6 complete (v0.7.5-dev). `/sessions replay` + `/sessions search` landed. See `docs/superpowers/specs/` for design docs.
+> **Status**: M7.7 complete (v0.7.6-dev). `/sessions delete` landed. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -463,6 +463,8 @@ Use `/sessions show <id-prefix>` for a quick metadata summary of a specific sess
 Use `/sessions replay <id-prefix>` to render the matched session as a one-line-per-record timeline. Every record kind is covered: meta, user, asst, tool, result, compact, subagent, usage, turn-end, error. Text is truncated and newlines collapsed so the output stays readable in the TUI.
 
 Use `/sessions search <keyword>` for case-insensitive substring search across all session JSONLs for the current cwd. Each match line shows `<session-id-prefix> [<kind>] <context>` (40 chars before + match + 40 chars after). Results are capped at 200 matches.
+
+Use `/sessions delete <id-prefix>` to remove a session. Without `--yes` it performs a **dry-run**: prints the JSONL path and size, the subagents subdirectory (if any) with file count and total bytes, and the exact command to re-run for real deletion. Add `--yes` to actually remove both the JSONL and the `<session-id>/subagents/` tree. This is irreversible — there is no undo.
 
 ## Tools (M1)
 

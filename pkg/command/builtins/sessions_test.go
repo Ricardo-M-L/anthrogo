@@ -287,6 +287,89 @@ func TestSessions_SearchNoMatches(t *testing.T) {
 	require.Contains(t, res.Text, "(no matches)")
 }
 
+// TestSessions_DeleteDryRun_DoesNotRemove verifies that delete without --yes
+// prints "would delete" and does NOT remove the file.
+func TestSessions_DeleteDryRun_DoesNotRemove(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "abc-111.jsonl"), []byte(`{}`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "def-222.jsonl"), []byte(`{}`), 0o644))
+
+	res, err := deleteSession(dir, "abc-111")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "would delete")
+	require.Contains(t, res.Text, "abc-111.jsonl")
+	// File must still exist.
+	_, statErr := os.Stat(filepath.Join(dir, "abc-111.jsonl"))
+	require.NoError(t, statErr)
+}
+
+// TestSessions_DeleteYes_RemovesFile verifies that --yes actually deletes the JSONL.
+func TestSessions_DeleteYes_RemovesFile(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "abc-111.jsonl"), []byte(`{}`), 0o644))
+
+	res, err := deleteSession(dir, "--yes abc-111")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "deleted")
+	_, statErr := os.Stat(filepath.Join(dir, "abc-111.jsonl"))
+	require.True(t, os.IsNotExist(statErr), "file should be gone")
+}
+
+// TestSessions_DeleteYes_RemovesSubagentsDir verifies that the subagents dir is
+// also removed when it exists.
+func TestSessions_DeleteYes_RemovesSubagentsDir(t *testing.T) {
+	dir := t.TempDir()
+	sessionID := "abc-subagent-session"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(`{}`), 0o644))
+	// Create subagents dir with a file inside.
+	subDir := filepath.Join(dir, sessionID, "subagents")
+	require.NoError(t, os.MkdirAll(subDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(subDir, "sub1.jsonl"), []byte(`{}`), 0o644))
+
+	res, err := deleteSession(dir, "--yes "+sessionID)
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "deleted")
+	require.Contains(t, res.Text, "subagents/")
+	_, statErr := os.Stat(filepath.Join(dir, sessionID+".jsonl"))
+	require.True(t, os.IsNotExist(statErr), "jsonl should be gone")
+	_, subStatErr := os.Stat(subDir)
+	require.True(t, os.IsNotExist(subStatErr), "subagents dir should be gone")
+}
+
+// TestSessions_DeleteUnknownPrefix verifies a "no match" result for unknown prefix.
+func TestSessions_DeleteUnknownPrefix(t *testing.T) {
+	dir := t.TempDir()
+	res, err := deleteSession(dir, "nope")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "no match")
+}
+
+// TestSessions_DeleteAmbiguousPrefix verifies an "ambiguous" result when multiple
+// files share the prefix, and that neither is deleted.
+func TestSessions_DeleteAmbiguousPrefix(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "abcXXX.jsonl"), []byte(`{}`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "abcYYY.jsonl"), []byte(`{}`), 0o644))
+
+	res, err := deleteSession(dir, "--yes abc")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "ambiguous")
+	// Both files must still exist.
+	_, err1 := os.Stat(filepath.Join(dir, "abcXXX.jsonl"))
+	require.NoError(t, err1)
+	_, err2 := os.Stat(filepath.Join(dir, "abcYYY.jsonl"))
+	require.NoError(t, err2)
+}
+
+// TestSessions_DeleteMissingPrefix verifies the usage message when no prefix is given.
+func TestSessions_DeleteMissingPrefix(t *testing.T) {
+	dir := t.TempDir()
+	// "--yes" with no additional prefix token.
+	res, err := deleteSession(dir, "--yes")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "usage")
+}
+
 // splitNonEmpty splits by newline, returning only non-empty lines.
 func splitNonEmpty(s string) []string {
 	var out []string

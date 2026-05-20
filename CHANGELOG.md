@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.6-dev] — 2026-05-20
+
+M7.7 — /sessions delete.
+
+### Added
+- `/sessions delete <id-prefix>` — destructive subcommand. Default is **dry-run**: prints the JSONL path + size, the subagents subdirectory (if any) with file count + total bytes, and instructions to re-run with `--yes`. Adding `--yes` (`/sessions delete --yes <prefix>`) actually removes both the JSONL and the matching `<session-id>/subagents/` directory tree.
+- Updated usage message to include the new subcommand.
+
+### Known issues / deferred
+- No undo / recycle bin. `--yes` is irreversible.
+- Doesn't update any in-memory engine that might be replaying the just-deleted session (rare — typically you delete OLD sessions, not the current one).
+
 ## [0.7.5-dev] — 2026-05-20
 
 M7.6 — /sessions replay + search.

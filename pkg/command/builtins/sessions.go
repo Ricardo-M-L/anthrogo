@@ -41,8 +41,11 @@ func (Sessions) Run(ctx context.Context, args string, host command.Host) (comman
 	case strings.HasPrefix(args, "search "):
 		keyword := strings.TrimSpace(strings.TrimPrefix(args, "search "))
 		return searchSessions(dir, keyword)
+	case strings.HasPrefix(args, "delete "):
+		rest := strings.TrimSpace(strings.TrimPrefix(args, "delete "))
+		return deleteSession(dir, rest)
 	default:
-		return command.Result{Text: "usage: /sessions [list | show <id-prefix> | replay <id-prefix> | search <keyword>]"}, nil
+		return command.Result{Text: "usage: /sessions [list | show <id-prefix> | replay <id-prefix> | search <keyword> | delete <id-prefix> [--yes]]"}, nil
 	}
 }
 
@@ -355,6 +358,92 @@ func searchableText(r session.Record) (string, string) {
 	default:
 		return "", ""
 	}
+}
+
+// deleteSession deletes a session JSONL (and its subagents dir) identified by
+// an unambiguous prefix. rest may contain --yes anywhere; without it the
+// function performs a dry-run only.
+func deleteSession(dir, rest string) (command.Result, error) {
+	// Parse --yes flag out of rest.
+	tokens := strings.Fields(rest)
+	confirm := false
+	var prefixTokens []string
+	for _, tok := range tokens {
+		if tok == "--yes" {
+			confirm = true
+		} else {
+			prefixTokens = append(prefixTokens, tok)
+		}
+	}
+	if len(prefixTokens) != 1 {
+		return command.Result{Text: "usage: /sessions delete [--yes] <id-prefix>"}, nil
+	}
+	prefix := prefixTokens[0]
+
+	matched, err := matchPrefix(dir, prefix)
+	if err != nil {
+		return command.Result{Text: "sessions: " + err.Error()}, nil
+	}
+	if len(matched) == 0 {
+		return command.Result{Text: "sessions: no match for " + prefix}, nil
+	}
+	if len(matched) > 1 {
+		return command.Result{Text: "sessions: ambiguous prefix " + prefix + " (matches: " + strings.Join(matched, ", ") + ")"}, nil
+	}
+
+	jsonlPath := filepath.Join(dir, matched[0])
+	sessionID := strings.TrimSuffix(matched[0], ".jsonl")
+	subagentsDir := filepath.Join(dir, sessionID, "subagents")
+
+	// Stat the JSONL for size.
+	jsonlInfo, err := os.Stat(jsonlPath)
+	if err != nil {
+		return command.Result{Text: "sessions: " + err.Error()}, nil
+	}
+
+	// Check whether subagents dir exists.
+	subInfo, statErr := os.Stat(subagentsDir)
+	hasSubagents := statErr == nil && subInfo.IsDir()
+
+	if !confirm {
+		var b strings.Builder
+		fmt.Fprintf(&b, "would delete:\n")
+		fmt.Fprintf(&b, "  %s\t(%d bytes)\n", jsonlPath, jsonlInfo.Size())
+		if hasSubagents {
+			count, total := dirStats(subagentsDir)
+			fmt.Fprintf(&b, "  %s/\t(%d files, total %d bytes)\n", subagentsDir, count, total)
+		}
+		fmt.Fprintf(&b, "run with --yes to actually delete:\n")
+		fmt.Fprintf(&b, "  /sessions delete --yes %s", prefix)
+		return command.Result{Text: b.String()}, nil
+	}
+
+	// Perform actual deletion.
+	if err := os.Remove(jsonlPath); err != nil {
+		return command.Result{Text: "sessions: " + err.Error()}, nil
+	}
+	msg := "deleted " + jsonlPath
+	if hasSubagents {
+		if err := os.RemoveAll(subagentsDir); err != nil {
+			return command.Result{Text: "sessions: deleted " + jsonlPath + " but failed to remove subagents/: " + err.Error()}, nil
+		}
+		msg += " and subagents/"
+	}
+	return command.Result{Text: msg}, nil
+}
+
+// dirStats returns (file count, total bytes) for all files under dir (recursive).
+// Returns (0, 0) if dir doesn't exist or is unreadable.
+func dirStats(dir string) (count int, bytes int64) {
+	_ = filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		count++
+		bytes += info.Size()
+		return nil
+	})
+	return
 }
 
 // contextAround returns up to before chars before the match and after chars after,
