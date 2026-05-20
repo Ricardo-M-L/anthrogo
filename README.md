@@ -483,6 +483,8 @@ Use `/sessions search <keyword>` for case-insensitive substring search across al
 
 Use `/sessions delete <id-prefix>` to remove a session. Without `--yes` it performs a **dry-run**: prints the JSONL path and size, the subagents subdirectory (if any) with file count and total bytes, and the exact command to re-run for real deletion. Add `--yes` to actually remove both the JSONL and the `<session-id>/subagents/` tree. This is irreversible — there is no undo.
 
+Use `/sessions export <id-prefix> [-o file.md]` to render the session as a markdown document. Without `-o`, the markdown is printed to stdout. With `-o <file.md>`, it is written to the specified file and the command reports "exported <path> (<N> bytes)". `export` renders a human-readable document.
+
 ## Tools (M1)
 
 | Tool        | Read-only | What it does                                                       |

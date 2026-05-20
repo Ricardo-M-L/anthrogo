@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/ricardo/anthrogo/internal/session"
@@ -19,7 +20,9 @@ type Sessions struct{}
 
 func (Sessions) Name() string        { return "/sessions" }
 func (Sessions) Aliases() []string   { return nil }
-func (Sessions) Description() string { return "List session JSONLs for the current cwd (subcommands: show <id-prefix>, replay <id-prefix>, search <keyword>)" }
+func (Sessions) Description() string {
+	return "List session JSONLs for the current cwd (subcommands: show <id-prefix>, replay <id-prefix>, search <keyword>, export <id-prefix> [-o file.md])"
+}
 func (Sessions) Type() command.Type  { return command.TypeLocal }
 
 func (Sessions) Run(ctx context.Context, args string, host command.Host) (command.Result, error) {
@@ -44,8 +47,10 @@ func (Sessions) Run(ctx context.Context, args string, host command.Host) (comman
 	case strings.HasPrefix(args, "delete "):
 		rest := strings.TrimSpace(strings.TrimPrefix(args, "delete "))
 		return deleteSession(dir, rest)
+	case strings.HasPrefix(args, "export "):
+		return exportSession(dir, strings.TrimSpace(strings.TrimPrefix(args, "export ")))
 	default:
-		return command.Result{Text: "usage: /sessions [list | show <id-prefix> | replay <id-prefix> | search <keyword> | delete <id-prefix> [--yes]]"}, nil
+		return command.Result{Text: "usage: /sessions [list | show <id-prefix> | replay <id-prefix> | search <keyword> | delete <id-prefix> [--yes] | export <id-prefix> [-o file.md]]"}, nil
 	}
 }
 
@@ -444,6 +449,192 @@ func dirStats(dir string) (count int, bytes int64) {
 		return nil
 	})
 	return
+}
+
+// exportSession renders a matched session JSONL as a markdown document.
+// rest is parsed for an optional -o / --out <file> flag; remaining token is the id-prefix.
+func exportSession(dir, rest string) (command.Result, error) {
+	if rest == "" {
+		return command.Result{Text: "usage: /sessions export <id-prefix> [-o file.md]"}, nil
+	}
+
+	// Parse tokens for -o / --out flag.
+	tokens := strings.Fields(rest)
+	var outFile string
+	var prefixTokens []string
+	for i := 0; i < len(tokens); i++ {
+		if (tokens[i] == "-o" || tokens[i] == "--out") && i+1 < len(tokens) {
+			outFile = tokens[i+1]
+			i++ // skip next token
+		} else {
+			prefixTokens = append(prefixTokens, tokens[i])
+		}
+	}
+	if len(prefixTokens) != 1 {
+		return command.Result{Text: "usage: /sessions export <id-prefix> [-o file.md]"}, nil
+	}
+	prefix := prefixTokens[0]
+
+	matched, err := matchPrefix(dir, prefix)
+	if err != nil {
+		return command.Result{Text: "sessions: " + err.Error()}, nil
+	}
+	if len(matched) == 0 {
+		return command.Result{Text: "sessions: no match for " + prefix}, nil
+	}
+	if len(matched) > 1 {
+		return command.Result{Text: "sessions: ambiguous prefix " + prefix + " (matches: " + strings.Join(matched, ", ") + ")"}, nil
+	}
+
+	records, err := session.Replay(filepath.Join(dir, matched[0]))
+	if err != nil {
+		return command.Result{Text: "sessions: replay error: " + err.Error()}, nil
+	}
+
+	md := renderSessionMarkdown(records)
+
+	if outFile != "" {
+		if err := os.WriteFile(outFile, []byte(md), 0o644); err != nil {
+			return command.Result{Text: "sessions: write error: " + err.Error()}, nil
+		}
+		return command.Result{Text: fmt.Sprintf("exported %s (%d bytes)", outFile, len(md))}, nil
+	}
+	return command.Result{Text: md}, nil
+}
+
+// renderSessionMarkdown converts a slice of session records to a markdown document.
+func renderSessionMarkdown(records []session.Record) string {
+	var b strings.Builder
+
+	// Find the session meta record for the header.
+	var meta *session.SessionMeta
+	for _, r := range records {
+		if r.Kind == session.KindSessionMeta && r.SessionMeta != nil {
+			meta = r.SessionMeta
+			break
+		}
+	}
+
+	// Write document header.
+	sessionID := ""
+	if meta != nil {
+		sessionID = meta.SessionID
+	}
+	fmt.Fprintf(&b, "# anthrogo session: %s\n\n", sessionID)
+	if meta != nil {
+		fmt.Fprintf(&b, "**Created:** %s\n", meta.CreatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(&b, "**Model:** %s\n", meta.Model)
+		fmt.Fprintf(&b, "**Permission mode:** %s\n", meta.PermissionMode)
+		fmt.Fprintf(&b, "**Cwd:** %s\n", meta.Cwd)
+	}
+	fmt.Fprintf(&b, "\n---\n\n")
+
+	// Render each record.
+	for _, r := range records {
+		switch r.Kind {
+		case session.KindUserMessage:
+			if r.UserMessage == nil {
+				continue
+			}
+			text := renderBlockText(r.UserMessage.Content)
+			fmt.Fprintf(&b, "### 👤 User\n\n%s\n\n", text)
+
+		case session.KindAssistantMessage:
+			if r.AssistantMessage == nil {
+				continue
+			}
+			text := renderBlockText(r.AssistantMessage.Content)
+			fmt.Fprintf(&b, "### 🤖 Assistant\n\n%s\n\n", text)
+
+		case session.KindToolUseRequest:
+			if r.ToolUseRequest == nil {
+				continue
+			}
+			inputJSON, _ := json.MarshalIndent(r.ToolUseRequest.ToolInput, "", "  ")
+			fmt.Fprintf(&b, "#### 🔧 Tool: %s\n\n```json\n%s\n```\n\n", r.ToolUseRequest.ToolName, string(inputJSON))
+
+		case session.KindToolResult:
+			if r.ToolResult == nil {
+				continue
+			}
+			errSuffix := ""
+			if r.ToolResult.IsError {
+				errSuffix = " (error)"
+			}
+			fmt.Fprintf(&b, "##### ↩ Result%s\n\n", errSuffix)
+			text := r.ToolResult.Text
+			if looksLikeCode(text) {
+				fmt.Fprintf(&b, "```\n%s\n```\n\n", text)
+			} else {
+				fmt.Fprintf(&b, "%s\n\n", text)
+			}
+
+		case session.KindCompact:
+			if r.Compact == nil {
+				continue
+			}
+			fmt.Fprintf(&b, "> **Compacted:** %d → %d messages (%s)\n\n",
+				r.Compact.OriginalCount, r.Compact.NewCount, r.Compact.Trigger)
+
+		case session.KindSubagentStart:
+			if r.Subagent == nil {
+				continue
+			}
+			fmt.Fprintf(&b, "> **Subagent started:** type=%s desc=%s\n\n",
+				r.Subagent.Type, r.Subagent.Description)
+
+		case session.KindError:
+			if r.Error == nil {
+				continue
+			}
+			fmt.Fprintf(&b, "> ❗ **Error** during %s: %s\n\n", r.Error.During, r.Error.Error)
+
+		case session.KindUsage, session.KindTurnComplete, session.KindSessionMeta:
+			// skip — meta already rendered at top
+		}
+	}
+
+	return b.String()
+}
+
+// renderBlockText extracts and joins text from a slice of content blocks.
+// Image blocks are rendered as a placeholder; thinking blocks are skipped.
+func renderBlockText(blocks []message.Block) string {
+	var parts []string
+	for _, b := range blocks {
+		switch b.Type {
+		case message.BlockText:
+			parts = append(parts, b.Text)
+		case message.BlockImage:
+			if b.ImageSource != nil {
+				parts = append(parts, "_[image: "+b.ImageSource.MediaType+", "+strconv.Itoa(len(b.ImageSource.Data))+" base64 bytes]_")
+			} else {
+				parts = append(parts, "_[image]_")
+			}
+		case message.BlockThinking:
+			// skip
+		}
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+// looksLikeCode is a soft heuristic that returns true when the text is
+// likely structured/code content that benefits from a fenced code block.
+func looksLikeCode(s string) bool {
+	if !strings.Contains(s, "\n") {
+		return false
+	}
+	head := strings.TrimSpace(strings.SplitN(s, "\n", 2)[0])
+	if strings.HasPrefix(head, "{") || strings.HasPrefix(head, "[") || strings.HasPrefix(head, "<") {
+		return true
+	}
+	keywords := []string{"func ", "def ", "package ", "import ", "class ", "fn "}
+	for _, k := range keywords {
+		if strings.Contains(s, k) {
+			return true
+		}
+	}
+	return false
 }
 
 // contextAround returns up to before chars before the match and after chars after,

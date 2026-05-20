@@ -370,6 +370,129 @@ func TestSessions_DeleteMissingPrefix(t *testing.T) {
 	require.Contains(t, res.Text, "usage")
 }
 
+// ---------------------------------------------------------------------------
+// Export tests (M7.9)
+// ---------------------------------------------------------------------------
+
+// TestSessions_ExportMissingPrefix verifies that empty rest returns usage.
+func TestSessions_ExportMissingPrefix(t *testing.T) {
+	dir := t.TempDir()
+	res, err := exportSession(dir, "")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "usage")
+}
+
+// TestSessions_ExportUnknownPrefix verifies that an unknown prefix returns "no match".
+func TestSessions_ExportUnknownPrefix(t *testing.T) {
+	dir := t.TempDir()
+	res, err := exportSession(dir, "noop")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "no match")
+}
+
+// TestSessions_ExportToStdout verifies markdown contains headers and turn markers.
+func TestSessions_ExportToStdout(t *testing.T) {
+	dir := t.TempDir()
+	records := makeSessionRecords()
+	writeJSONL(t, dir, "test-session-id", records)
+
+	res, err := exportSession(dir, "test-session-id")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "# anthrogo session:")
+	require.Contains(t, res.Text, "👤 User")
+	require.Contains(t, res.Text, "🤖 Assistant")
+	require.Contains(t, res.Text, "hello world")
+	require.Contains(t, res.Text, "goodbye world")
+}
+
+// TestSessions_ExportToFile verifies -o writes to file.
+func TestSessions_ExportToFile(t *testing.T) {
+	dir := t.TempDir()
+	records := makeSessionRecords()
+	writeJSONL(t, dir, "test-session-id", records)
+
+	outFile := filepath.Join(t.TempDir(), "out.md")
+	res, err := exportSession(dir, "test-session-id -o "+outFile)
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "exported")
+	require.Contains(t, res.Text, outFile)
+
+	data, readErr := os.ReadFile(outFile)
+	require.NoError(t, readErr)
+	require.NotEmpty(t, data)
+	require.Contains(t, string(data), "# anthrogo session:")
+}
+
+// TestSessions_ExportRendersToolUseAndResult verifies JSON fence around input
+// and code-fence around code-like result.
+func TestSessions_ExportRendersToolUseAndResult(t *testing.T) {
+	dir := t.TempDir()
+	ts := time.Now()
+	codeOutput := "package main\n\nfunc main() {\n\tfmt.Println(\"hi\")\n}"
+	records := []session.Record{
+		{
+			Kind:      session.KindToolUseRequest,
+			Timestamp: ts,
+			ToolUseRequest: &session.ToolUseRequest{
+				ToolUseID: "tu1",
+				ToolName:  "Read",
+				ToolInput: map[string]any{"path": "/tmp/foo.go"},
+			},
+		},
+		{
+			Kind:      session.KindToolResult,
+			Timestamp: ts,
+			ToolResult: &session.ToolResult{
+				ToolUseID: "tu1",
+				Text:      codeOutput,
+				IsError:   false,
+			},
+		},
+	}
+	writeJSONL(t, dir, "tool-session", records)
+
+	res, err := exportSession(dir, "tool-session")
+	require.NoError(t, err)
+	// Tool use: JSON fenced block
+	require.Contains(t, res.Text, "🔧 Tool: Read")
+	require.Contains(t, res.Text, "```json")
+	require.Contains(t, res.Text, `"path"`)
+	// Tool result: code-fenced because it contains "func "
+	require.Contains(t, res.Text, "↩ Result")
+	require.Contains(t, res.Text, "```\n"+codeOutput)
+}
+
+// TestSessions_ExportRendersCompactAndError verifies blockquote rendering.
+func TestSessions_ExportRendersCompactAndError(t *testing.T) {
+	dir := t.TempDir()
+	ts := time.Now()
+	records := []session.Record{
+		{
+			Kind:      session.KindCompact,
+			Timestamp: ts,
+			Compact: &session.CompactRecord{
+				OriginalCount: 50,
+				NewCount:      10,
+				Trigger:       "manual",
+			},
+		},
+		{
+			Kind:      session.KindError,
+			Timestamp: ts,
+			Error: &session.ErrorRecord{
+				During: "tool_call",
+				Error:  "permission denied",
+			},
+		},
+	}
+	writeJSONL(t, dir, "compact-error-session", records)
+
+	res, err := exportSession(dir, "compact-error-session")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "> **Compacted:** 50 → 10 messages (manual)")
+	require.Contains(t, res.Text, "> ❗ **Error** during tool_call: permission denied")
+}
+
 // splitNonEmpty splits by newline, returning only non-empty lines.
 func splitNonEmpty(s string) []string {
 	var out []string

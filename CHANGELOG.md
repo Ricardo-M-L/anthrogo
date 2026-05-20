@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.8-dev] — 2026-05-20
+
+M7.9 — /sessions export markdown.
+
+### Added
+- `/sessions export <id-prefix> [-o file.md]` — renders the matched session JSONL as readable markdown. Per-turn headings (### 👤 User / 🤖 Assistant), per-tool subheadings (#### 🔧 Tool: <name>) with JSON-formatted inputs and code-fenced outputs, compact + subagent + error events as blockquotes. Without `-o`, prints to stdout; with `-o`, writes to file (0o644) and returns "exported <path> (<N> bytes)".
+- Soft code-detection heuristic on tool result text (looksLikeCode): wraps in ``` if multi-line and starts with structural chars or contains common keywords; otherwise plain.
+- Image blocks rendered as `_[image: <mime>, <N> base64 bytes]_`.
+
+### Known issues / deferred
+- No language-specific fence (always plain ```).
+- Image data base64 not inlined (would bloat the markdown); future could write images to a sidecar dir.
+- No HTML escaping inside content (markdown can mangle if user wrote raw <html>).
+
 ## [0.7.7-dev] — 2026-05-20
 
 M7.8 — Image / vision blocks (OpenAI + prompt syntax).
