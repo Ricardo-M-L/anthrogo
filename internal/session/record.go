@@ -19,6 +19,7 @@ const (
 	KindTurnComplete     Kind = "turn_complete"
 	KindError            Kind = "error"
 	KindUsage            Kind = "usage"
+	KindCompact          Kind = "compact"
 )
 
 type Record struct {
@@ -33,6 +34,16 @@ type Record struct {
 	TurnComplete     *TurnComplete     `json:"turn_complete,omitempty"`
 	Error            *ErrorRecord      `json:"error,omitempty"`
 	Usage            *UsageRecord      `json:"usage,omitempty"`
+	Compact          *CompactRecord    `json:"compact,omitempty"`
+}
+
+// CompactRecord is the JSONL record emitted when Engine.Compact runs.
+type CompactRecord struct {
+	OriginalCount int    `json:"original_count"`
+	NewCount      int    `json:"new_count"`
+	OriginalBytes int    `json:"original_bytes"`
+	NewBytes      int    `json:"new_bytes"`
+	Trigger       string `json:"trigger"`
 }
 
 type SessionMeta struct {

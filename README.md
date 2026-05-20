@@ -139,6 +139,19 @@ Default timeouts: 30s for sync events, 5–10s for async. Async events (Stop / N
 
 Plan-mode hard-lock still overrides hook-allow for write tools.
 
+`PreCompact` fires synchronously before `/compact` runs (M4.2).
+
+## Compaction
+
+For long sessions, `/compact` summarizes earlier turns to cut token cost:
+
+```
+/compact            # keeps the 10 most-recent messages, summarizes the rest
+/compact --keep 20  # keeps 20 most-recent
+```
+
+Currently all earlier messages including MCP tool calls are summarized to prose; pair-preserving compaction is a future milestone. `PreCompact` hooks (configured under `hooks.PreCompact`) fire before each compact.
+
 ## Tools (M1)
 
 | Tool        | Read-only | What it does                                                       |

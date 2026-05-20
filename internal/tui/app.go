@@ -28,6 +28,7 @@ type PromptHookSink interface {
 	FireNotification(ctx context.Context, message, kind string)
 	FirePostToolUse(ctx context.Context, toolName string, input, response map[string]any) string
 	FireStop(ctx context.Context, reason string)
+	FirePreCompact(ctx context.Context, trigger string)
 }
 
 type Options struct {

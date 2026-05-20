@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -198,6 +199,91 @@ func TestEngine_HookModifiedInput_ReachesTool(t *testing.T) {
 	require.Equal(t, true, seen.lastInput["mutated"], "mutated key must be present")
 	_, hasOrig := seen.lastInput["orig"]
 	require.False(t, hasOrig, "orig key must be absent after mutation")
+}
+
+// recordingHookSink records FirePreCompact calls for compact tests.
+type recordingHookSink struct {
+	preCompactCalled bool
+}
+
+func (r *recordingHookSink) FirePostToolUse(_ context.Context, _ string, _, _ map[string]any) string {
+	return ""
+}
+func (r *recordingHookSink) FireStop(_ context.Context, _ string) {}
+func (r *recordingHookSink) FirePreCompact(_ context.Context, _ string) {
+	r.preCompactCalled = true
+}
+
+func TestEngine_Compact_FiresHookAndReplaces(t *testing.T) {
+	// Use alternating user/assistant messages so the new assistant-boundary
+	// split algorithm can find a valid split point.
+	msgs := make([]message.Message, 15)
+	for i := range msgs {
+		if i%2 == 0 {
+			msgs[i] = message.Message{Role: message.RoleUser, Content: []message.Block{{Type: message.BlockText, Text: "u"}}}
+		} else {
+			msgs[i] = message.Message{Role: message.RoleAssistant, Content: []message.Block{{Type: message.BlockText, Text: "a"}}}
+		}
+	}
+	// Adaptation: fake.New (variadic) instead of plan's fake.NewScripted.
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventStart},
+			{Kind: provider.EventTextDelta, Text: "SUM"},
+			{Kind: provider.EventMessageStop},
+		},
+	)
+	rec := &recordingHookSink{}
+	e := NewEngine(Config{Provider: fp, Model: "m", Hooks: rec})
+	e.SetInitialMessages(msgs)
+
+	s, err := e.Compact(context.Background(), CompactOptions{KeepRecent: 10})
+	require.NoError(t, err)
+	require.False(t, s.Skipped)
+	require.True(t, rec.preCompactCalled)
+	// desiredSplit=5, msgs[5] is assistant → split=5, head=5, tail=10 → newCount=11
+	require.Equal(t, 11, s.NewCount)
+	require.Equal(t, 11, len(e.Messages()))
+	require.Equal(t, "SUM", s.SummaryText)
+}
+
+func TestEngine_Compact_SkipsWhenShort(t *testing.T) {
+	e := NewEngine(Config{Provider: fake.New(nil), Model: "m"})
+	e.SetInitialMessages([]message.Message{
+		{Role: message.RoleUser, Content: []message.Block{{Type: message.BlockText, Text: "a"}}},
+	})
+	s, err := e.Compact(context.Background(), CompactOptions{KeepRecent: 10})
+	require.NoError(t, err)
+	require.True(t, s.Skipped)
+}
+
+func TestEngine_Compact_ConcurrentSafe(t *testing.T) {
+	msgs := make([]message.Message, 30)
+	for i := range msgs {
+		if i%2 == 0 {
+			msgs[i] = message.Message{Role: message.RoleUser, Content: []message.Block{{Type: message.BlockText, Text: "u"}}}
+		} else {
+			msgs[i] = message.Message{Role: message.RoleAssistant, Content: []message.Block{{Type: message.BlockText, Text: "a"}}}
+		}
+	}
+	fp := fake.New(
+		[]provider.Event{{Kind: provider.EventStart}, {Kind: provider.EventTextDelta, Text: "S"}, {Kind: provider.EventMessageStop}},
+	)
+	e := NewEngine(Config{Provider: fp, Model: "m"})
+	e.SetInitialMessages(msgs)
+
+	// Run 50 concurrent reads of Messages() while Compact runs once.
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = e.Messages()
+		}()
+	}
+	_, err := e.Compact(context.Background(), CompactOptions{KeepRecent: 10})
+	require.NoError(t, err)
+	wg.Wait()
 }
 
 type slowFakeProvider struct{}

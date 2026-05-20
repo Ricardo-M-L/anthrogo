@@ -104,7 +104,7 @@ func (s *Store) Append(r Record) error {
 	if _, err := s.w.Write(line); err != nil {
 		return err
 	}
-	if r.Kind == KindTurnComplete || r.Kind == KindError {
+	if r.Kind == KindTurnComplete || r.Kind == KindError || r.Kind == KindCompact {
 		if err := s.w.Flush(); err != nil {
 			return err
 		}
@@ -156,6 +156,11 @@ func Replay(path string) ([]Record, error) {
 
 // Messages projects records into a flat []message.Message suitable for
 // re-seeding the engine on resume.
+//
+// When a KindCompact record is encountered, all previously accumulated messages
+// are discarded. Resume therefore starts from the most-recent compact point
+// forward — the compacted summary message will be the first record after the
+// compact marker (emitted as a KindUserMessage by the compact package).
 func Messages(records []Record) []message.Message {
 	var (
 		out              []message.Message
@@ -169,6 +174,11 @@ func Messages(records []Record) []message.Message {
 	}
 	for _, r := range records {
 		switch r.Kind {
+		case KindCompact:
+			// Discard all accumulated messages; the next records represent the
+			// post-compact state (summary + tail messages).
+			flush()
+			out = out[:0]
 		case KindUserMessage:
 			flush()
 			out = append(out, message.Message{Role: message.RoleUser, Content: r.UserMessage.Content})

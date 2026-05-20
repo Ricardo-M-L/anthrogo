@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.4.1-dev] — 2026-05-20
+
+M4.2 — Real `/compact` (MCP-aware history compaction).
+
+### Added
+- `pkg/compact/` package: pure summarization via existing provider.Provider.
+- `query.Engine.Compact(ctx, opts) (Summary, error)` — fires PreCompact hook, calls compact.Run, swaps messages.
+- `/compact` now actually summarizes earlier turns (default keep 10 most-recent; `--keep N` to override).
+- Compaction algorithm uses assistant-boundary split: `tail` always begins with an assistant message, producing a valid Anthropic API conversation (`[summary_user, tail...]`).
+- Session JSONL gains `compact` record kind; replay discards messages before the latest compact.
+
+### Changed
+- `query.HookSink` interface gains `FirePreCompact(ctx, trigger)`.
+- `tui.PromptHookSink` and `headless.PromptHookSink` extended to match.
+
+### Known issues / deferred
+- Auto-compact on token threshold (M5).
+- Byte-count proxy used instead of real tokenizer (M6 with multi-provider).
+- Older compacts pre-replay (before the latest compact) are not preserved on resume — `--resume` always rebuilds from the most recent compact forward.
+- MCP-aware preservation (carrying `mcp__*` tool_use/tool_result pairs through compaction) was descoped from M4.2 due to Anthropic API conversation-validity constraints around orphan tool_use blocks; the summary now covers MCP turns as prose. Real preservation lands in a later milestone.
+
 ## [0.4.0-dev] — 2026-05-20
 
 M4.1 — Hooks (9 event types: PreToolUse / PostToolUse / UserPromptSubmit / Stop / SubagentStop / Notification / PreCompact / SessionStart / SessionEnd).

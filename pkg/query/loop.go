@@ -23,10 +23,13 @@ func (e *Engine) recordIfHooked(r session.Record) {
 // until the model emits end_turn (or an error/abort).
 func (e *Engine) SubmitMessage(ctx context.Context, prompt string) <-chan Event {
 	out := make(chan Event, 64)
+	e.mu.Lock()
 	e.messages = append(e.messages, message.Text(message.RoleUser, prompt))
+	lastContent := e.messages[len(e.messages)-1].Content
+	e.mu.Unlock()
 	e.recordIfHooked(session.Record{
 		Kind:        session.KindUserMessage,
-		UserMessage: &session.UserMessage{Content: e.messages[len(e.messages)-1].Content},
+		UserMessage: &session.UserMessage{Content: lastContent},
 	})
 	go func() {
 		defer close(out)
@@ -62,9 +65,12 @@ func (e *Engine) SubmitMessage(ctx context.Context, prompt string) <-chan Event 
 }
 
 func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReason string, err error) {
+	e.mu.Lock()
+	msgsCopy := append([]message.Message(nil), e.messages...)
+	e.mu.Unlock()
 	req := provider.Request{
 		Model:        e.cfg.Model,
-		Messages:     e.messages,
+		Messages:     msgsCopy,
 		SystemPrompt: e.cfg.SystemPrompt,
 		MaxTokens:    e.cfg.MaxTokens,
 		Temperature:  e.cfg.Temperature,
@@ -143,7 +149,9 @@ func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReaso
 	}
 
 	if len(assistant) > 0 {
+		e.mu.Lock()
 		e.messages = append(e.messages, message.Message{Role: message.RoleAssistant, Content: assistant})
+		e.mu.Unlock()
 		e.recordIfHooked(session.Record{
 			Kind: session.KindAssistantMessage,
 			AssistantMessage: &session.AssistantMessage{Content: assistant, StopReason: stopReason},
@@ -162,7 +170,9 @@ func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReaso
 			results = append(results, result)
 		}
 		if len(results) > 0 {
+			e.mu.Lock()
 			e.messages = append(e.messages, message.Message{Role: message.RoleUser, Content: results})
+			e.mu.Unlock()
 		}
 	}
 	return stopReason, nil
@@ -233,9 +243,12 @@ func (e *Engine) executeTool(ctx context.Context, b message.Block, out chan<- Ev
 		return message.Block{Type: message.BlockToolResult, ToolUseID: b.ToolUseID, Text: msg, IsError: true}
 	}
 
+	e.mu.Lock()
+	msgsSnap := append([]message.Message(nil), e.messages...)
+	e.mu.Unlock()
 	tcx := &tool.Context{
 		Cwd:           e.cfg.Cwd,
-		Messages:      e.messages,
+		Messages:      msgsSnap,
 		Permissions:   e.cfg.Permissions,
 		AbortContext:  ctx,
 		RequestPrompt: e.cfg.RequestPrompt,

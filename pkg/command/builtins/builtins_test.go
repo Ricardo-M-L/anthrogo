@@ -24,13 +24,14 @@ type fakeHost struct {
 	cwd      string
 	claudeMd string
 	mgr      *mcp.Manager
+	engine   *query.Engine
 }
 
 func newFakeHost() *fakeHost {
 	return &fakeHost{perms: permissions.Empty(), tools: tool.NewRegistry()}
 }
 
-func (f *fakeHost) Engine() *query.Engine             { return nil }
+func (f *fakeHost) Engine() *query.Engine             { return f.engine }
 func (f *fakeHost) Permissions() *permissions.Context { return f.perms }
 func (f *fakeHost) Tools() *tool.Registry             { return f.tools }
 func (f *fakeHost) Session() *session.Store           { return nil }
@@ -113,8 +114,8 @@ func TestModel_ListsWhenEmpty(t *testing.T) {
 	require.Contains(t, res.Text, "available models")
 }
 
-func TestCompact_ReportsDeferred(t *testing.T) {
-	h := newFakeHost()
+func TestCompact_NoEngine(t *testing.T) {
+	h := newFakeHost() // engine is nil
 	res, _ := (Compact{}).Run(context.Background(), "", h)
-	require.Contains(t, res.Text, "M3")
+	require.Contains(t, res.Text, "no active engine")
 }
