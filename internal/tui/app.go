@@ -12,6 +12,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/ricardo/anthrogo/internal/hooks"
 	"github.com/ricardo/anthrogo/internal/mcp"
@@ -83,6 +84,25 @@ type Options struct {
 	Theme *Theme
 }
 
+type layout int
+
+const (
+	layoutSingle layout = iota
+	layoutSplit
+	layoutTriple
+)
+
+func (l layout) String() string {
+	switch l {
+	case layoutSplit:
+		return "split"
+	case layoutTriple:
+		return "triple"
+	default:
+		return "single"
+	}
+}
+
 // serverLogMsg is dispatched via tea.Program.Send from AppendServerLog so that
 // chat mutations always happen on the bubbletea Update goroutine.
 type serverLogMsg struct{ server, msg string }
@@ -107,10 +127,13 @@ type App struct {
 	height     int
 	cancelTurn context.CancelFunc
 
-	asks    chan permissionAsk
-	palette palette
-	cmdReg  *command.Registry
-	program *tea.Program
+	asks       chan permissionAsk
+	palette    palette
+	cmdReg     *command.Registry
+	program    *tea.Program
+	layout     layout
+	logPane    logPane
+	statusPane statusPane
 }
 
 func New(opts Options) *App {
@@ -129,6 +152,19 @@ func New(opts Options) *App {
 	}
 	a.cmdReg = opts.Commands
 	a.palette = newPalette(theme, opts.Commands)
+	a.logPane = newLogPane(theme)
+	a.statusPane = statusPane{
+		theme:    theme,
+		getMode:  func() permissions.Mode {
+			if opts.Permissions != nil {
+				return opts.Permissions.Mode
+			}
+			return permissions.ModeDefault
+		},
+		getCwd:       func() string { return opts.Cwd },
+		getModel:     func() string { return opts.Model },
+		getUsageLine: func() string { return a.formatUsageLine() },
+	}
 
 	a.engine = query.NewEngine(query.Config{
 		Provider:              opts.Provider,
@@ -213,12 +249,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.width, a.height = m.Width, m.Height
-		a.chat.resize(m.Width, m.Height-4)
+		a.applyLayout()
 		a.input.setWidth(m.Width - 2)
 		return a, nil
 
 	case tea.KeyMsg:
 		if a.perm.update(msg) {
+			return a, nil
+		}
+		if m.Type == tea.KeyF2 {
+			a.layout = (a.layout + 1) % 3
+			a.applyLayout()
 			return a, nil
 		}
 		// Palette consumes Tab / Shift+Tab / Esc when visible
@@ -319,11 +360,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, waitForAsk(a.asks)
 
 	case serverLogMsg:
-		a.chat.appendServerLog(m.server, m.msg)
+		a.logPane.append(fmt.Sprintf("[mcp:%s] %s", m.server, m.msg))
+		if a.layout == layoutSingle {
+			a.chat.appendServerLog(m.server, m.msg)
+		}
 		return a, nil
 
 	case hookLogMsg:
-		a.chat.appendHookLog(m.event, m.msg)
+		a.logPane.append(fmt.Sprintf("[hook:%s] %s", m.event, m.msg))
+		if a.layout == layoutSingle {
+			a.chat.appendHookLog(m.event, m.msg)
+		}
 		return a, nil
 
 	case execCompleteMsg:
@@ -458,31 +505,83 @@ func (a *App) drainAsks() {
 	}
 }
 
+// applyLayout resizes panes based on the current layout and terminal dimensions.
+func (a *App) applyLayout() {
+	w, h := a.width, a.height
+	// Reserve input row + status row + 1 separator at bottom.
+	contentH := h - 3
+	if contentH < 1 {
+		contentH = 1
+	}
+	switch a.layout {
+	case layoutSingle:
+		a.chat.resize(w, contentH)
+	case layoutSplit:
+		topH := contentH * 7 / 10
+		botH := contentH - topH
+		if botH < 1 {
+			botH = 1
+		}
+		a.chat.resize(w, topH)
+		a.logPane.resize(w, botH)
+	case layoutTriple:
+		sideW := w * 3 / 10
+		mainW := w - sideW
+		if mainW < 1 {
+			mainW = 1
+		}
+		a.chat.resize(mainW, contentH)
+		a.statusPane.width = sideW
+		a.statusPane.height = contentH
+	}
+}
+
+// formatUsageLine returns the token/cost portion of the status line.
+func (a *App) formatUsageLine() string {
+	lu := a.engine.Usage()
+	sc := a.engine.UsageSinceLastCompact()
+	sinceTotal := sc.InputTokens + sc.OutputTokens
+	s := fmt.Sprintf("tok: %sin/%sout (since: %s)",
+		formatTokens(lu.InputTokens), formatTokens(lu.OutputTokens),
+		formatTokens(sinceTotal))
+	if a.opts.AutoCompactThreshold > 0 {
+		s += fmt.Sprintf(" [⚙ %s]", formatTokens(a.opts.AutoCompactThreshold))
+	}
+	if usd, ok := a.engine.EstimatedCost(); ok {
+		s += fmt.Sprintf("  $%.4f", usd)
+	}
+	return s
+}
+
+// statusLineString builds the bottom status bar including F2 hint.
+func (a *App) statusLineString() string {
+	planOn := a.opts.Permissions != nil && a.opts.Permissions.Mode == permissions.ModePlan
+	tokenInfo := a.formatUsageLine()
+	hint := fmt.Sprintf("[F2: %s]", a.layout)
+	status := a.theme.StatusLine.Render(fmt.Sprintf("model=%s  cwd=%s  %s  %s", a.opts.Model, a.opts.Cwd, tokenInfo, hint))
+	if badge := renderPlanBadge(a.theme, planOn); badge != "" {
+		status = badge + "   " + status
+	}
+	return status
+}
+
 func (a *App) View() string {
 	if a.perm.view() != "" {
 		return a.perm.view()
 	}
-	planOn := a.opts.Permissions != nil && a.opts.Permissions.Mode == permissions.ModePlan
-	lu := a.engine.Usage()
-	sc := a.engine.UsageSinceLastCompact()
-	sinceTotal := sc.InputTokens + sc.OutputTokens
-	tokenInfo := fmt.Sprintf("tok: %sin/%sout (since: %s)",
-		formatTokens(lu.InputTokens), formatTokens(lu.OutputTokens),
-		formatTokens(sinceTotal))
-	if a.opts.AutoCompactThreshold > 0 {
-		tokenInfo += fmt.Sprintf(" [⚙ %s]", formatTokens(a.opts.AutoCompactThreshold))
-	}
-	if usd, ok := a.engine.EstimatedCost(); ok {
-		tokenInfo += fmt.Sprintf("  $%.4f", usd)
-	}
-	status := a.theme.StatusLine.Render(fmt.Sprintf("model=%s  cwd=%s  %s", a.opts.Model, a.opts.Cwd, tokenInfo))
-	if badge := renderPlanBadge(a.theme, planOn); badge != "" {
-		status = badge + "   " + status
-	}
+	status := a.statusLineString()
 	if pal := a.palette.view(); pal != "" {
 		return fmt.Sprintf("%s\n%s\n%s\n%s", a.chat.view(), pal, a.input.view(), status)
 	}
-	return fmt.Sprintf("%s\n%s\n%s", a.chat.view(), a.input.view(), status)
+	switch a.layout {
+	case layoutSplit:
+		return fmt.Sprintf("%s\n%s\n%s\n%s", a.chat.view(), a.logPane.view(), a.input.view(), status)
+	case layoutTriple:
+		top := lipgloss.JoinHorizontal(lipgloss.Top, a.chat.view(), a.statusPane.view())
+		return fmt.Sprintf("%s\n%s\n%s", top, a.input.view(), status)
+	default: // layoutSingle
+		return fmt.Sprintf("%s\n%s\n%s", a.chat.view(), a.input.view(), status)
+	}
 }
 
 // formatTokens formats an integer token count with comma-thousands separators.
@@ -551,6 +650,8 @@ func (a *App) SetTheme(name string) error {
 	a.input.theme = t
 	a.perm.theme = t
 	a.palette.theme = t
+	a.logPane.theme = t
+	a.statusPane.theme = t
 	return nil
 }
 
@@ -560,24 +661,31 @@ func (a *App) SetTheme(name string) error {
 func (a *App) SetProgram(p *tea.Program) { a.program = p }
 
 // AppendServerLog routes MCP log lines through the bubbletea event loop when
-// the program is running. When program is nil (before SetProgram / in tests
-// that don't Run the TUI) it falls through directly to chat.appendServerLog,
-// which is now mutex-protected and safe to call from any goroutine.
+// the program is running. Always pushes to logPane; also pushes to chat in
+// single layout (back-compat). When program is nil (tests), mutates directly.
 func (a *App) AppendServerLog(server, msg string) {
 	if a.program != nil {
 		a.program.Send(serverLogMsg{server: server, msg: msg})
 		return
 	}
-	a.chat.appendServerLog(server, msg)
+	// No program running (test / headless): write directly.
+	a.logPane.append(fmt.Sprintf("[mcp:%s] %s", server, msg))
+	if a.layout == layoutSingle {
+		a.chat.appendServerLog(server, msg)
+	}
 }
 
 // AppendHookLog routes hook log lines through the bubbletea event loop when
-// the program is running. When program is nil it falls through directly to
-// chat.appendHookLog, which is now mutex-protected and safe to call from any goroutine.
+// the program is running. Always pushes to logPane; also pushes to chat in
+// single layout (back-compat). When program is nil (tests), mutates directly.
 func (a *App) AppendHookLog(event, msg string) {
 	if a.program != nil {
 		a.program.Send(hookLogMsg{event: event, msg: msg})
 		return
 	}
-	a.chat.appendHookLog(event, msg)
+	// No program running (test / headless): write directly.
+	a.logPane.append(fmt.Sprintf("[hook:%s] %s", event, msg))
+	if a.layout == layoutSingle {
+		a.chat.appendHookLog(event, msg)
+	}
 }

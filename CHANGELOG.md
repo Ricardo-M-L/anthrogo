@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.11.0-dev] — 2026-05-21
+
+M11.1 — TUI multi-pane layout.
+
+### Added
+- Three layouts cycled via F2:
+  - `single` (default) — one chat pane (current behavior)
+  - `split` — chat 70% top + log pane 30% bottom (shows MCP/hook log lines)
+  - `triple` — chat 70% left + status sidebar 30% right (mode/model/cwd/tokens panel)
+- `internal/tui/log_pane.go` — dedicated viewport for `[mcp:*]` and `[hook:*]` lines; capped at 200 lines rolling.
+- `internal/tui/status_pane.go` — sidebar panel rendering mode/model/cwd/usage line.
+- AppendServerLog and AppendHookLog always push to the log pane; in single-layout they also append to the chat (back-compat).
+- Bottom status line shows `[F2: <current-layout>]` hint.
+
+### Known issues / deferred
+- No keyboard focus switching between panes (Tab is used elsewhere).
+- Status sidebar width fixed at 30%; not user-configurable.
+- Log pane scrolling tied to chat scroll keys; no independent paging.
+- F2 doesn't persist across sessions (defaults to single each run).
+
 ## [0.10.12-dev] — 2026-05-21
 
 M10.13 — TUI mouse support.
