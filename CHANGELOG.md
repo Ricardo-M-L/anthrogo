@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.11-dev] — 2026-05-21
+
+M10.12 — /sessions diff.
+
+### Added
+- `/sessions diff <id1-prefix> <id2-prefix>` — flattens each session to a slim per-line text representation (user/assistant/tool/result/compact) and renders a minimal unified diff via LCS dynamic programming. `--/+++` headers + `+ -   ` line prefixes.
+- Per-line text trimmed to 200 chars (text) / 100 chars (tool result) to keep the diff readable.
+
+### Known issues / deferred
+- LCS is O(m·n) memory + time; sessions over ~5000 records may be slow.
+- Tool input shown as the `audit` builtin's short summary; not the full JSON.
+- No `--unified=<N>` context-line control; outputs full diff.
+- Image blocks ignored in flatten.
+
 ## [0.10.10-dev] — 2026-05-21
 
 M10.11 — Anthropic count_tokens API (opt-in).

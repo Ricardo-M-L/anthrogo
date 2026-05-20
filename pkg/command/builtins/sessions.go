@@ -78,8 +78,15 @@ func (s Sessions) Run(ctx context.Context, args string, host command.Host) (comm
 			return command.Result{Text: "search index cleared (will rebuild on next /sessions search)"}, nil
 		}
 		return command.Result{Text: "no replay cache configured"}, nil
+	case strings.HasPrefix(args, "diff "):
+		rest := strings.TrimSpace(strings.TrimPrefix(args, "diff "))
+		parts := strings.Fields(rest)
+		if len(parts) != 2 {
+			return command.Result{Text: "usage: /sessions diff <id1-prefix> <id2-prefix>"}, nil
+		}
+		return s.diffSessions(dir, parts[0], parts[1])
 	default:
-		return command.Result{Text: "usage: /sessions [list | show <id-prefix> | replay <id-prefix> | search <keyword> | delete <id-prefix> [--yes] | export <id-prefix> [-o file.md] | stats [--since YYYY-MM-DD] [--until YYYY-MM-DD] | reindex]"}, nil
+		return command.Result{Text: "usage: /sessions [list | show <id> | replay <id> | search <kw> | delete <id> [--yes] | stats [--since] [--until] | export <id> [-o file] | diff <id1> <id2> | reindex]"}, nil
 	}
 }
 
@@ -991,4 +998,149 @@ func contextAroundMatch(hay, keyword string, re *regexp.Regexp) string {
 		suffix = "…"
 	}
 	return prefix + snippet + suffix
+}
+
+// ---------------------------------------------------------------------------
+// /sessions diff (M10.12)
+// ---------------------------------------------------------------------------
+
+// diffSessions flattens two sessions to slim line representations and renders a
+// unified diff via LCS dynamic programming.
+func (s Sessions) diffSessions(dir, prefixA, prefixB string) (command.Result, error) {
+	matchedA, err := matchPrefix(dir, prefixA)
+	if err != nil {
+		return command.Result{Text: "diff: " + err.Error()}, nil
+	}
+	if len(matchedA) == 0 {
+		return command.Result{Text: "diff: no match for " + prefixA}, nil
+	}
+	if len(matchedA) > 1 {
+		return command.Result{Text: "diff: ambiguous prefix " + prefixA + " (matches: " + strings.Join(matchedA, ", ") + ")"}, nil
+	}
+
+	matchedB, err := matchPrefix(dir, prefixB)
+	if err != nil {
+		return command.Result{Text: "diff: " + err.Error()}, nil
+	}
+	if len(matchedB) == 0 {
+		return command.Result{Text: "diff: no match for " + prefixB}, nil
+	}
+	if len(matchedB) > 1 {
+		return command.Result{Text: "diff: ambiguous prefix " + prefixB + " (matches: " + strings.Join(matchedB, ", ") + ")"}, nil
+	}
+
+	pathA := matchedA[0]
+	pathB := matchedB[0]
+	if pathA == pathB {
+		return command.Result{Text: "diff: same session"}, nil
+	}
+
+	recordsA, err := s.getRecords(filepath.Join(dir, pathA))
+	if err != nil {
+		return command.Result{Text: "diff: " + err.Error()}, nil
+	}
+	recordsB, err := s.getRecords(filepath.Join(dir, pathB))
+	if err != nil {
+		return command.Result{Text: "diff: " + err.Error()}, nil
+	}
+
+	flatA := flattenSession(recordsA)
+	flatB := flattenSession(recordsB)
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "--- %s\n+++ %s\n", strings.TrimSuffix(pathA, ".jsonl"), strings.TrimSuffix(pathB, ".jsonl"))
+	b.WriteString(unifiedDiff(flatA, flatB))
+	return command.Result{Text: b.String()}, nil
+}
+
+// flattenSession returns a slice of human-readable lines for diffing:
+// "[user] hello", "[asst] hi back", "[tool:Read] {path:foo}", "[result] ok"
+func flattenSession(records []session.Record) []string {
+	var lines []string
+	for _, r := range records {
+		switch r.Kind {
+		case session.KindUserMessage:
+			if r.UserMessage == nil {
+				continue
+			}
+			lines = append(lines, "[user] "+sessionBlocksToText(r.UserMessage.Content))
+		case session.KindAssistantMessage:
+			if r.AssistantMessage == nil {
+				continue
+			}
+			lines = append(lines, "[asst] "+sessionBlocksToText(r.AssistantMessage.Content))
+		case session.KindToolUseRequest:
+			if r.ToolUseRequest == nil {
+				continue
+			}
+			lines = append(lines, fmt.Sprintf("[tool:%s] %s", r.ToolUseRequest.ToolName, auditToolInputSummary(r.ToolUseRequest.ToolInput)))
+		case session.KindToolResult:
+			if r.ToolResult == nil {
+				continue
+			}
+			tag := "[result]"
+			if r.ToolResult.IsError {
+				tag = "[error]"
+			}
+			lines = append(lines, tag+" "+auditTruncStr(r.ToolResult.Text, 100))
+		case session.KindCompact:
+			if r.Compact == nil {
+				continue
+			}
+			lines = append(lines, fmt.Sprintf("[compact] %d → %d (%s)", r.Compact.OriginalCount, r.Compact.NewCount, r.Compact.Trigger))
+		}
+	}
+	return lines
+}
+
+// sessionBlocksToText extracts text blocks and truncates to 200 chars.
+func sessionBlocksToText(blocks []message.Block) string {
+	var parts []string
+	for _, b := range blocks {
+		if b.Type == message.BlockText {
+			parts = append(parts, b.Text)
+		}
+	}
+	return auditTruncStr(strings.Join(parts, " "), 200)
+}
+
+// unifiedDiff renders a minimal unified diff between two slices of strings.
+// Uses dynamic programming for LCS. ~10ms for sessions up to 1000 records.
+func unifiedDiff(a, b []string) string {
+	// Build LCS table.
+	m, n := len(a), len(b)
+	lcs := make([][]int, m+1)
+	for i := range lcs {
+		lcs[i] = make([]int, n+1)
+	}
+	for i := 1; i <= m; i++ {
+		for j := 1; j <= n; j++ {
+			if a[i-1] == b[j-1] {
+				lcs[i][j] = lcs[i-1][j-1] + 1
+			} else {
+				if lcs[i-1][j] > lcs[i][j-1] {
+					lcs[i][j] = lcs[i-1][j]
+				} else {
+					lcs[i][j] = lcs[i][j-1]
+				}
+			}
+		}
+	}
+	// Backtrack.
+	var diff []string
+	i, j := m, n
+	for i > 0 || j > 0 {
+		if i > 0 && j > 0 && a[i-1] == b[j-1] {
+			diff = append([]string{"  " + a[i-1]}, diff...)
+			i--
+			j--
+		} else if j > 0 && (i == 0 || lcs[i][j-1] >= lcs[i-1][j]) {
+			diff = append([]string{"+ " + b[j-1]}, diff...)
+			j--
+		} else {
+			diff = append([]string{"- " + a[i-1]}, diff...)
+			i--
+		}
+	}
+	return strings.Join(diff, "\n") + "\n"
 }

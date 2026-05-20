@@ -731,6 +731,8 @@ Use `/sessions export <id-prefix> [-o file.md]` to render the session as a markd
 
 Use `/sessions stats` to aggregate metrics across all session JSONLs for the current cwd. The output shows session count, turn count, total input/output tokens, estimated USD cost (using the built-in default pricing table from M8.1), first-seen and latest timestamps, a per-model token and cost breakdown, and a per-day turn count table. Use `--since YYYY-MM-DD` and/or `--until YYYY-MM-DD` to narrow the aggregation to a date range.
 
+Use `/sessions diff <id1-prefix> <id2-prefix>` to compare two sessions side-by-side. Each session is flattened to one line per turn event (user/assistant/tool/result/compact) and a unified diff is rendered using LCS dynamic programming. Lines prefixed `  ` are common, `+ ` are in the second session only, `- ` are in the first only. Text is trimmed to 200 chars per line (100 chars for tool results).
+
 Use `/sessions reindex` (alias `search-rebuild-index`) to clear the in-memory LRU parse cache (M8.12). The cache holds up to 64 parsed session files keyed by `(path, modtime)`. Unchanged files are served from cache on repeated searches without re-parsing. Modtime changes auto-invalidate; `reindex` forces a full rebuild on the next search.
 
 **Persistence (M10.1):** The search cache is now two-level. L1 is the in-memory LRU (same as before). L2 is a SQLite database at `~/.anthrogo/search_index.db` (pure-Go, no cgo). Parsed records survive process restarts — on the next search the L2 hit is served directly without re-parsing the JSONL files. The cache degrades gracefully to L1-only if the DB can't be opened. To fully reset persistence, remove `~/.anthrogo/search_index.db` and restart.

@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -646,6 +647,99 @@ func TestSessions_StatsPerModelBreakdown(t *testing.T) {
 	require.Contains(t, res.Text, "Per model:")
 	require.Contains(t, res.Text, "claude-sonnet-4-6")
 	require.Contains(t, res.Text, "claude-haiku-4-5")
+}
+
+// ---------------------------------------------------------------------------
+// /sessions diff tests (M10.12)
+// ---------------------------------------------------------------------------
+
+// TestSessions_Diff_TwoIdentical — same content → only context "  " lines.
+func TestSessions_Diff_TwoIdentical(t *testing.T) {
+	dir := t.TempDir()
+	records := []session.Record{{
+		Kind: session.KindUserMessage,
+		UserMessage: &session.UserMessage{
+			Content: []message.Block{{Type: message.BlockText, Text: "hello"}},
+		},
+	}}
+	writeJSONL(t, dir, "sess-aaa", records)
+	writeJSONL(t, dir, "sess-bbb", records)
+
+	res, err := (Sessions{}).diffSessions(dir, "sess-aaa", "sess-bbb")
+	require.NoError(t, err)
+	// No addition or removal lines (lines starting with "+ " or "- ").
+	for _, line := range splitNonEmpty(res.Text) {
+		require.False(t, strings.HasPrefix(line, "+ "), "unexpected addition line: %q", line)
+		require.False(t, strings.HasPrefix(line, "- "), "unexpected removal line: %q", line)
+	}
+	require.Contains(t, res.Text, "  [user] hello")
+}
+
+// TestSessions_Diff_AddRemove — sessionA has Q1; sessionB has Q1 + Q2 → "+ Q2" line.
+func TestSessions_Diff_AddRemove(t *testing.T) {
+	dir := t.TempDir()
+	ts := time.Now()
+	recA := []session.Record{{
+		Kind:      session.KindUserMessage,
+		Timestamp: ts,
+		UserMessage: &session.UserMessage{
+			Content: []message.Block{{Type: message.BlockText, Text: "Q1"}},
+		},
+	}}
+	recB := []session.Record{
+		{
+			Kind:      session.KindUserMessage,
+			Timestamp: ts,
+			UserMessage: &session.UserMessage{
+				Content: []message.Block{{Type: message.BlockText, Text: "Q1"}},
+			},
+		},
+		{
+			Kind:      session.KindUserMessage,
+			Timestamp: ts,
+			UserMessage: &session.UserMessage{
+				Content: []message.Block{{Type: message.BlockText, Text: "Q2"}},
+			},
+		},
+	}
+	writeJSONL(t, dir, "diff-a", recA)
+	writeJSONL(t, dir, "diff-b", recB)
+
+	res, err := (Sessions{}).diffSessions(dir, "diff-a", "diff-b")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "+ [user] Q2")
+	require.Contains(t, res.Text, "  [user] Q1")
+}
+
+// TestSessions_Diff_AmbiguousPrefix — 3 sessions share prefix "ab"; diff ab vs cd → ambiguous error.
+func TestSessions_Diff_AmbiguousPrefix(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ab-aaa.jsonl"), []byte(`{}`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ab-bbb.jsonl"), []byte(`{}`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "cd-ccc.jsonl"), []byte(`{}`), 0o644))
+
+	res, err := (Sessions{}).diffSessions(dir, "ab", "cd-ccc")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "ambiguous")
+}
+
+// TestSessions_Diff_SameSession — diff same prefix twice → "diff: same session".
+func TestSessions_Diff_SameSession(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "xyz-session.jsonl"), []byte(`{}`), 0o644))
+
+	res, err := (Sessions{}).diffSessions(dir, "xyz-session", "xyz-session")
+	require.NoError(t, err)
+	require.Equal(t, "diff: same session", res.Text)
+}
+
+// TestSessions_Diff_BadArgs — missing one of the prefixes → usage.
+func TestSessions_Diff_BadArgs(t *testing.T) {
+	h := newFakeHost()
+	h.cwd = t.TempDir()
+	res, err := (Sessions{}).Run(context.Background(), "diff only-one-arg", h)
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "usage")
 }
 
 // splitNonEmpty splits by newline, returning only non-empty lines.
