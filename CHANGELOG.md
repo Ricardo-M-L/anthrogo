@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.10.2-dev] — 2026-05-21
+
+M10.3 — WebSearch multi-backend.
+
+### Added
+- WebSearch now dispatches to one of: **brave** (existing), **google** (Custom Search API), **bing** (Azure Search v7), **tavily** (POST /search).
+- `webSearch.url` YAML field — optional full URL override for the chosen backend's endpoint (for testing, self-hosted, or proxy setups). When unset, each backend uses its canonical public endpoint.
+- Per-backend API quirks handled: Google's CSE requires `endpoint` to be the CSE ID; Bing uses `Ocp-Apim-Subscription-Key` header; Tavily POSTs JSON with `api_key` in the body.
+- Common result shape `{title, url, description}` returned across all backends, JSON-marshaled to ForLLM.
+
+### Known issues / deferred
+- No automatic failover between backends.
+- No rate limiting; the model can hammer a provider's quota.
+- Google CSE returns at most 10 results per call; Bing 50; Tavily 20.
+- Tavily's "search_depth" hardcoded to "basic" — no toggle for "advanced".
+
 ## [0.10.1-dev] — 2026-05-21
 
 M10.2 — Bash sandbox (lightweight).

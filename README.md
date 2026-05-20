@@ -635,6 +635,42 @@ Use `/sessions reindex` (alias `search-rebuild-index`) to clear the in-memory LR
 | Git         | yes       | Read-only git subcommands: status, log, branch, show, blame, remote |
 | SymbolSearch | yes      | Find a symbol's definition by name; Go via `go/parser`, others via regex heuristics |
 | References  | yes       | Find all word-boundary usages of a name across the tree           |
+| WebSearch   | yes       | Search the web; dispatches to brave, google, bing, or tavily      |
+
+### WebSearch backends (M10.3)
+
+Configure `webSearch` in `~/.anthrogo/settings.yaml`. The `url` field is optional and overrides the default endpoint (useful for testing or self-hosted proxies).
+
+```yaml
+# Brave (default)
+webSearch:
+  backend: brave
+  apiKey: "BSA..."           # Brave Search API key
+
+# Google Custom Search
+webSearch:
+  backend: google
+  apiKey: "AIza..."          # Google API key
+  endpoint: "abc123:def456"  # CSE ID (cx parameter)
+
+# Bing / Azure Cognitive Search
+webSearch:
+  backend: bing
+  apiKey: "abc..."           # Ocp-Apim-Subscription-Key
+  # endpoint: optional custom base URL (default: https://api.bing.microsoft.com/v7.0/search)
+
+# Tavily
+webSearch:
+  backend: tavily
+  apiKey: "tvly-..."         # Tavily API key
+  # endpoint: optional custom base URL (default: https://api.tavily.com/search)
+
+# Disable web search
+webSearch:
+  backend: disabled
+```
+
+All backends return a JSON array of `{title, url, description}` objects. Google caps results at 10; Bing at 50; Tavily at 20.
 
 ### Bash sandbox (M10.2)
 
