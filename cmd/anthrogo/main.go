@@ -318,10 +318,17 @@ func main() {
 			tools.Register(tool.NewMCPResource(mcpMgr))
 			claudeMd, _ := system.LoadClaudeMd(cwd, os.Getenv("HOME"))
 			gitStatus, _ := system.GitStatusSnapshot(cwd)
-			sysOverlayPath := config.SystemOverlayPath(os.Getenv("HOME"))
+			homeOverlay := loadOverlay(config.SystemOverlayPath(os.Getenv("HOME")))
+			projectOverlay := loadOverlay(config.ProjectSystemOverlayPath(cwd))
 			var userOverlay string
-			if data, err := os.ReadFile(sysOverlayPath); err == nil {
-				userOverlay = string(data)
+			if homeOverlay != "" {
+				userOverlay = homeOverlay
+			}
+			if projectOverlay != "" {
+				if userOverlay != "" {
+					userOverlay += "\n\n"
+				}
+				userOverlay += projectOverlay
 			}
 			systemPrompt := system.BuildSystemPrompt(system.Options{
 				ToolNames:    toolNameList(tools),
@@ -452,7 +459,10 @@ func main() {
 				})
 			}
 
-			cmds := registerCommands(homeSkillsRoot, cwdSkillsRoot, homeSubRoot, cwdSubRoot)
+			cmds := registerCommands(homeSkillsRoot, cwdSkillsRoot, homeSubRoot, cwdSubRoot,
+				config.SystemOverlayPath(os.Getenv("HOME")),
+				config.ProjectSystemOverlayPath(cwd),
+			)
 			// Register plugin commands; warn on duplicates (last-writer-wins).
 			for _, p := range loadedPlugins {
 				for _, c := range p.Commands {
@@ -536,7 +546,7 @@ func registerTools(cfg config.Config) *tool.Registry {
 	return r
 }
 
-func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd string) *command.Registry {
+func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOverlayPath, projectOverlayPath string) *command.Registry {
 	reg := command.NewRegistry()
 	reg.Register(&builtins.Help{Reg: reg})
 	reg.Register(builtins.Tools{})
@@ -554,7 +564,7 @@ func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd string)
 	reg.Register(builtins.Usage{})
 	reg.Register(builtins.Cost{})
 	reg.Register(builtins.Sessions{})
-	reg.Register(builtins.System{})
+	reg.Register(builtins.System{HomeOverlayPath: homeOverlayPath, ProjectOverlayPath: projectOverlayPath})
 	return reg
 }
 
@@ -565,6 +575,14 @@ func toolNameList(r *tool.Registry) []string {
 		out = append(out, t.Name())
 	}
 	return out
+}
+
+func loadOverlay(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 func resolveCwd(flag string) (string, error) {

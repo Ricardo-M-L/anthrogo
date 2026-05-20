@@ -47,3 +47,8 @@ func SkillsDir(home string) string {
 func SystemOverlayPath(home string) string {
 	return filepath.Join(home, ".anthrogo", "system_overlay.md")
 }
+
+// ProjectSystemOverlayPath returns <cwd>/.anthrogo/system_overlay.md.
+func ProjectSystemOverlayPath(cwd string) string {
+	return filepath.Join(cwd, ".anthrogo", "system_overlay.md")
+}

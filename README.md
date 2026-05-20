@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M8 complete (v0.8.0-dev). Custom system prompt overlay (`~/.anthrogo/system_overlay.md`) with `/system show/edit/reset`. See `docs/superpowers/specs/` for design docs.
+> **Status**: M8.2 complete (v0.8.2-dev). Per-project system prompt overlay (`<cwd>/.anthrogo/system_overlay.md`) layered after the home overlay, with `/system show/edit [home|project]/reset [home|project]`. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -97,17 +97,22 @@ alwaysDeny:
 
 ### Custom system prompt overlay
 
-An optional overlay file at `~/.anthrogo/system_overlay.md` is loaded at startup and appended verbatim to the system prompt (after all other sections, under a `# User overlay` heading). Use it to add persistent instructions that apply to every session.
+anthrogo supports two overlay layers, both loaded at startup and appended to the system prompt in order:
 
-Manage it with the `/system` builtin:
+1. **Home overlay** — `~/.anthrogo/system_overlay.md` — applies to every session.
+2. **Project overlay** — `<cwd>/.anthrogo/system_overlay.md` — applies only when anthrogo is started in that directory. Appended after the home overlay, so its instructions have higher positional prominence for the model.
+
+Manage them with the `/system` builtin:
 
 | Command | Effect |
 |---------|--------|
-| `/system show` | Print the active system prompt + overlay file content |
-| `/system edit` | Print the overlay path and `$EDITOR` invocation (edit outside anthrogo; changes take effect on restart) |
-| `/system reset` | Remove the overlay file (effective next session) |
+| `/system show` | Print the active system prompt, then both overlay files with their paths |
+| `/system edit` or `/system edit home` | Edit the home overlay (default) |
+| `/system edit project` | Edit the project overlay for the current cwd |
+| `/system reset` or `/system reset home` | Remove the home overlay (effective next session) |
+| `/system reset project` | Remove the project overlay (effective next session) |
 
-The file is created with a seed comment the first time `/system edit` is run.
+Each overlay file is created with a seed comment the first time the corresponding `/system edit` is run. Changes take effect when anthrogo restarts.
 
 ## Cost tracking
 

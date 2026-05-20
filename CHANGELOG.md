@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.8.2-dev] — 2026-05-20
+
+M8.2 — Per-project system prompt overlay.
+
+### Added
+- `<cwd>/.anthrogo/system_overlay.md` — project-level overlay appended AFTER the home overlay. Project text comes later in the system prompt, so model attention naturally prefers it for project-specific instructions.
+- `config.ProjectSystemOverlayPath(cwd)` helper.
+- `/system show` now prints both layers separately with their paths.
+- `/system edit home` / `/system edit project` (no arg defaults to home).
+- `/system reset home` / `/system reset project`.
+
+### Known issues / deferred
+- Project overlay isn't shared across cwd-shifts within one anthrogo session (overlay paths are resolved once at startup).
+- No file watcher; edits don't apply mid-session — restart anthrogo to pick up.
+- No git-tracked / repo-shared distinction; the project overlay is just `<cwd>/.anthrogo/system_overlay.md`. Add to .gitignore or commit as a team prompt as you see fit.
+
 ## [0.8.1-dev] — 2026-05-20
 
 M8.1 — Built-in default pricing table.

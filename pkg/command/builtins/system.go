@@ -11,31 +11,46 @@ import (
 	"github.com/ricardo/anthrogo/pkg/command"
 )
 
-// System implements /system [show | edit | reset].
-type System struct{}
+// System implements /system [show | edit [home|project] | reset [home|project]].
+type System struct {
+	// HomeOverlayPath is the path to the home-level overlay.
+	// If empty, derived from $HOME at run time (back-compat).
+	HomeOverlayPath string
+	// ProjectOverlayPath is the path to the project (cwd-level) overlay.
+	// If empty, /system show will not display a project section.
+	ProjectOverlayPath string
+}
 
 func (System) Name() string        { return "/system" }
 func (System) Aliases() []string   { return nil }
-func (System) Description() string { return "Inspect or edit the user system prompt overlay (subcommands: show, edit, reset)" }
+func (System) Description() string { return "Inspect or edit the system prompt overlays (subcommands: show, edit [home|project], reset [home|project])" }
 func (System) Type() command.Type  { return command.TypeLocal }
 
-func (System) Run(_ context.Context, args string, host command.Host) (command.Result, error) {
+func (s System) Run(_ context.Context, args string, host command.Host) (command.Result, error) {
 	args = strings.TrimSpace(args)
 	home := os.Getenv("HOME")
-	overlayPath := config.SystemOverlayPath(home)
+	homeOverlayPath := s.HomeOverlayPath
+	if homeOverlayPath == "" {
+		homeOverlayPath = config.SystemOverlayPath(home)
+	}
+	projectOverlayPath := s.ProjectOverlayPath
 	switch args {
 	case "", "show":
-		return showSystem(host, overlayPath)
-	case "edit":
-		return editSystem(overlayPath)
-	case "reset":
-		return resetSystem(overlayPath)
+		return showSystem(host, homeOverlayPath, projectOverlayPath)
+	case "edit", "edit home":
+		return editSystem(homeOverlayPath, "home")
+	case "edit project":
+		return editSystem(projectOverlayPath, "project")
+	case "reset", "reset home":
+		return resetSystem(homeOverlayPath, "home")
+	case "reset project":
+		return resetSystem(projectOverlayPath, "project")
 	default:
-		return command.Result{Text: "usage: /system [show | edit | reset]"}, nil
+		return command.Result{Text: "usage: /system [show | edit [home|project] | reset [home|project]]"}, nil
 	}
 }
 
-func showSystem(host command.Host, overlayPath string) (command.Result, error) {
+func showSystem(host command.Host, homeOverlayPath, projectOverlayPath string) (command.Result, error) {
 	eng := host.Engine()
 	var b strings.Builder
 	if eng != nil {
@@ -43,16 +58,33 @@ func showSystem(host command.Host, overlayPath string) (command.Result, error) {
 		b.WriteString(eng.SystemPrompt())
 		b.WriteString("\n\n---\n\n")
 	}
-	overlay, err := os.ReadFile(overlayPath)
-	if err == nil && len(overlay) > 0 {
-		fmt.Fprintf(&b, "# Persistent user overlay (%s)\n\n%s\n", overlayPath, string(overlay))
+
+	home, _ := os.ReadFile(homeOverlayPath)
+	fmt.Fprintf(&b, "# Home overlay (%s)\n\n", homeOverlayPath)
+	if len(home) > 0 {
+		b.Write(home)
+		b.WriteString("\n\n")
 	} else {
-		fmt.Fprintf(&b, "# Persistent user overlay (%s)\n\n(empty — use /system edit to add one)\n", overlayPath)
+		b.WriteString("(empty)\n\n")
+	}
+
+	if projectOverlayPath != "" {
+		project, _ := os.ReadFile(projectOverlayPath)
+		fmt.Fprintf(&b, "# Project overlay (%s)\n\n", projectOverlayPath)
+		if len(project) > 0 {
+			b.Write(project)
+			b.WriteString("\n")
+		} else {
+			b.WriteString("(empty)\n")
+		}
 	}
 	return command.Result{Text: b.String()}, nil
 }
 
-func editSystem(overlayPath string) (command.Result, error) {
+func editSystem(overlayPath, label string) (command.Result, error) {
+	if overlayPath == "" {
+		return command.Result{Text: "no " + label + " overlay path configured"}, nil
+	}
 	if _, err := os.Stat(overlayPath); os.IsNotExist(err) {
 		seed := "# anthrogo system prompt overlay\n# This text is appended verbatim to the system prompt sent to the model.\n# Save and restart anthrogo to apply.\n\n"
 		if err := os.MkdirAll(filepath.Dir(overlayPath), 0o755); err != nil {
@@ -67,15 +99,18 @@ func editSystem(overlayPath string) (command.Result, error) {
 		editor = "vi"
 	}
 	return command.Result{Text: fmt.Sprintf(
-		"Edit your overlay outside anthrogo:\n  %s %s\nor open %s in any editor.\nChanges take effect when anthrogo restarts.",
-		editor, overlayPath, overlayPath,
+		"Edit your %s overlay outside anthrogo:\n  %s %s\nor open %s in any editor.\nChanges take effect when anthrogo restarts.",
+		label, editor, overlayPath, overlayPath,
 	)}, nil
 }
 
-func resetSystem(overlayPath string) (command.Result, error) {
+func resetSystem(overlayPath, label string) (command.Result, error) {
+	if overlayPath == "" {
+		return command.Result{Text: "no " + label + " overlay path configured"}, nil
+	}
 	err := os.Remove(overlayPath)
 	if err != nil && !os.IsNotExist(err) {
 		return command.Result{Text: "reset failed: " + err.Error()}, nil
 	}
-	return command.Result{Text: "overlay reset (file removed). Effective next session — current engine's system prompt is frozen."}, nil
+	return command.Result{Text: label + " overlay reset (file removed). Effective next session — current engine's system prompt is frozen."}, nil
 }
