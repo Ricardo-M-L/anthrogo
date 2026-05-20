@@ -37,7 +37,7 @@ func TestCostBuiltin_NoPricingMatch(t *testing.T) {
 
 	res, err := (Cost{}).Run(context.Background(), "", h)
 	require.NoError(t, err)
-	require.Contains(t, res.Text, "no pricing configured for current model")
+	require.Contains(t, res.Text, "no pricing rate found for model")
 }
 
 func TestCostBuiltin_PricingMatch(t *testing.T) {

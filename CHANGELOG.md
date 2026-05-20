@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.1-dev] — 2026-05-20
+
+M8.1 — Built-in default pricing table.
+
+### Added
+- `pkg/pricing.DefaultRates()` — built-in per-million-token USD rates for major models: Claude opus-4-7/sonnet-4-6/haiku-4-5 (+ version-stamped variants via glob), OpenAI gpt-5*/gpt-4o/gpt-4o-mini/gpt-4-turbo/o1*/o3*, DeepSeek chat/reasoner, Kimi k2*, MiniMax M2/abab*, GLM 4*/zero-*. Sourced from published pricing as of 2026-05.
+- `pkg/pricing.MergeWithUserRates(user)` merges YAML-configured rates onto the built-in defaults; user keys always win on exact collisions.
+- `cmd/anthrogo` always builds the pricing table now (built-ins + user merge) — `/cost` works out of the box on any of the listed models without YAML configuration.
+- `query.Engine.Model()` accessor for cost-message clarity.
+
+### Changed
+- `/cost` "no pricing" message now includes the current model name and points at the YAML override.
+
+### Known issues / deferred
+- Built-in rates are static; periodic price changes from providers will drift until the next anthrogo release updates them.
+- No region-specific rates (Anthropic Bedrock vs direct, OpenAI Azure vs direct).
+- Cache-creation / cache-read pricing not surfaced (treated as zero in cost calc).
+
 ## [0.8.0-dev] — 2026-05-20
 
 M8 — /system show / edit / reset (custom system prompt overlay).

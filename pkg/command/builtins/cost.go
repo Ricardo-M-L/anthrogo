@@ -23,7 +23,7 @@ func (Cost) Run(ctx context.Context, args string, host command.Host) (command.Re
 	}
 	usd, ok := eng.EstimatedCost()
 	if !ok {
-		return command.Result{Text: "no pricing configured for current model; add a `pricing:` stanza to settings.yaml to enable cost tracking"}, nil
+		return command.Result{Text: "no pricing rate found for model " + eng.Model() + "; add a `pricing:` stanza in settings.yaml to track this model's cost"}, nil
 	}
 	u := eng.Usage()
 	var b strings.Builder

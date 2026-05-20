@@ -422,14 +422,11 @@ func main() {
 			}
 			cfg.Model = effectiveModel
 
-			var pricingTable *pricing.Table
-			if len(cfg.Pricing) > 0 {
-				rates := make(map[string]pricing.Rate, len(cfg.Pricing))
-				for k, v := range cfg.Pricing {
-					rates[k] = pricing.Rate{InputPerM: v.InputPerM, OutputPerM: v.OutputPerM}
-				}
-				pricingTable = pricing.NewTable(rates)
+			userRates := make(map[string]pricing.Rate, len(cfg.Pricing))
+			for k, v := range cfg.Pricing {
+				userRates[k] = pricing.Rate{InputPerM: v.InputPerM, OutputPerM: v.OutputPerM}
 			}
+			pricingTable := pricing.NewTable(pricing.MergeWithUserRates(userRates))
 
 			if prompt != "" {
 				perms.ShouldAvoidPrompts = true

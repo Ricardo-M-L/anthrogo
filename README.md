@@ -111,7 +111,9 @@ The file is created with a seed comment the first time `/system edit` is run.
 
 ## Cost tracking
 
-anthrogo can estimate the USD cost of a session using a user-supplied pricing table. Add a `pricing:` stanza to `~/.anthrogo/settings.yaml`:
+anthrogo ships built-in defaults for major models (Claude opus-4-7/sonnet-4-6/haiku-4-5, OpenAI gpt-5*/gpt-4o/gpt-4o-mini/gpt-4-turbo/o1*/o3*, DeepSeek chat/reasoner, Kimi k2*, MiniMax M2/abab*, GLM 4*/zero-*), so `/cost` works out of the box without any configuration.
+
+Add a `pricing:` stanza in `~/.anthrogo/settings.yaml` to override built-ins with negotiated rates or to add unlisted models:
 
 ```yaml
 pricing:
@@ -126,7 +128,7 @@ pricing:
     output_per_m: 1.1
 ```
 
-Keys are exact model names or glob patterns (`filepath.Match` syntax; `*` matches within a path segment). Rates are USD per one million tokens.
+Keys are exact model names or glob patterns (`filepath.Match` syntax; `*` matches within a path segment). Rates are USD per one million tokens. User-supplied keys always win over built-in defaults.
 
 Once configured, the TUI status line shows the running cost (`$0.0234`), and the `/cost` builtin prints a full summary:
 
@@ -141,7 +143,7 @@ To hard-cap spending, add `cost_limit_usd` to `settings.yaml` or pass `--cost-li
 cost_limit_usd: 0.50   # deny tools after ~$0.50 of estimated spend
 ```
 
-No automatic price updates: you maintain the table yourself.
+Built-in rates are sourced from published pricing as of 2026-05; they will drift until the next anthrogo release updates them.
 
 ## MCP servers
 
