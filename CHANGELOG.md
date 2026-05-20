@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.12-dev] — 2026-05-21
+
+M10.13 — TUI mouse support.
+
+### Added
+- `tea.WithMouseCellMotion()` enabled — bubbletea captures all mouse events.
+- Mouse wheel up/down scrolls the chat viewport by 3 lines.
+- Left-click on a URL in the chat opens it in the system browser (`open` / `xdg-open` / `rundll32`). URL detected via regex `https?://[^\s\]\)>"]+` on the clicked row.
+
+### Known issues / deferred
+- URL detection uses the rendered text (post-glamour); ANSI escapes stripped via regex for column-position math, so wide-char (CJK) emoji may misalign click position.
+- Text selection via mouse (terminal-native copy/paste) is disabled when mouse mode is enabled — use Shift+click on many terminals as a workaround.
+- Drag-to-select not implemented (TUI doesn't compose selection).
+- Clicking on tool output to expand/collapse not implemented.
+
 ## [0.10.11-dev] — 2026-05-21
 
 M10.12 — /sessions diff.

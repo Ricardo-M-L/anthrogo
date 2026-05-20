@@ -687,7 +687,7 @@ func main() {
 				CostLimitUSD:          cfg.CostLimitUSD,
 				Theme:                 &resolvedTheme,
 			})
-			program := tea.NewProgram(app, tea.WithAltScreen())
+			program := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 			app.SetProgram(program)
 			appRef.Store(app)
 			appender := app.AppendServerLog

@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M10.10 complete (v0.10.9-dev). Bash AST safety scan. See `docs/superpowers/specs/` for design docs.
+> **Status**: M10.13 complete (v0.10.12-dev). TUI mouse support (wheel scroll, URL click-to-open). See `docs/superpowers/specs/` for design docs.
 
 ## Input history
 
@@ -52,6 +52,7 @@ update/view loops.
 | M9.9      | Model + path + visibility polish, KAIROS hook resolver, nested prefix chain  | shipped  |
 | M9.10     | Persistent input history (Up/Down nav), `/history` slash command             | shipped  |
 | M10.10    | Bash AST safety scan (`pkg/bashscan/`, sandbox binary denylist)              | shipped  |
+| M10.13    | TUI mouse support: wheel scroll, left-click URL open                         | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout

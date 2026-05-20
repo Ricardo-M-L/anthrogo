@@ -142,6 +142,20 @@ func (c *chat) refresh() {
 	c.vp.GotoBottom()
 }
 
+func (c *chat) scrollUp() tea.Cmd {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.vp.LineUp(3)
+	return nil
+}
+
+func (c *chat) scrollDown() tea.Cmd {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.vp.LineDown(3)
+	return nil
+}
+
 func (c *chat) update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	c.vp, cmd = c.vp.Update(msg)

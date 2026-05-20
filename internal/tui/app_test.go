@@ -15,10 +15,10 @@ import (
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
-// stripANSI removes ANSI escape sequences from a string.
+// testStripANSI removes ANSI escape sequences from a string (test-local helper).
 var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 
-func stripANSI(s string) string {
+func testStripANSI(s string) string {
 	return ansiEscape.ReplaceAllString(s, "")
 }
 
@@ -34,6 +34,34 @@ func TestApp_Update_TickReturnsAnotherTick(t *testing.T) {
 	a := New(Options{})
 	_, cmd := a.Update(tickMsg(time.Now()))
 	require.NotNil(t, cmd, "tick handler must re-schedule")
+}
+
+func TestApp_Mouse_WheelUpScrolls(t *testing.T) {
+	a := New(Options{})
+	_, cmd := a.Update(tea.MouseMsg{Button: tea.MouseButtonWheelUp})
+	_ = cmd // hard to assert scroll state without driving the bubbletea loop;
+	// smoke test that it doesn't panic.
+}
+
+func TestApp_Mouse_LeftClickOnURL(t *testing.T) {
+	a := New(Options{})
+	a.chat.lines = append(a.chat.lines, chatLine{
+		rendered: "see https://example.com here",
+		rawText:  "see https://example.com here",
+	})
+	url := a.urlAtPosition(8, 0) // x=8 → in "see https" region
+	require.Equal(t, "https://example.com", url)
+}
+
+func TestApp_Mouse_NoURL_ReturnsEmpty(t *testing.T) {
+	a := New(Options{})
+	a.chat.lines = append(a.chat.lines, chatLine{rendered: "no link here", rawText: "no link here"})
+	require.Equal(t, "", a.urlAtPosition(5, 0))
+}
+
+func TestURLRegex_ParsesHTTP(t *testing.T) {
+	urls := urlRegex.FindAllString("see http://foo.com and https://bar.com", -1)
+	require.Len(t, urls, 2)
 }
 
 func TestApp_ScriptedTurn_RendersAssistantText(t *testing.T) {
@@ -73,6 +101,6 @@ func TestApp_ScriptedTurn_RendersAssistantText(t *testing.T) {
 	for _, ln := range m.(*App).chat.lines {
 		renderedLines = append(renderedLines, ln.rendered)
 	}
-	plain := stripANSI(strings.Join(renderedLines, "\n"))
+	plain := testStripANSI(strings.Join(renderedLines, "\n"))
 	require.Contains(t, plain, "hi there")
 }

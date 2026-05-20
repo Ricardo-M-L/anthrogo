@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -329,6 +332,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 
+	case tea.MouseMsg:
+		return a.handleMouse(m)
+
 	case tickMsg:
 		// 1Hz tick — re-calls View() to repaint the status line live.
 		return a, tickEvery()
@@ -341,6 +347,81 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	c = a.chat.update(msg)
 	cmds = append(cmds, c)
 	return a, tea.Batch(cmds...)
+}
+
+// urlRegex matches http and https URLs in plain text.
+var urlRegex = regexp.MustCompile(`https?://[^\s\]\)>"]+`)
+
+// ansiRegex strips ANSI escape sequences.
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+func stripANSI(s string) string {
+	return ansiRegex.ReplaceAllString(s, "")
+}
+
+func openInBrowser(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	return cmd.Start()
+}
+
+func (a *App) handleMouse(m tea.MouseMsg) (tea.Model, tea.Cmd) {
+	switch m.Button {
+	case tea.MouseButtonWheelUp:
+		return a, a.chat.scrollUp()
+	case tea.MouseButtonWheelDown:
+		return a, a.chat.scrollDown()
+	case tea.MouseButtonLeft:
+		// Released-after-click handling: detect URL under the click position.
+		if m.Action == tea.MouseActionRelease {
+			url := a.urlAtPosition(m.X, m.Y)
+			if url != "" {
+				if err := openInBrowser(url); err != nil {
+					a.chat.appendError("open URL: " + err.Error())
+				}
+			}
+		}
+		return a, nil
+	}
+	return a, nil
+}
+
+func (a *App) urlAtPosition(x, y int) string {
+	a.chat.mu.Lock()
+	lines := a.chat.lines
+	a.chat.mu.Unlock()
+	if y < 0 || y >= len(lines) {
+		return ""
+	}
+	line := lines[y].rawText
+	if line == "" {
+		line = stripANSI(lines[y].rendered)
+	}
+	urls := urlRegex.FindAllString(line, -1)
+	if len(urls) == 0 {
+		return ""
+	}
+	closest := urls[0]
+	bestDist := 999999
+	for _, u := range urls {
+		col := strings.Index(line, u)
+		dist := col - x
+		if dist < 0 {
+			dist = -dist
+		}
+		if dist < bestDist {
+			closest = u
+			bestDist = dist
+		}
+	}
+	return closest
 }
 
 func (a *App) handleEvent(ev query.Event) {
