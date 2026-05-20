@@ -12,6 +12,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/command"
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
+	"github.com/ricardo/anthrogo/pkg/pricing"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/query"
 	"github.com/ricardo/anthrogo/pkg/skill"
@@ -61,6 +62,9 @@ type Options struct {
 	// AutoCompactThreshold and AutoCompactKeepRecent are forwarded to the engine.
 	AutoCompactThreshold  int
 	AutoCompactKeepRecent int
+
+	// Pricing is the optional pricing table for cost tracking. nil = disabled.
+	Pricing *pricing.Table
 }
 
 // serverLogMsg is dispatched via tea.Program.Send from AppendServerLog so that
@@ -116,6 +120,7 @@ func New(opts Options) *App {
 		RequestPrompt:         a.RequestPrompt,
 		AutoCompactThreshold:  opts.AutoCompactThreshold,
 		AutoCompactKeepRecent: opts.AutoCompactKeepRecent,
+		Pricing:               opts.Pricing,
 	})
 	if opts.OnEngineReady != nil {
 		opts.OnEngineReady(a.engine)
@@ -312,6 +317,9 @@ func (a *App) View() string {
 		formatTokens(sinceTotal))
 	if a.opts.AutoCompactThreshold > 0 {
 		tokenInfo += fmt.Sprintf(" [⚙ %s]", formatTokens(a.opts.AutoCompactThreshold))
+	}
+	if usd, ok := a.engine.EstimatedCost(); ok {
+		tokenInfo += fmt.Sprintf("  $%.4f", usd)
 	}
 	status := a.theme.StatusLine.Render(fmt.Sprintf("model=%s  cwd=%s  %s", a.opts.Model, a.opts.Cwd, tokenInfo))
 	if badge := renderPlanBadge(a.theme, planOn); badge != "" {

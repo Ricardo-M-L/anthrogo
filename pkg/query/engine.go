@@ -13,6 +13,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/kairos"
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
+	"github.com/ricardo/anthrogo/pkg/pricing"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/subagent"
 	"github.com/ricardo/anthrogo/pkg/tool"
@@ -64,6 +65,9 @@ type Config struct {
 
 	// AutoCompactKeepRecent is passed to Compact(). 0 → default 10.
 	AutoCompactKeepRecent int
+
+	// Pricing is the optional pricing table used by EstimatedCost(). nil = no cost tracking.
+	Pricing *pricing.Table
 }
 
 // Engine owns one conversation. Each SubmitMessage starts a new turn within
@@ -305,6 +309,21 @@ func (e *Engine) UsageSinceLastCompact() message.Usage {
 // keep-recent values. A threshold of 0 means auto-compact is disabled.
 func (e *Engine) AutoCompactConfig() (threshold, keep int) {
 	return e.cfg.AutoCompactThreshold, e.cfg.AutoCompactKeepRecent
+}
+
+// EstimatedCost returns the estimated USD cost of cumulative session usage,
+// or (0, false) if no pricing table is configured or no matching model rate
+// is found.
+func (e *Engine) EstimatedCost() (float64, bool) {
+	if e.cfg.Pricing == nil {
+		return 0, false
+	}
+	rate, ok := e.cfg.Pricing.Lookup(e.cfg.Model)
+	if !ok {
+		return 0, false
+	}
+	u := e.Usage()
+	return pricing.EstimateUSD(rate, u.InputTokens, u.OutputTokens), true
 }
 
 // CompactOptions controls Engine.Compact behaviour.

@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M7.3 complete (v0.7.2-dev). Cumulative token tracking + `/usage` builtin landed. See `docs/superpowers/specs/` for design docs.
+> **Status**: M7.4 complete (v0.7.3-dev). Cost tracking + `/cost` builtin landed. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -94,6 +94,34 @@ alwaysDeny:
 ```
 
 `CLAUDE.md` is auto-loaded by walking from cwd up to `$HOME`; merged contents are appended to the system prompt.
+
+## Cost tracking
+
+anthrogo can estimate the USD cost of a session using a user-supplied pricing table. Add a `pricing:` stanza to `~/.anthrogo/settings.yaml`:
+
+```yaml
+pricing:
+  claude-sonnet-4-6:
+    input_per_m: 3.0
+    output_per_m: 15.0
+  claude-haiku-4-5-*:
+    input_per_m: 1.0
+    output_per_m: 5.0
+  deepseek-chat:
+    input_per_m: 0.27
+    output_per_m: 1.1
+```
+
+Keys are exact model names or glob patterns (`filepath.Match` syntax; `*` matches within a path segment). Rates are USD per one million tokens.
+
+Once configured, the TUI status line shows the running cost (`$0.0234`), and the `/cost` builtin prints a full summary:
+
+```
+Session usage: 12345 input + 1234 output = 13579 total tokens
+Estimated cost: $0.0555 USD
+```
+
+anthrogo does not enforce budget caps or alert thresholds — the table is informational only. No automatic price updates: you maintain the table yourself.
 
 ## MCP servers
 

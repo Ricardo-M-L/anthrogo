@@ -29,6 +29,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/plugin"
+	"github.com/ricardo/anthrogo/pkg/pricing"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/provider/anthropic"
 	openaiProvider "github.com/ricardo/anthrogo/pkg/provider/openai"
@@ -400,6 +401,15 @@ func main() {
 			}
 			cfg.Model = effectiveModel
 
+			var pricingTable *pricing.Table
+			if len(cfg.Pricing) > 0 {
+				rates := make(map[string]pricing.Rate, len(cfg.Pricing))
+				for k, v := range cfg.Pricing {
+					rates[k] = pricing.Rate{InputPerM: v.InputPerM, OutputPerM: v.OutputPerM}
+				}
+				pricingTable = pricing.NewTable(rates)
+			}
+
 			if prompt != "" {
 				perms.ShouldAvoidPrompts = true
 				return headless.Run(context.Background(), headless.Options{
@@ -419,6 +429,7 @@ func main() {
 					OnEngineReady:         func(e *query.Engine) { engineRef.Store(e) },
 					AutoCompactThreshold:  cfg.AutoCompactThreshold,
 					AutoCompactKeepRecent: cfg.AutoCompactKeepRecent,
+					Pricing:               pricingTable,
 				})
 			}
 
@@ -453,6 +464,7 @@ func main() {
 				OnEngineReady:         func(e *query.Engine) { engineRef.Store(e) },
 				AutoCompactThreshold:  cfg.AutoCompactThreshold,
 				AutoCompactKeepRecent: cfg.AutoCompactKeepRecent,
+				Pricing:               pricingTable,
 			})
 			program := tea.NewProgram(app, tea.WithAltScreen())
 			app.SetProgram(program)
@@ -519,6 +531,7 @@ func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd string)
 	reg.Register(builtins.Skills{HomeRoot: skillsHome, CwdRoot: skillsCwd})
 	reg.Register(builtins.Subagents{HomeRoot: subagentsHome, CwdRoot: subagentsCwd})
 	reg.Register(builtins.Usage{})
+	reg.Register(builtins.Cost{})
 	return reg
 }
 

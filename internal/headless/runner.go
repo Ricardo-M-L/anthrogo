@@ -8,6 +8,7 @@ import (
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
+	"github.com/ricardo/anthrogo/pkg/pricing"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/query"
 	"github.com/ricardo/anthrogo/pkg/subagent"
@@ -51,6 +52,9 @@ type Options struct {
 	// AutoCompactThreshold and AutoCompactKeepRecent are forwarded to the engine.
 	AutoCompactThreshold  int
 	AutoCompactKeepRecent int
+
+	// Pricing is the optional pricing table for cost tracking. nil = disabled.
+	Pricing *pricing.Table
 }
 
 // Run executes one prompt and writes the assistant's final text to Stdout.
@@ -89,6 +93,7 @@ func Run(ctx context.Context, opts Options) error {
 		SubagentRegistry:      opts.Subagents,
 		AutoCompactThreshold:  opts.AutoCompactThreshold,
 		AutoCompactKeepRecent: opts.AutoCompactKeepRecent,
+		Pricing:               opts.Pricing,
 	})
 	if opts.OnEngineReady != nil {
 		opts.OnEngineReady(e)

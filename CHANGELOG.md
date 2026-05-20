@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.3-dev] — 2026-05-20
+
+M7.4 — Cost tracking + /cost builtin + pricing config.
+
+### Added
+- `pkg/pricing/` package: Table{} with exact + glob lookup for model→Rate; EstimateUSD(rate, inputTokens, outputTokens) helper.
+- `Config.Pricing map[string]Pricing` YAML stanza — user supplies per-model `input_per_m` / `output_per_m` USD rates (per million tokens). Keys can be exact model names or globs ("claude-haiku-*").
+- `query.Config.Pricing *pricing.Table` — wired through tui + headless options.
+- `query.Engine.EstimatedCost() (usd float64, ok bool)` — returns the estimated USD cost of cumulative session usage at the matching model's rate.
+- `/cost` slash command — prints session usage + estimated USD.
+- TUI status line appends `$<USD>` when pricing is configured and matches.
+
+### Known issues / deferred
+- No budget alerts / hard caps. Hitting a high cost still proceeds.
+- No per-subagent cost breakdown.
+- Glob matching uses filepath.Match (POSIX-style); ** wildcards not supported.
+- No automatic price updates — user maintains the table.
+
 ## [0.7.2-dev] — 2026-05-20
 
 M7.3 — Cumulative token tracking + /usage builtin.

@@ -27,6 +27,15 @@ type Profile struct {
 	APIKey  string `yaml:"api_key,omitempty"` // supports "env:VARNAME"
 }
 
+// Pricing maps model names to per-million-token USD prices. Keys can be
+// exact model names (e.g. "claude-sonnet-4-6") or globs matched at lookup
+// time ("deepseek-*"). InputPerM is the price for one million input tokens;
+// OutputPerM for one million output tokens.
+type Pricing struct {
+	InputPerM  float64 `yaml:"input_per_m"`
+	OutputPerM float64 `yaml:"output_per_m"`
+}
+
 // Config mirrors the on-disk settings.yaml shape.
 type Config struct {
 	Mode        permissions.Mode               `yaml:"mode"`
@@ -43,6 +52,10 @@ type Config struct {
 
 	AutoCompactThreshold  int `yaml:"auto_compact_threshold,omitempty"`
 	AutoCompactKeepRecent int `yaml:"auto_compact_keep_recent,omitempty"`
+
+	// Pricing maps model names (exact or glob) to per-million-token USD rates.
+	// Default empty (no cost tracking).
+	Pricing map[string]Pricing `yaml:"pricing,omitempty"`
 }
 
 func defaults() Config {
