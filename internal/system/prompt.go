@@ -30,6 +30,7 @@ type Options struct {
 	Skills       []skill.Skill
 	Subagents    []subagent.Spec
 	MCPResources map[string][]*sdk.Resource
+	UserOverlay  string // raw text appended verbatim at end of system prompt (or empty)
 }
 
 // BuildSystemPrompt produces the prompt sent in `system` to the API. It's the
@@ -109,6 +110,10 @@ func BuildSystemPrompt(opts Options) string {
 	if opts.ClaudeMd != "" {
 		b.WriteString("\n# Project memory (CLAUDE.md)\n")
 		b.WriteString(opts.ClaudeMd)
+	}
+	if opts.UserOverlay != "" {
+		b.WriteString("\n\n# User overlay\n\n")
+		b.WriteString(opts.UserOverlay)
 	}
 	return b.String()
 }

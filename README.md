@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M7.10 complete (v0.7.9-dev). TUI assistant messages render via glamour at end of turn (code fences, headers, lists, bold). See `docs/superpowers/specs/` for design docs.
+> **Status**: M8 complete (v0.8.0-dev). Custom system prompt overlay (`~/.anthrogo/system_overlay.md`) with `/system show/edit/reset`. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -94,6 +94,20 @@ alwaysDeny:
 ```
 
 `CLAUDE.md` is auto-loaded by walking from cwd up to `$HOME`; merged contents are appended to the system prompt.
+
+### Custom system prompt overlay
+
+An optional overlay file at `~/.anthrogo/system_overlay.md` is loaded at startup and appended verbatim to the system prompt (after all other sections, under a `# User overlay` heading). Use it to add persistent instructions that apply to every session.
+
+Manage it with the `/system` builtin:
+
+| Command | Effect |
+|---------|--------|
+| `/system show` | Print the active system prompt + overlay file content |
+| `/system edit` | Print the overlay path and `$EDITOR` invocation (edit outside anthrogo; changes take effect on restart) |
+| `/system reset` | Remove the overlay file (effective next session) |
+
+The file is created with a seed comment the first time `/system edit` is run.
 
 ## Cost tracking
 

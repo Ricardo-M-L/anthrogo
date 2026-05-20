@@ -318,6 +318,11 @@ func main() {
 			tools.Register(tool.NewMCPResource(mcpMgr))
 			claudeMd, _ := system.LoadClaudeMd(cwd, os.Getenv("HOME"))
 			gitStatus, _ := system.GitStatusSnapshot(cwd)
+			sysOverlayPath := config.SystemOverlayPath(os.Getenv("HOME"))
+			var userOverlay string
+			if data, err := os.ReadFile(sysOverlayPath); err == nil {
+				userOverlay = string(data)
+			}
 			systemPrompt := system.BuildSystemPrompt(system.Options{
 				ToolNames:    toolNameList(tools),
 				ClaudeMd:     claudeMd,
@@ -328,6 +333,7 @@ func main() {
 				Skills:       skillReg.List(),
 				Subagents:    subagentReg.List(),
 				MCPResources: mcpResources,
+				UserOverlay:  userOverlay,
 			})
 
 			var sess *session.Store
@@ -551,6 +557,7 @@ func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd string)
 	reg.Register(builtins.Usage{})
 	reg.Register(builtins.Cost{})
 	reg.Register(builtins.Sessions{})
+	reg.Register(builtins.System{})
 	return reg
 }
 

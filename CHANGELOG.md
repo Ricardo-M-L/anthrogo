@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.8.0-dev] — 2026-05-20
+
+M8 — /system show / edit / reset (custom system prompt overlay).
+
+### Added
+- `~/.anthrogo/system_overlay.md` — optional persistent user overlay appended verbatim to the system prompt sent to the model. Loaded at startup; effective from the first turn onward.
+- `/system show` — prints the active system prompt (current turn) followed by the overlay file's content.
+- `/system edit` — prints the overlay path and the `$EDITOR <path>` invocation to run outside anthrogo. Creates the overlay file with a seed comment if it doesn't exist.
+- `/system reset` — removes the overlay file. Effective next session.
+- `internal/config.SystemOverlayPath(home)` helper.
+- `query.Engine.SystemPrompt()` accessor.
+- `system.Options.UserOverlay string` — empty by default; appended after the existing sections under a "# User overlay" heading.
+
+### Known issues / deferred
+- Overlay changes don't apply mid-session; user restarts anthrogo to pick up edits.
+- No in-TUI editor (would conflict with bubbletea's terminal ownership). A future milestone could spawn the editor via tea.ExecProcess.
+- Only one global overlay; no per-project (`<cwd>/.anthrogo/system_overlay.md`) layering yet.
+- `/system show` truncates nothing — large prompts produce a lot of scroll.
+
 ## [0.7.9-dev] — 2026-05-20
 
 M7.10 — TUI markdown rendering (glamour).

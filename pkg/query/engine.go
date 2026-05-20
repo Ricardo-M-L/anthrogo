@@ -101,6 +101,9 @@ func NewEngine(cfg Config) *Engine {
 	return &Engine{cfg: cfg, subagentDepth: cfg.SubagentDepth}
 }
 
+// SystemPrompt returns the system prompt that was configured for this engine.
+func (e *Engine) SystemPrompt() string { return e.cfg.SystemPrompt }
+
 // SubagentOptions carries the parameters for running a subagent.
 type SubagentOptions struct {
 	Type        string

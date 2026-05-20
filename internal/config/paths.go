@@ -40,3 +40,10 @@ func SettingsPath() (string, error) {
 func SkillsDir(home string) string {
 	return filepath.Join(home, ".anthrogo", "skills")
 }
+
+// SystemOverlayPath returns the path to the persistent user system prompt
+// overlay file: <home>/.anthrogo/system_overlay.md. Pass the raw user home
+// (os.UserHomeDir() or os.Getenv("HOME")).
+func SystemOverlayPath(home string) string {
+	return filepath.Join(home, ".anthrogo", "system_overlay.md")
+}
