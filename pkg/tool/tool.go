@@ -76,6 +76,11 @@ type Context struct {
 	Permissions *permissions.Context
 	AbortContext context.Context
 
+	// SubagentPrefixChain carries the outer Task description chain for nested
+	// subagent runs. Each entry is an ancestor Task's description. The inner
+	// Task prepends these to build the full "[Task: outer → inner]" prefix.
+	SubagentPrefixChain []string
+
 	// Surface-injected; nil-safe.
 	RequestPrompt   func(source string, req PromptRequest) (PromptResponse, error)
 	AppendUIMessage func(msg string)

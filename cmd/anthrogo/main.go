@@ -141,6 +141,12 @@ func main() {
 					}
 					hookCfg := *rc.Hooks
 					// Skip Expand — paths are client-side and would mangle on worker.
+					// Strip relative-path hook commands; they are meaningless on the worker.
+					var workerLogSink func(string, string)
+					workerLogSink = func(event, msg string) {
+						fmt.Fprintf(os.Stderr, "[hook:%s] %s\n", event, msg)
+					}
+					skipRelativeHookPaths(&hookCfg, workerLogSink)
 					hookCfg.Validate()
 					return hooks.NewManager(hookCfg, hooks.ManagerOptions{
 						SessionID: "remote-worker",
@@ -413,6 +419,7 @@ func main() {
 					Description: opts.Description,
 					Prompt:      opts.Prompt,
 					OnTextDelta: opts.OnDelta,
+					PrefixChain: opts.PrefixChain,
 				})
 			})
 
@@ -719,6 +726,35 @@ func expandEnvKey(s string) string {
 		return os.Getenv(strings.TrimPrefix(s, "env:"))
 	}
 	return s
+}
+
+// skipRelativeHookPaths removes hook specs whose Command is a relative path
+// (i.e. no leading '/') from all event lists in cfg. Relative paths are
+// meaningless on a KAIROS worker whose cwd differs from the client's. When
+// logSink is non-nil, a warning is emitted for each skipped spec.
+func skipRelativeHookPaths(cfg *hooks.Config, logSink func(string, string)) {
+	fix := func(label string, list []hooks.Spec) []hooks.Spec {
+		out := make([]hooks.Spec, 0, len(list))
+		for _, s := range list {
+			if !filepath.IsAbs(s.Command) {
+				if logSink != nil {
+					logSink("hook:"+label, fmt.Sprintf("warning: relative path %q skipped on worker", s.Command))
+				}
+				continue
+			}
+			out = append(out, s)
+		}
+		return out
+	}
+	cfg.PreToolUse = fix("PreToolUse", cfg.PreToolUse)
+	cfg.PostToolUse = fix("PostToolUse", cfg.PostToolUse)
+	cfg.UserPromptSubmit = fix("UserPromptSubmit", cfg.UserPromptSubmit)
+	cfg.Stop = fix("Stop", cfg.Stop)
+	cfg.SubagentStop = fix("SubagentStop", cfg.SubagentStop)
+	cfg.Notification = fix("Notification", cfg.Notification)
+	cfg.PreCompact = fix("PreCompact", cfg.PreCompact)
+	cfg.SessionStart = fix("SessionStart", cfg.SessionStart)
+	cfg.SessionEnd = fix("SessionEnd", cfg.SessionEnd)
 }
 
 // buildProvider selects and constructs the active provider based on config and

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.8-dev] — 2026-05-21
+
+M9.9 — Model + path + visibility polish.
+
+### Added
+- Built-in pricing aliases for Bedrock (`anthropic.claude-*`) and Vertex (`claude-*@*`) variants — `/cost` works out-of-box on cloud-hosted Anthropic models.
+- KAIROS worker hook resolver — relative-path hook commands forwarded from clients are skipped on the worker with a warning (path is meaningless on the worker's filesystem). Hooks with absolute paths pass through normally.
+- Nested-subagent prefix chain: when a subagent invokes Task, the outer task's description joins via `→` so the parent TUI shows `[Task: research → fetch-status] hello` rather than only the inner prefix. Propagated via new `query.Config.SubagentPrefixChain []string` and `tool.Context.SubagentPrefixChain`.
+- `/sessions search --recurse-subagents` now walks multiple levels deep (was: 1 level).
+- SymbolSearch reports `kind: method` for receiver-bound functions and includes the receiver in the matched line (e.g., `func (s *Server) Foo()`). `kind=method` filter matches methods only; `kind=func` matches both bare funcs AND methods.
+
+### Known issues / deferred
+- Full go/types integration (semantic xref, type signatures) deferred — adds heavy `golang.org/x/tools/go/packages` dep.
+- Hook resolver doesn't attempt to relocate relative paths (e.g., search for matching binary on worker's PATH).
+- Prefix chain depth uncapped — very deep nests produce long prefixes.
+
 ## [0.9.7-dev] — 2026-05-21
 
 M9.8 — Tool & subagent JSONL polish.

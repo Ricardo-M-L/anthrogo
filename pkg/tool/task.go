@@ -25,6 +25,9 @@ type TaskOptions struct {
 	// OnDelta, if non-nil, is invoked for each text delta from the subagent stream.
 	// Called from a background goroutine; implementations must be thread-safe.
 	OnDelta func(string)
+	// PrefixChain carries ancestor Task descriptions for nested prefix display.
+	// Passed through to RunSubagent as SubagentOptions.PrefixChain.
+	PrefixChain []string
 }
 
 // deltaBuffer accumulates subagent text deltas and flushes on newline boundaries
@@ -139,12 +142,20 @@ func (t *Task) Call(ctx context.Context, input map[string]any, tcx *Context) (Re
 		return Result{Type: ResultText, Text: msg, ForLLM: msg, IsError: true}, nil
 	}
 
+	// Build prefix chain: inherit outer chain from context, append this task's desc.
+	var outerChain []string
+	if tcx != nil {
+		outerChain = tcx.SubagentPrefixChain
+	}
+	chain := append(append([]string{}, outerChain...), desc)
+	prefixLabel := "[Task: " + strings.Join(chain, " → ") + "] "
+
 	// Wire streaming deltas to the TUI if the surface provided AppendUIMessage.
 	var dbuf *deltaBuffer
 	var onDelta func(string)
 	if tcx != nil && tcx.AppendUIMessage != nil {
 		dbuf = &deltaBuffer{
-			prefix: "[Task: " + desc + "] ",
+			prefix: prefixLabel,
 			emit:   tcx.AppendUIMessage,
 		}
 		onDelta = dbuf.Write
@@ -155,6 +166,7 @@ func (t *Task) Call(ctx context.Context, input map[string]any, tcx *Context) (Re
 		Prompt:       prompt,
 		SubagentType: sub,
 		OnDelta:      onDelta,
+		PrefixChain:  outerChain,
 	})
 
 	// Flush any remaining buffered content (last line without trailing newline).

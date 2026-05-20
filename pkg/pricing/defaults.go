@@ -18,6 +18,17 @@ func DefaultRates() map[string]Rate {
 		"claude-haiku-4-5":    {InputPerM: 1.00, OutputPerM: 5.00},
 		"claude-haiku-4-5-*":  {InputPerM: 1.00, OutputPerM: 5.00},
 		"claude-haiku-4-*":    {InputPerM: 1.00, OutputPerM: 5.00},
+		// Bedrock variants (anthropic.claude-<model>-v<N>:<rev>)
+		"anthropic.claude-opus-4-7*":   {InputPerM: 15.00, OutputPerM: 75.00},
+		"anthropic.claude-sonnet-4-6*": {InputPerM: 3.00, OutputPerM: 15.00},
+		"anthropic.claude-haiku-4-5*":  {InputPerM: 1.00, OutputPerM: 5.00},
+		"anthropic.claude-*-opus*":     {InputPerM: 15.00, OutputPerM: 75.00},
+		"anthropic.claude-*-sonnet*":   {InputPerM: 3.00, OutputPerM: 15.00},
+		"anthropic.claude-*-haiku*":    {InputPerM: 1.00, OutputPerM: 5.00},
+		// Vertex variants (claude-<model>@<date>)
+		"claude-opus-4-7@*":  {InputPerM: 15.00, OutputPerM: 75.00},
+		"claude-sonnet-4-6@*": {InputPerM: 3.00, OutputPerM: 15.00},
+		"claude-haiku-4-5@*": {InputPerM: 1.00, OutputPerM: 5.00},
 		// OpenAI
 		"gpt-5*":        {InputPerM: 10.00, OutputPerM: 40.00},
 		"gpt-4o":        {InputPerM: 2.50, OutputPerM: 10.00},

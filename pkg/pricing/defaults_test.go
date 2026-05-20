@@ -26,6 +26,32 @@ func TestDefaultRates_HasMajorModels(t *testing.T) {
 	}
 }
 
+func TestDefaultRates_BedrockVertexAliases(t *testing.T) {
+	tbl := NewTable(DefaultRates())
+	cases := []struct {
+		model string
+		wantIn float64
+	}{
+		// Bedrock exact-style
+		{"anthropic.claude-sonnet-4-6-v1:0", 3.00},
+		{"anthropic.claude-opus-4-7-v1:0", 15.00},
+		{"anthropic.claude-haiku-4-5-v1:0", 1.00},
+		// Bedrock pattern with opus/sonnet/haiku in middle
+		{"anthropic.claude-3-sonnet-20240229-v1:0", 3.00},
+		{"anthropic.claude-3-haiku-20240307-v1:0", 1.00},
+		{"anthropic.claude-3-opus-20240229-v1:0", 15.00},
+		// Vertex style
+		{"claude-sonnet-4-6@20260101", 3.00},
+		{"claude-opus-4-7@20260101", 15.00},
+		{"claude-haiku-4-5@20260101", 1.00},
+	}
+	for _, c := range cases {
+		r, ok := tbl.Lookup(c.model)
+		require.True(t, ok, "expected rate for %s", c.model)
+		require.Equal(t, c.wantIn, r.InputPerM, "InputPerM mismatch for %s", c.model)
+	}
+}
+
 func TestMergeWithUserRates_UserOverridesBuiltin(t *testing.T) {
 	user := map[string]Rate{
 		"claude-sonnet-4-6": {InputPerM: 99.0, OutputPerM: 999.0},

@@ -347,11 +347,12 @@ func (e *Engine) executeTool(ctx context.Context, b message.Block, out chan<- Ev
 	msgsSnap := append([]message.Message(nil), e.messages...)
 	e.mu.Unlock()
 	tcx := &tool.Context{
-		Cwd:           e.cfg.Cwd,
-		Messages:      msgsSnap,
-		Permissions:   e.cfg.Permissions,
-		AbortContext:  ctx,
-		RequestPrompt: e.cfg.RequestPrompt,
+		Cwd:                 e.cfg.Cwd,
+		Messages:            msgsSnap,
+		Permissions:         e.cfg.Permissions,
+		AbortContext:        ctx,
+		RequestPrompt:       e.cfg.RequestPrompt,
+		SubagentPrefixChain: e.cfg.SubagentPrefixChain,
 	}
 	res, err := t.Call(ctx, b.Input, tcx)
 	if err != nil {

@@ -381,26 +381,35 @@ func (s Sessions) searchSessions(dir, args string) (command.Result, error) {
 	}
 
 	if recurse {
-		for _, e := range entries {
-			if !e.IsDir() {
-				continue
+		// Walk the entire project dir for any .jsonl under a subagents/ path at
+		// any depth (e.g. <id>/subagents/<sub-id>/subagents/<sub-sub-id>.jsonl).
+		_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
 			}
-			subDir := filepath.Join(dir, e.Name(), "subagents")
-			subEntries, err := os.ReadDir(subDir)
-			if err != nil {
-				continue
+			if !strings.HasSuffix(path, ".jsonl") {
+				return nil
 			}
-			for _, se := range subEntries {
-				if se.IsDir() || !strings.HasSuffix(se.Name(), ".jsonl") {
-					continue
-				}
-				subID := strings.TrimSuffix(se.Name(), ".jsonl")
-				files = append(files, searchFile{
-					path:      filepath.Join(subDir, se.Name()),
-					sessionID: e.Name() + "/subagents/" + subID,
-				})
+			// Skip top-level .jsonl files — already in files slice above.
+			if filepath.Dir(path) == dir {
+				return nil
 			}
-		}
+			// Only include paths that are under a subagents/ directory.
+			if !strings.Contains(path, "/subagents/") {
+				return nil
+			}
+			// Derive a display session ID relative to dir.
+			rel, relErr := filepath.Rel(dir, path)
+			if relErr != nil {
+				return nil
+			}
+			sessionID := strings.TrimSuffix(rel, ".jsonl")
+			files = append(files, searchFile{
+				path:      path,
+				sessionID: sessionID,
+			})
+			return nil
+		})
 	}
 
 	// Search loop with timestamp filter.

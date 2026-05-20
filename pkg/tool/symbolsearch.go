@@ -40,7 +40,7 @@ func (SymbolSearch) Schema() map[string]any {
 			},
 			"kind": map[string]any{
 				"type":        "string",
-				"description": "Optional filter: func | type | var | const | any (default any).",
+				"description": "Optional filter: func | method | type | var | const | any (default any). For Go: method matches receiver-bound funcs only; func matches both bare funcs and methods.",
 			},
 			"path": map[string]any{
 				"type":        "string",
@@ -192,7 +192,22 @@ func searchGoFile(path, name, kind string) []symbolHit {
 			if d.Name.Name != name {
 				continue
 			}
-			if kind != "any" && kind != "func" {
+			kindLabel := "func"
+			if d.Recv != nil && len(d.Recv.List) > 0 {
+				kindLabel = "method"
+			}
+			// kind filter: "method" matches only methods; "func" matches both
+			// bare funcs and methods (common user intent); "any" matches all.
+			switch kind {
+			case "method":
+				if kindLabel != "method" {
+					continue
+				}
+			case "func":
+				// accept both func and method
+			case "any":
+				// accept all
+			default:
 				continue
 			}
 			pos := fset.Position(d.Name.Pos())
@@ -401,4 +416,4 @@ func searchFileRegex(path, name, kind string, _ langPattern) []symbolHit {
 	return hits
 }
 
-const symbolSearchDescription = `Find a symbol's definition site by name. Go files parsed via go/parser for accurate position + kind classification (func/type/var/const). Other languages (.js/.ts/.tsx/.py/.rs/.rb) use language-specific regex heuristics. Returns up to 50 hits as "path:line: matched-line". Use "kind" to filter by func, type, var, or const. "path" defaults to cwd. Skips vendor/, node_modules/, .git/, .anthrogo/.`
+const symbolSearchDescription = `Find a symbol's definition site by name. Go files parsed via go/parser for accurate position + kind classification (func/method/type/var/const). Receiver-bound functions are classified as "method"; bare functions as "func". kind=method matches methods only; kind=func matches both bare funcs and methods. Other languages (.js/.ts/.tsx/.py/.rs/.rb) use language-specific regex heuristics. Returns up to 50 hits as "path:line: matched-line". Use "kind" to filter by func, method, type, var, or const. "path" defaults to cwd. Skips vendor/, node_modules/, .git/, .anthrogo/.`

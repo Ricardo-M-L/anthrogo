@@ -860,3 +860,48 @@ func TestSessions_RebuildIndex_NoCache(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "no replay cache configured")
 }
+
+// TestSessions_SearchRecursesMultiLevel verifies that --recurse-subagents walks
+// nested subagents directories at depth > 1.
+func TestSessions_SearchRecursesMultiLevel(t *testing.T) {
+	dir := t.TempDir()
+	ts := time.Now()
+	keyword := "deep-nested-keyword-xyz"
+
+	// Top-level session JSONL (no keyword).
+	writeJSONL(t, dir, "top-session", []session.Record{{
+		Kind:      session.KindUserMessage,
+		Timestamp: ts,
+		UserMessage: &session.UserMessage{
+			Content: []message.Block{{Type: message.BlockText, Text: "unrelated content"}},
+		},
+	}})
+
+	// Level-1 subagent: top-session/subagents/sub1
+	sub1Dir := filepath.Join(dir, "top-session", "subagents")
+	require.NoError(t, os.MkdirAll(sub1Dir, 0o755))
+	writeJSONL(t, sub1Dir, "sub1", []session.Record{{
+		Kind:      session.KindUserMessage,
+		Timestamp: ts,
+		UserMessage: &session.UserMessage{
+			Content: []message.Block{{Type: message.BlockText, Text: "intermediate content"}},
+		},
+	}})
+
+	// Level-2 subagent: top-session/subagents/sub1/subagents/sub2 (keyword here)
+	sub2Dir := filepath.Join(sub1Dir, "sub1", "subagents")
+	require.NoError(t, os.MkdirAll(sub2Dir, 0o755))
+	writeJSONL(t, sub2Dir, "sub2", []session.Record{{
+		Kind:      session.KindUserMessage,
+		Timestamp: ts,
+		UserMessage: &session.UserMessage{
+			Content: []message.Block{{Type: message.BlockText, Text: keyword + " found at depth 2"}},
+		},
+	}})
+
+	s := Sessions{}
+	res, err := s.searchSessions(dir, "--recurse-subagents "+keyword)
+	require.NoError(t, err)
+	require.Contains(t, res.Text, keyword, "expected keyword to be found at nested depth")
+	require.Contains(t, res.Text, "sub2", "expected sub2 session ID in results")
+}

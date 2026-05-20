@@ -78,6 +78,10 @@ type Config struct {
 	SubagentDepth    int // set by parent engine when constructing child; 0 at top level
 	MaxSubagentDepth int // default 3 if zero
 
+	// SubagentPrefixChain carries ancestor Task descriptions for nested
+	// subagent prefix construction. Propagated into tool.Context per call.
+	SubagentPrefixChain []string
+
 	// AutoCompactThreshold is the combined (input + output) token count at
 	// which Engine automatically fires Compact() at the boundary between
 	// turns. 0 disables (default).
@@ -135,6 +139,10 @@ type SubagentOptions struct {
 	// OnTextDelta, if non-nil, fires for every EventTextDelta from the child.
 	// Called from a background goroutine; implementations must be thread-safe.
 	OnTextDelta func(delta string)
+	// PrefixChain carries outer Task descriptions for nested prefix display.
+	// When a Task tool invokes RunSubagent, it passes its own description so
+	// the inner task's TUI prefix chains as "outer → inner".
+	PrefixChain []string
 }
 
 // RunSubagent spawns a child Engine for the named subagent type, runs one turn
@@ -292,22 +300,27 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 	// 4. Build child Config.
 	// Clone the permissions context so subagent Mode toggles don't affect parent.
 	childPerms := e.cfg.Permissions.Clone()
+	// Build the propagated prefix chain: parent chain + this subagent's description.
+	childPrefixChain := make([]string, len(opts.PrefixChain)+1)
+	copy(childPrefixChain, opts.PrefixChain)
+	childPrefixChain[len(opts.PrefixChain)] = opts.Description
 	childCfg := Config{
-		Provider:         e.cfg.Provider,
-		Model:            e.cfg.Model,
-		Tools:            childTools,
-		Permissions:      childPerms,
-		SystemPrompt:     e.cfg.SystemPrompt + spec.SystemPromptSuffix,
-		Hooks:            e.cfg.Hooks,
-		Cwd:              e.cfg.Cwd,
-		RecordHook:       childRecordHook,
-		Session:          childSessionStore, // enables nested sub-sub-agent JSONL at <parent>/<sub-id>/subagents/<sub-sub-id>.jsonl
-		SubagentRegistry: e.cfg.SubagentRegistry,
-		SubagentDepth:    currentDepth,
-		MaxSubagentDepth: maxDepth,
-		MaxTokens:        e.cfg.MaxTokens,
-		Temperature:      e.cfg.Temperature,
-		MaxTurns:         e.cfg.MaxTurns,
+		Provider:            e.cfg.Provider,
+		Model:               e.cfg.Model,
+		Tools:               childTools,
+		Permissions:         childPerms,
+		SystemPrompt:        e.cfg.SystemPrompt + spec.SystemPromptSuffix,
+		Hooks:               e.cfg.Hooks,
+		Cwd:                 e.cfg.Cwd,
+		RecordHook:          childRecordHook,
+		Session:             childSessionStore, // enables nested sub-sub-agent JSONL at <parent>/<sub-id>/subagents/<sub-sub-id>.jsonl
+		SubagentRegistry:    e.cfg.SubagentRegistry,
+		SubagentDepth:       currentDepth,
+		MaxSubagentDepth:    maxDepth,
+		MaxTokens:           e.cfg.MaxTokens,
+		Temperature:         e.cfg.Temperature,
+		MaxTurns:            e.cfg.MaxTurns,
+		SubagentPrefixChain: childPrefixChain,
 	}
 
 	child := NewEngine(childCfg)

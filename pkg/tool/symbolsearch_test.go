@@ -214,6 +214,44 @@ func TestSymbolSearch_RequiresName(t *testing.T) {
 	require.True(t, res.IsError)
 }
 
+func TestSymbolSearch_GoMethod(t *testing.T) {
+	dir := t.TempDir()
+	src := "package x\n\ntype S struct{}\n\nfunc (s *S) Foo() error { return nil }\n\nfunc Foo() {}\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte(src), 0o644))
+
+	// kind=method should match only the receiver-bound Foo, not the bare func Foo.
+	res, err := SymbolSearch{}.Call(context.Background(), map[string]any{
+		"name": "Foo",
+		"kind": "method",
+		"path": dir,
+	}, &Context{})
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+	require.Contains(t, res.Text, "a.go")
+	// The matched line should contain the receiver.
+	require.Contains(t, res.Text, "*S")
+	// Bare func line must not appear.
+	lines := strings.Split(strings.TrimSpace(res.Text), "\n")
+	require.Len(t, lines, 1, "expected exactly one hit (the method)")
+}
+
+func TestSymbolSearch_GoFuncMatchesMethodToo(t *testing.T) {
+	dir := t.TempDir()
+	src := "package x\n\ntype S struct{}\n\nfunc (s *S) Foo() {}\n\nfunc Foo() {}\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte(src), 0o644))
+
+	// kind=func should match both the method and the bare func.
+	res, err := SymbolSearch{}.Call(context.Background(), map[string]any{
+		"name": "Foo",
+		"kind": "func",
+		"path": dir,
+	}, &Context{})
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+	lines := strings.Split(strings.TrimSpace(res.Text), "\n")
+	require.Len(t, lines, 2, "expected two hits (method + bare func)")
+}
+
 func TestSymbolSearch_OutputFormat(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte("package x\n\nfunc Hello() {}\n"), 0o644))
