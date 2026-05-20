@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"crypto/ed25519"
 	"fmt"
 	"os"
 	"os/exec"
@@ -79,6 +80,10 @@ type Options struct {
 
 	// CostLimitUSD, when > 0, enables hard budget enforcement via IsOverBudget().
 	CostLimitUSD float64
+
+	// KairosTrustKey, when non-nil, is the global ed25519 public key for verifying
+	// SSE signatures on all KAIROS subagent dispatches.
+	KairosTrustKey ed25519.PublicKey
 
 	// Theme, when non-nil, overrides the default dark theme.
 	Theme *Theme
@@ -183,6 +188,7 @@ func New(opts Options) *App {
 		AutoCompactKeepRecent: opts.AutoCompactKeepRecent,
 		Pricing:               opts.Pricing,
 		CostLimitUSD:          opts.CostLimitUSD,
+		KairosTrustKey:        opts.KairosTrustKey,
 	})
 	if opts.OnEngineReady != nil {
 		opts.OnEngineReady(a.engine)

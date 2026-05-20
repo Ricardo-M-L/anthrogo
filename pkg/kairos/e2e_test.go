@@ -286,3 +286,71 @@ func TestKAIROS_HopDepth_BuildWorkerSubReg(t *testing.T) {
 	_, hasRemoteNil := regNil.Get("remote-worker")
 	require.True(t, hasRemoteNil, "nil RemoteContext should default to hop depth 0")
 }
+
+// TestKAIROS_SignedRoundTrip starts a signed server and verifies that a client
+// with the matching public key can consume the SSE stream without error.
+func TestKAIROS_SignedRoundTrip(t *testing.T) {
+	priv, pub, err := GenerateKeyPair()
+	require.NoError(t, err)
+
+	handler := func(ctx context.Context, req RunRequest, emit func(string)) (string, error) {
+		emit("hello")
+		return "world", nil
+	}
+
+	srv := httptest.NewServer(NewServerWithSigning(handler, "", priv).Handler())
+	defer srv.Close()
+
+	result, err := DispatchRemoteWithOptions(context.Background(), srv.URL, RunRequest{
+		SubagentType: "general-purpose",
+		Prompt:       "go",
+	}, ClientOptions{TrustKey: pub})
+	require.NoError(t, err)
+	require.Equal(t, "world", result)
+}
+
+// TestKAIROS_SignedRoundTrip_TamperedKeyFails verifies that a client with the
+// wrong (mismatched) public key gets an error.
+func TestKAIROS_SignedRoundTrip_TamperedKeyFails(t *testing.T) {
+	priv, _, err := GenerateKeyPair()
+	require.NoError(t, err)
+	_, badPub, err := GenerateKeyPair()
+	require.NoError(t, err)
+
+	handler := func(ctx context.Context, req RunRequest, emit func(string)) (string, error) {
+		emit("hello")
+		return "world", nil
+	}
+
+	srv := httptest.NewServer(NewServerWithSigning(handler, "", priv).Handler())
+	defer srv.Close()
+
+	_, err = DispatchRemoteWithOptions(context.Background(), srv.URL, RunRequest{
+		SubagentType: "general-purpose",
+		Prompt:       "go",
+	}, ClientOptions{TrustKey: badPub})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "signature verification failed")
+}
+
+// TestKAIROS_UnsignedServer_TrustKeyClient verifies that a client with TrustKey
+// set receives an error when the server sends unsigned (plain JSON) frames, because
+// the frame won't decode as a SignedFrame with a valid sig field.
+func TestKAIROS_UnsignedServer_TrustKeyClient(t *testing.T) {
+	_, pub, err := GenerateKeyPair()
+	require.NoError(t, err)
+
+	handler := func(ctx context.Context, req RunRequest, emit func(string)) (string, error) {
+		return "world", nil
+	}
+
+	// Plain server (no signing).
+	srv := httptest.NewServer(NewServer(handler, "").Handler())
+	defer srv.Close()
+
+	_, err = DispatchRemoteWithOptions(context.Background(), srv.URL, RunRequest{
+		SubagentType: "general-purpose",
+		Prompt:       "go",
+	}, ClientOptions{TrustKey: pub})
+	require.Error(t, err)
+}

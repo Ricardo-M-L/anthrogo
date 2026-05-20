@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.11.8-dev] — 2026-05-21
+
+M11.9 — KAIROS tool signature verification.
+
+### Added
+- `pkg/kairos/signing.go` — ed25519 key utilities: `GenerateKeyPair()`, `LoadPrivateKey(path)`, `LoadPublicKey(path-or-base64)`, `SignFrame(priv, payload)`, `VerifyFrame(pub, frame)`.
+- `kairos.SignedFrame {payload, sig}` — wraps every SSE event when signing enabled. JSON-canonical signing over the payload bytes.
+- `NewServerWithSigning(handler, authToken, signingKey)` constructor.
+- `Server.SetHandlerWithForward(h)` — sets exec-tools-locally handler on an existing signed server.
+- `ClientOptions.TrustKey ed25519.PublicKey` — when set, client verifies every SSE frame before parsing; mismatched signature returns error.
+- `--signing-key <path>` worker flag, `--trust-key <path-or-base64>` client flag, `--generate-key <path>` keypair generator (cmd/anthrogo wiring).
+- `subagent.RemoteSpec.TrustKey` YAML field — per-spec trust key, takes precedence over global `--trust-key`.
+- `query.Config.KairosTrustKey` — global fallback trust key for all KAIROS dispatches.
+- `headless.Options.KairosTrustKey`, `tui.Options.KairosTrustKey` — threaded through to engine.
+
+### Use case
+Detects man-in-the-middle tampering on the SSE stream between client and worker. Required when KAIROS_AUTH_TOKEN flows over a network anthrogo doesn't fully control.
+
+### Known issues / deferred
+- No key rotation; pinned public key for the lifetime of the client process.
+- POST /tool-result requests (client → worker) NOT signed yet — only server → client; signing the reverse direction needs symmetric setup, deferred.
+- No revocation list / CRL.
+- ed25519 only; no RSA or P-256 alternatives.
+
 ## [0.11.7-dev] — 2026-05-21
 
 M11.8 — Telemetry opt-in.

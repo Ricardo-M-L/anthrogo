@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -26,6 +27,11 @@ type ClientOptions struct {
 	// OnTextDelta, if non-nil, is invoked for each event: text SSE message.
 	// Called from the SSE parse loop goroutine; implementations must be thread-safe.
 	OnTextDelta func(string)
+	// TrustKey, if set, causes every incoming SSE frame to be decoded as a
+	// SignedFrame first. The ed25519 signature is verified against this public
+	// key before the payload is parsed. Any frame that fails verification causes
+	// DispatchRemoteWithOptions to return an error immediately.
+	TrustKey ed25519.PublicKey
 }
 
 // DispatchRemote sends a RunRequest to a KAIROS worker at endpoint, streams
@@ -97,6 +103,19 @@ func DispatchRemoteWithOptions(ctx context.Context, endpoint string, req RunRequ
 		if line == "" {
 			// Blank line: dispatch accumulated event.
 			if event != "" {
+				// If a trust key is configured, verify the SignedFrame wrapper before
+				// unwrapping the inner payload for further parsing.
+				if opts.TrustKey != nil {
+					var frame SignedFrame
+					if err := json.Unmarshal([]byte(data), &frame); err != nil {
+						return "", fmt.Errorf("kairos: unwrap frame: %w", err)
+					}
+					if err := VerifyFrame(opts.TrustKey, frame); err != nil {
+						return "", fmt.Errorf("kairos: signature verification failed: %w", err)
+					}
+					data = string(frame.Payload)
+				}
+
 				switch event {
 				case "run_id":
 					var p struct {

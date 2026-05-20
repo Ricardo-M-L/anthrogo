@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	encoding64 "encoding/base64"
 	"fmt"
 	"io"
 	"os"
@@ -59,6 +61,9 @@ func main() {
 		cont                bool
 		showVer             bool
 		kairosServeAddr     string
+		kairosSigningKey    string // path to ed25519 private key for --kairos-serve signing
+		kairosTrustKey      string // base64 or path to ed25519 public key for client verification
+		kairosGenerateKey   string // path prefix for keypair generation; writes <path>.priv + <path>.pub
 		providerFlag        string
 		autoCompactFlag     int
 		costLimitFlag       float64
@@ -71,6 +76,26 @@ func main() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if showVer {
 				fmt.Println("anthrogo", version.Version)
+				return nil
+			}
+
+			// --generate-key: emit a fresh ed25519 keypair to <path>.priv + <path>.pub.
+			if kairosGenerateKey != "" {
+				priv, pub, err := kairos.GenerateKeyPair()
+				if err != nil {
+					return fmt.Errorf("generate keypair: %w", err)
+				}
+				privPath := kairosGenerateKey + ".priv"
+				pubPath := kairosGenerateKey + ".pub"
+				privB64 := encoding64.StdEncoding.EncodeToString(priv)
+				pubB64 := encoding64.StdEncoding.EncodeToString(pub)
+				if err := os.WriteFile(privPath, []byte(privB64+"\n"), 0600); err != nil {
+					return fmt.Errorf("write private key: %w", err)
+				}
+				if err := os.WriteFile(pubPath, []byte(pubB64+"\n"), 0644); err != nil {
+					return fmt.Errorf("write public key: %w", err)
+				}
+				fmt.Fprintf(os.Stderr, "private key → %s\npublic key  → %s\n", privPath, pubPath)
 				return nil
 			}
 
@@ -247,7 +272,19 @@ func main() {
 					return strings.TrimSpace(finalText.String()), nil
 				}
 				authToken := os.Getenv("KAIROS_AUTH_TOKEN")
-				srv := kairos.NewServerWithToolForward(kHandler, kHandlerWithForward, authToken)
+				var srv *kairos.Server
+				if kairosSigningKey != "" {
+					privKey, err := kairos.LoadPrivateKey(kairosSigningKey)
+					if err != nil {
+						return fmt.Errorf("--signing-key: %w", err)
+					}
+					// NewServerWithSigning only supports the plain handler; combine with
+					// tool-forward by setting the field after construction.
+					srv = kairos.NewServerWithSigning(kHandler, authToken, privKey)
+					srv.SetHandlerWithForward(kHandlerWithForward)
+				} else {
+					srv = kairos.NewServerWithToolForward(kHandler, kHandlerWithForward, authToken)
+				}
 				fmt.Fprintln(os.Stderr, "anthrogo kairos worker listening on", kairosServeAddr)
 				return srv.Run(context.Background(), kairosServeAddr)
 			}
@@ -590,6 +627,16 @@ func main() {
 				}
 			}
 
+			// Resolve global KAIROS trust key if --trust-key was supplied.
+			var globalTrustKey ed25519.PublicKey
+			if kairosTrustKey != "" {
+				pub, err := kairos.LoadPublicKey(kairosTrustKey)
+				if err != nil {
+					return fmt.Errorf("--trust-key: %w", err)
+				}
+				globalTrustKey = pub
+			}
+
 			userRates := make(map[string]pricing.Rate, len(cfg.Pricing))
 			for k, v := range cfg.Pricing {
 				userRates[k] = pricing.Rate{InputPerM: v.InputPerM, OutputPerM: v.OutputPerM}
@@ -634,6 +681,7 @@ func main() {
 					Pricing:               pricingTable,
 					CostLimitUSD:          cfg.CostLimitUSD,
 					JSON:                  jsonFlag,
+					KairosTrustKey:        globalTrustKey,
 				})
 			}
 
@@ -727,6 +775,7 @@ func main() {
 				Pricing:               pricingTable,
 				CostLimitUSD:          cfg.CostLimitUSD,
 				Theme:                 &resolvedTheme,
+				KairosTrustKey:        globalTrustKey,
 			})
 			program := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 			app.SetProgram(program)
@@ -747,6 +796,9 @@ func main() {
 	root.Flags().BoolVarP(&cont, "continue", "c", false, "Resume the most-recent session for this cwd")
 	root.Flags().BoolVar(&showVer, "version", false, "Print version and exit")
 	root.Flags().StringVar(&kairosServeAddr, "kairos-serve", "", "Serve as a KAIROS worker on this addr (e.g. :9001)")
+	root.Flags().StringVar(&kairosSigningKey, "signing-key", "", "Path to ed25519 private key for KAIROS worker SSE signing (--kairos-serve mode)")
+	root.Flags().StringVar(&kairosTrustKey, "trust-key", "", "Base64 ed25519 public key or path; verify SSE signatures on all KAIROS subagent dispatches")
+	root.Flags().StringVar(&kairosGenerateKey, "generate-key", "", "Generate ed25519 keypair; writes <path>.priv and <path>.pub, then exits")
 	root.Flags().StringVar(&providerFlag, "provider", "", "Override active provider profile (see profiles in settings.yaml)")
 	root.Flags().IntVar(&autoCompactFlag, "auto-compact", 0, "Auto-compact when combined input+output tokens of the latest turn exceed this threshold (0 = disabled)")
 	root.Flags().Float64Var(&costLimitFlag, "cost-limit", 0, "Deny tool calls once estimated session cost (USD) reaches this amount; 0 = disabled")

@@ -2,6 +2,7 @@ package kairos
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -63,11 +64,12 @@ func (rs *runState) deliver(res ToolResult) bool {
 
 // Server is an HTTP handler that exposes POST /kairos/run as a KAIROS worker endpoint.
 type Server struct {
-	handler             RunHandler
-	handlerWithForward  RunHandlerWithToolForward
-	authToken           string
-	mu                  sync.Mutex
-	runs                map[string]*runState
+	handler            RunHandler
+	handlerWithForward RunHandlerWithToolForward
+	authToken          string
+	signingKey         ed25519.PrivateKey // optional; when set, every SSE frame is wrapped in SignedFrame
+	mu                 sync.Mutex
+	runs               map[string]*runState
 }
 
 // NewServer creates a Server with the given handler and optional Bearer auth token.
@@ -91,6 +93,34 @@ func NewServerWithToolForward(handler RunHandler, handlerWithForward RunHandlerW
 		authToken:          authToken,
 		runs:               make(map[string]*runState),
 	}
+}
+
+// NewServerWithSigning creates a Server with a signing key. Every SSE event payload
+// is wrapped in a SignedFrame (signed with the ed25519 private key) before transmission.
+// Clients must set ClientOptions.TrustKey to the corresponding public key to verify frames.
+func NewServerWithSigning(handler RunHandler, authToken string, signingKey ed25519.PrivateKey) *Server {
+	s := NewServer(handler, authToken)
+	s.signingKey = signingKey
+	return s
+}
+
+// SetHandlerWithForward sets the exec-tools-locally handler on an existing Server.
+// This is useful when a Server was constructed via NewServerWithSigning and also
+// needs to support the exec-tools-locally protocol.
+func (s *Server) SetHandlerWithForward(h RunHandlerWithToolForward) {
+	s.handlerWithForward = h
+}
+
+// writeEvent writes a single SSE event to w and flushes. When s.signingKey is
+// set the payload is wrapped in a SignedFrame before transmission.
+func (s *Server) writeEvent(w http.ResponseWriter, flusher http.Flusher, event string, payload any) {
+	raw, _ := json.Marshal(payload)
+	if s.signingKey != nil {
+		frame := SignFrame(s.signingKey, raw)
+		raw, _ = json.Marshal(frame)
+	}
+	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, raw)
+	flusher.Flush()
 }
 
 // Handler returns an http.Handler that serves /kairos/run, /kairos/run/{rid}/tool-result, and /kairos/healthz.
@@ -143,11 +173,10 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 	// Emit helper: all SSE writes go through a mutex to ensure interleaving safety.
 	var writeMu sync.Mutex
-	writeEvent := func(event, dataJSON string) {
+	emitEvent := func(event string, payload any) {
 		writeMu.Lock()
 		defer writeMu.Unlock()
-		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, dataJSON)
-		flusher.Flush()
+		s.writeEvent(w, flusher, event, payload)
 	}
 
 	if execLocally && s.handlerWithForward != nil {
@@ -165,16 +194,13 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		}()
 
 		// Announce the request-id to the client so it knows where to POST results.
-		ridJSON, _ := json.Marshal(map[string]string{"run_id": rid})
-		writeEvent("run_id", string(ridJSON))
+		emitEvent("run_id", map[string]string{"run_id": rid})
 
 		emitText := func(delta string) {
-			line, _ := json.Marshal(map[string]string{"text": delta})
-			writeEvent("text", string(line))
+			emitEvent("text", map[string]string{"text": delta})
 		}
 		emitToolUse := func(req ToolUseRequest) {
-			line, _ := json.Marshal(req)
-			writeEvent("tool_use_request", string(line))
+			emitEvent("tool_use_request", req)
 		}
 		waitForResult := func(toolUseID string) (ToolResult, error) {
 			return rs.waitForResult(r.Context(), toolUseID)
@@ -182,39 +208,24 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 		finalText, err := s.handlerWithForward(r.Context(), req, emitText, emitToolUse, waitForResult)
 		if err != nil {
-			line, _ := json.Marshal(map[string]string{"error": err.Error()})
-			writeEvent("error", string(line))
+			emitEvent("error", map[string]string{"error": err.Error()})
 			return
 		}
-		line, _ := json.Marshal(map[string]string{"final": finalText})
-		writeEvent("done", string(line))
+		emitEvent("done", map[string]string{"final": finalText})
 		return
 	}
 
 	// Plain handler path (no exec-tools-locally).
-	var mu sync.Mutex
 	emit := func(delta string) {
-		mu.Lock()
-		defer mu.Unlock()
-		line, _ := json.Marshal(map[string]string{"text": delta})
-		fmt.Fprintf(w, "event: text\ndata: %s\n\n", line)
-		flusher.Flush()
+		emitEvent("text", map[string]string{"text": delta})
 	}
 
 	finalText, err := s.handler(r.Context(), req, emit)
 	if err != nil {
-		mu.Lock()
-		defer mu.Unlock()
-		line, _ := json.Marshal(map[string]string{"error": err.Error()})
-		fmt.Fprintf(w, "event: error\ndata: %s\n\n", line)
-		flusher.Flush()
+		emitEvent("error", map[string]string{"error": err.Error()})
 		return
 	}
-	mu.Lock()
-	defer mu.Unlock()
-	line, _ := json.Marshal(map[string]string{"final": finalText})
-	fmt.Fprintf(w, "event: done\ndata: %s\n\n", line)
-	flusher.Flush()
+	emitEvent("done", map[string]string{"final": finalText})
 }
 
 // handleToolResult handles POST /kairos/run/<rid>/tool-result.

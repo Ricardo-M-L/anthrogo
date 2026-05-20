@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"crypto/ed25519"
 	"fmt"
 	"strings"
 	"sync"
@@ -96,6 +97,11 @@ type Config struct {
 	// CostLimitUSD, when > 0 and Pricing != nil, enables hard budget enforcement.
 	// IsOverBudget() returns true once the cumulative session cost >= this value.
 	CostLimitUSD float64
+
+	// KairosTrustKey, when non-nil, is the global ed25519 public key used to
+	// verify SSE signatures for ALL remote KAIROS subagent dispatches. A per-spec
+	// trust_key in the subagent YAML takes precedence over this global setting.
+	KairosTrustKey ed25519.PublicKey
 }
 
 // Engine owns one conversation. Each SubmitMessage starts a new turn within
@@ -201,10 +207,26 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 
 		var text string
 		var err error
+		// Resolve optional trust key: per-spec YAML takes precedence over global.
+		var clientOpts kairos.ClientOptions
+		if spec.Remote.TrustKey != "" {
+			pub, trustErr := kairos.LoadPublicKey(spec.Remote.TrustKey)
+			if trustErr != nil {
+				return "", fmt.Errorf("kairos: trust_key for %q: %w", spec.Name, trustErr)
+			}
+			clientOpts.TrustKey = pub
+		} else if len(e.cfg.KairosTrustKey) > 0 {
+			clientOpts.TrustKey = e.cfg.KairosTrustKey
+		}
 		if spec.Remote.ExecToolsLocally {
 			// Exec-tools-locally: tool calls from the remote subagent run on this
 			// (client) process using the parent engine's tool registry and
 			// permission context.
+			clientOpts.AuthToken = spec.Remote.AuthToken
+			clientOpts.ExecToolsLocally = true
+			clientOpts.ToolRegistry = e.cfg.Tools
+			clientOpts.Permissions = e.cfg.Permissions
+			clientOpts.OnTextDelta = opts.OnTextDelta
 			text, err = kairos.DispatchRemoteWithOptions(ctx, spec.Remote.Endpoint,
 				kairos.RunRequest{
 					SubagentType:  opts.Type,
@@ -212,15 +234,11 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 					Prompt:        opts.Prompt,
 					RemoteContext: remoteCtx,
 				},
-				kairos.ClientOptions{
-					AuthToken:        spec.Remote.AuthToken,
-					ExecToolsLocally: true,
-					ToolRegistry:     e.cfg.Tools,
-					Permissions:      e.cfg.Permissions,
-					OnTextDelta:      opts.OnTextDelta,
-				},
+				clientOpts,
 			)
 		} else {
+			clientOpts.AuthToken = spec.Remote.AuthToken
+			clientOpts.OnTextDelta = opts.OnTextDelta
 			text, err = kairos.DispatchRemoteWithOptions(ctx, spec.Remote.Endpoint,
 				kairos.RunRequest{
 					SubagentType:  opts.Type,
@@ -228,10 +246,7 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 					Prompt:        opts.Prompt,
 					RemoteContext: remoteCtx,
 				},
-				kairos.ClientOptions{
-					AuthToken:   spec.Remote.AuthToken,
-					OnTextDelta: opts.OnTextDelta,
-				},
+				clientOpts,
 			)
 		}
 		if e.cfg.Hooks != nil {

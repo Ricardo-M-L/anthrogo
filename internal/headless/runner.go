@@ -2,6 +2,7 @@ package headless
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -70,6 +71,10 @@ type Options struct {
 	// JSON, when true, writes line-delimited JSON events to Stdout instead of
 	// plain text. Each engine event becomes one JSON object on its own line.
 	JSON bool
+
+	// KairosTrustKey, when non-nil, is forwarded to query.Config and used as the
+	// global ed25519 public key for verifying SSE signatures on ALL KAIROS dispatches.
+	KairosTrustKey ed25519.PublicKey
 }
 
 // RunExecRequest executes a command.ExecRequest in headless mode: the subprocess
@@ -133,6 +138,7 @@ func Run(ctx context.Context, opts Options) error {
 		AutoCompactKeepRecent: opts.AutoCompactKeepRecent,
 		Pricing:               opts.Pricing,
 		CostLimitUSD:          opts.CostLimitUSD,
+		KairosTrustKey:        opts.KairosTrustKey,
 	})
 	if opts.OnEngineReady != nil {
 		opts.OnEngineReady(e)
