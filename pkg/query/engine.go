@@ -28,6 +28,14 @@ type HookSink interface {
 	FireSubagentStop(ctx context.Context, reason string)
 }
 
+// ToolDispatcher is a pluggable hook that replaces local tools.Registry dispatch.
+// When non-nil in Config, the engine calls it instead of looking up and calling
+// the tool from the registry. The caller is responsible for applying its own
+// permission gate; the normal permissions.Decide path is skipped for this path.
+// This is used by the KAIROS worker to forward tool calls back to the client
+// process when exec-tools-locally mode is active.
+type ToolDispatcher func(ctx context.Context, toolUseID, toolName string, input map[string]any) (tool.Result, error)
+
 type Config struct {
 	Provider     provider.Provider
 	Tools        *tool.Registry
@@ -38,6 +46,12 @@ type Config struct {
 	Temperature  float64
 	Cwd          string
 	MaxTurns     int // 0 = unlimited
+
+	// ToolDispatcher, when non-nil, replaces the local tools.Registry dispatch.
+	// The permissions gate (permissions.Decide) is NOT applied on this path —
+	// the dispatcher itself (e.g. the remote client) applies its own gate.
+	// When nil the engine uses the normal local dispatch with full permission checking.
+	ToolDispatcher ToolDispatcher
 
 	// Surface hooks; nil-safe.
 	RequestPrompt   func(source string, req tool.PromptRequest) (tool.PromptResponse, error)
@@ -150,10 +164,31 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 	// 2a. Remote dispatch: if the spec has a RemoteSpec, route via HTTP instead
 	// of spawning a local child Engine. Hooks still fire locally.
 	if spec.Remote != nil {
-		text, err := kairos.DispatchRemote(ctx,
-			spec.Remote.Endpoint, spec.Remote.AuthToken,
-			opts.Type, opts.Description, opts.Prompt,
-		)
+		var text string
+		var err error
+		if spec.Remote.ExecToolsLocally {
+			// Exec-tools-locally: tool calls from the remote subagent run on this
+			// (client) process using the parent engine's tool registry and
+			// permission context.
+			text, err = kairos.DispatchRemoteWithOptions(ctx, spec.Remote.Endpoint,
+				kairos.RunRequest{
+					SubagentType: opts.Type,
+					Description:  opts.Description,
+					Prompt:       opts.Prompt,
+				},
+				kairos.ClientOptions{
+					AuthToken:        spec.Remote.AuthToken,
+					ExecToolsLocally: true,
+					ToolRegistry:     e.cfg.Tools,
+					Permissions:      e.cfg.Permissions,
+				},
+			)
+		} else {
+			text, err = kairos.DispatchRemote(ctx,
+				spec.Remote.Endpoint, spec.Remote.AuthToken,
+				opts.Type, opts.Description, opts.Prompt,
+			)
+		}
 		if e.cfg.Hooks != nil {
 			if err != nil {
 				e.cfg.Hooks.FireSubagentStop(ctx, "error")

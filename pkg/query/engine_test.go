@@ -1152,3 +1152,69 @@ func TestEngine_IsOverBudget(t *testing.T) {
 		require.Equal(t, 0.01, lim)
 	})
 }
+
+// TestEngine_ToolDispatcher_ReplacesLocalDispatch verifies that when a
+// ToolDispatcher is configured, it is called instead of the local tool registry
+// and the result is fed back to the model as a tool_result block.
+func TestEngine_ToolDispatcher_ReplacesLocalDispatch(t *testing.T) {
+	// Two-script provider: turn 1 asks for "Echo"; turn 2 returns end_turn.
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventToolUseStart, ToolUseID: "u1", ToolName: "Echo"},
+			{Kind: provider.EventToolInputDelta, PartialJSON: `{"msg":"hello"}`},
+			{Kind: provider.EventBlockStop, StopReason: "tool_use"},
+			{Kind: provider.EventMessageStop, StopReason: "tool_use"},
+		},
+		[]provider.Event{
+			{Kind: provider.EventTextDelta, Text: "echo done"},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+
+	var dispatchedID, dispatchedName string
+	var dispatchedInput map[string]any
+	dispatcher := ToolDispatcher(func(_ context.Context, toolUseID, toolName string, input map[string]any) (tool.Result, error) {
+		dispatchedID = toolUseID
+		dispatchedName = toolName
+		dispatchedInput = input
+		// Return the input msg as text, simulating an echo tool.
+		msg, _ := input["msg"].(string)
+		return tool.Result{Text: "echoed: " + msg}, nil
+	})
+
+	// Registry intentionally does NOT have "Echo" — dispatcher must be called instead.
+	e := NewEngine(Config{
+		Provider:       fp,
+		Tools:          tool.NewRegistry(),
+		Permissions:    permissions.Empty(),
+		Model:          "x",
+		ToolDispatcher: dispatcher,
+	})
+
+	var toolResultText string
+	ch := e.SubmitMessage(context.Background(), "echo something")
+	for ev := range ch {
+		if ev.Kind == KindToolResult {
+			toolResultText = ev.Text
+		}
+	}
+
+	require.Equal(t, "u1", dispatchedID, "ToolDispatcher must receive the tool_use_id")
+	require.Equal(t, "Echo", dispatchedName, "ToolDispatcher must receive the tool name")
+	require.Equal(t, "hello", dispatchedInput["msg"], "ToolDispatcher must receive the tool input")
+	require.Equal(t, "echoed: hello", toolResultText, "tool_result text must come from ToolDispatcher")
+
+	// Verify the engine appended the tool_result to messages so the model sees it.
+	msgs := e.Messages()
+	var foundResult bool
+	for _, m := range msgs {
+		if m.Role == message.RoleUser {
+			for _, b := range m.Content {
+				if b.Type == message.BlockToolResult && b.Text == "echoed: hello" {
+					foundResult = true
+				}
+			}
+		}
+	}
+	require.True(t, foundResult, "tool_result block must appear in message history")
+}

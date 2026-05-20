@@ -278,6 +278,17 @@ remote:
 
 The client sends `POST /kairos/run` with `{subagent_type, prompt}`; the worker spawns a local subagent, streams `event: text` deltas, ends with `event: done`. Bearer auth via `Authorization: Bearer <token>`. M6.6 limits to one hop (the worker excludes Remote types from its own registry).
 
+**M8.13 — exec-tools-locally mode.** Add `exec_tools_locally: true` to the subagent YAML to make the worker forward tool calls back to the client instead of running them on the worker. The client's tool registry and permission gate apply.
+
+```yaml
+remote:
+  endpoint: http://worker.example.com:9001
+  auth_token: env:KAIROS_AUTH_TOKEN
+  exec_tools_locally: true   # tool calls run on the client, not the worker
+```
+
+Protocol: worker emits `event: run_id` (UUID), then `event: tool_use_request` per blocking tool call; client POSTs the result to `POST /kairos/run/<rid>/tool-result` before the worker resumes.
+
 ## Vision / images
 
 anthrogo supports sending images to multimodal models using the `@image:<path>` syntax anywhere in your prompt:

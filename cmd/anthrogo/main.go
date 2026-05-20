@@ -127,8 +127,59 @@ func main() {
 						Prompt:      req.Prompt,
 					})
 				}
+				// kHandlerWithForward is the exec-tools-locally variant. When the
+				// client sends X-Anthrogo-Exec-Tools-Locally: true the worker builds
+				// a ToolDispatcher that forwards each tool call back to the client
+				// via the supplied emit/wait callbacks instead of running it locally.
+				kHandlerWithForward := func(
+					ctx context.Context,
+					req kairos.RunRequest,
+					emitText func(string),
+					emitToolUse func(kairos.ToolUseRequest),
+					waitForResult func(toolUseID string) (kairos.ToolResult, error),
+				) (string, error) {
+					dispatcher := query.ToolDispatcher(func(ctx context.Context, toolUseID, toolName string, input map[string]any) (tool.Result, error) {
+						// Emit tool_use_request over SSE; block for the client's response.
+						emitToolUse(kairos.ToolUseRequest{
+							ToolUseID: toolUseID,
+							ToolName:  toolName,
+							ToolInput: input,
+						})
+						res, err := waitForResult(toolUseID)
+						if err != nil {
+							return tool.Result{}, err
+						}
+						return tool.Result{
+							Text:    res.Text,
+							IsError: res.IsError,
+						}, nil
+					})
+					eng := query.NewEngine(query.Config{
+						Provider:         p,
+						Model:            cfg.Model,
+						Tools:            workerTools,
+						Permissions:      workerPerms,
+						SystemPrompt:     workerSystemPrompt,
+						Cwd:              workerCwd,
+						SubagentRegistry: workerSubReg,
+						ToolDispatcher:   dispatcher,
+					})
+					// Wire text deltas to emitText so the SSE stream stays live.
+					ch := eng.SubmitMessage(ctx, req.Prompt)
+					var finalText strings.Builder
+					for ev := range ch {
+						switch ev.Kind {
+						case query.KindAssistantDelta:
+							emitText(ev.Text)
+							finalText.WriteString(ev.Text)
+						case query.KindError:
+							return "", ev.Err
+						}
+					}
+					return strings.TrimSpace(finalText.String()), nil
+				}
 				authToken := os.Getenv("KAIROS_AUTH_TOKEN")
-				srv := kairos.NewServer(kHandler, authToken)
+				srv := kairos.NewServerWithToolForward(kHandler, kHandlerWithForward, authToken)
 				fmt.Fprintln(os.Stderr, "anthrogo kairos worker listening on", kairosServeAddr)
 				return srv.Run(context.Background(), kairosServeAddr)
 			}

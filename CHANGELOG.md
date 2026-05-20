@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.13-dev] — 2026-05-20
+
+M8.13 — Subagent remote tool execution.
+
+### Added
+- `subagent.RemoteSpec.ExecToolsLocally bool` (YAML `exec_tools_locally`). When true, tool calls from the remote subagent execute on the CLIENT process — client's tool registry, client's permission gate.
+- `query.Config.ToolDispatcher func(ctx, toolUseID, toolName, input) (Result, error)` — pluggable dispatch hook; when non-nil, replaces local tools.Registry dispatch. Used by both worker (to forward to client) and as a general extension point.
+- KAIROS protocol additions: `ToolUseRequest`, `ToolResult` payloads. Worker emits `event: run_id` then `event: tool_use_request` per blocking tool call. Client POSTs to `/kairos/run/<rid>/tool-result` with the result. Worker resumes the engine's stream.
+- `kairos.DispatchRemoteWithOptions(ctx, endpoint, req, opts)` — new client API. Existing `DispatchRemote` stays as a thin wrapper.
+- `kairos.NewServerWithToolForward(handler, handlerWithForward, authToken)` — server constructor that enables exec-tools-locally mode when `X-Anthrogo-Exec-Tools-Locally: true` header is present.
+- `cmd/anthrogo` worker mode auto-detects `X-Anthrogo-Exec-Tools-Locally: true` header and builds a forwarding ToolDispatcher for that request.
+
+### Known issues / deferred
+- Bidirectional flow uses SSE-down + separate POST-up; not real bidi. Tool execution latency = client RTT to worker + tool runtime + client RTT back.
+- No streaming of large tool results (a 5MB Read result is one POST body).
+- Worker process state per in-flight run is kept until SSE close; long-running tools holding the channel keep memory alive.
+- Permission gate on the client still runs; if it denies, the worker subagent sees an IsError tool result and may retry, loop, or give up depending on its prompt.
+
 ## [0.8.12-dev] — 2026-05-20
 
 M8.12 — LRU index for /sessions search.

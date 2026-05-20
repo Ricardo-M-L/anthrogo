@@ -6,8 +6,9 @@ import "sort"
 // When non-nil, Engine.RunSubagent dispatches via HTTP to the KAIROS worker
 // instead of spawning a local child Engine.
 type RemoteSpec struct {
-	Endpoint  string `yaml:"endpoint"`   // http://host:port
-	AuthToken string `yaml:"auth_token"` // optional; supports "env:VARNAME" prefix
+	Endpoint         string `yaml:"endpoint"`                    // http://host:port
+	AuthToken        string `yaml:"auth_token"`                  // optional; supports "env:VARNAME" prefix
+	ExecToolsLocally bool   `yaml:"exec_tools_locally,omitempty"` // when true, tool calls from the remote subagent execute on the CLIENT process
 }
 
 // Spec describes a subagent type: its name, description (shown to the model in

@@ -244,6 +244,41 @@ func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReaso
 }
 
 func (e *Engine) executeTool(ctx context.Context, b message.Block, out chan<- Event) message.Block {
+	// When a ToolDispatcher is configured it takes full responsibility for
+	// executing the tool (including any permission gate on the caller's side).
+	// The local registry lookup and permissions.Decide path are both skipped.
+	if e.cfg.ToolDispatcher != nil {
+		out <- Event{Kind: KindToolUseRequest, ToolUseID: b.ToolUseID, ToolName: b.ToolName, ToolInput: b.Input}
+		e.recordIfHooked(session.Record{
+			Kind: session.KindToolUseRequest,
+			ToolUseRequest: &session.ToolUseRequest{
+				ToolUseID: b.ToolUseID, ToolName: b.ToolName, ToolInput: b.Input,
+			},
+		})
+		res, err := e.cfg.ToolDispatcher(ctx, b.ToolUseID, b.ToolName, b.Input)
+		if err != nil {
+			msg := err.Error()
+			out <- Event{Kind: KindToolResult, ToolUseID: b.ToolUseID, ToolName: b.ToolName, IsError: true, Text: msg}
+			e.recordIfHooked(session.Record{
+				Kind:       session.KindToolResult,
+				ToolResult: &session.ToolResult{ToolUseID: b.ToolUseID, Text: msg, IsError: true},
+			})
+			return message.Block{Type: message.BlockToolResult, ToolUseID: b.ToolUseID, Text: msg, IsError: true}
+		}
+		resultText := res.ModelText()
+		out <- Event{Kind: KindToolResult, ToolUseID: b.ToolUseID, ToolName: b.ToolName, IsError: res.IsError, Text: resultText}
+		e.recordIfHooked(session.Record{
+			Kind:       session.KindToolResult,
+			ToolResult: &session.ToolResult{ToolUseID: b.ToolUseID, Text: resultText, IsError: res.IsError},
+		})
+		return message.Block{
+			Type:      message.BlockToolResult,
+			ToolUseID: b.ToolUseID,
+			Text:      resultText,
+			IsError:   res.IsError,
+		}
+	}
+
 	t, ok := e.cfg.Tools.Get(b.ToolName)
 	if !ok {
 		msg := "unknown tool: " + b.ToolName
