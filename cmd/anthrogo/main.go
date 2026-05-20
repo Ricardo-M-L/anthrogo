@@ -26,6 +26,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider/anthropic"
+	"github.com/ricardo/anthrogo/pkg/skill"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -59,6 +60,16 @@ func main() {
 				cfg.Mode = permissions.Mode(modeFlag)
 			}
 			perms := cfg.ToPermissionContext()
+			// Skill tool is benign on its own (returns prepared markdown); ship a CLI-level
+			// alwaysAllow so it doesn't prompt by default. User alwaysDeny / PreToolUse
+			// hooks still take precedence (deny > allow in the gate).
+			if perms.AlwaysAllowRules == nil {
+				perms.AlwaysAllowRules = permissions.RulesBySource{}
+			}
+			perms.AlwaysAllowRules[permissions.SourceCLI] = append(
+				perms.AlwaysAllowRules[permissions.SourceCLI],
+				permissions.Rule{Tool: "Skill", Source: permissions.SourceCLI},
+			)
 			// Validate hook configuration; print any warnings but don't abort.
 			for _, w := range cfg.Hooks.Validate() {
 				fmt.Fprintln(os.Stderr, "hooks:", w)
@@ -108,10 +119,19 @@ func main() {
 			mcpStartCancelTimeout()
 			defer mcpMgr.Close()
 
+			homeSkillsRoot := config.SkillsDir(os.Getenv("HOME"))
+			cwdSkillsRoot := filepath.Join(cwd, ".anthrogo", "skills")
+			loadedSkills, skillWarnings, _ := skill.LoadAll(homeSkillsRoot, cwdSkillsRoot)
+			for _, w := range skillWarnings {
+				fmt.Fprintln(os.Stderr, "skills:", w)
+			}
+			skillReg := skill.NewRegistry(loadedSkills)
+
 			tools := registerTools(cfg)
 			for _, t := range mcpMgr.AllTools() {
 				tools.Register(t)
 			}
+			tools.Register(tool.NewSkill(skillReg))
 			claudeMd, _ := system.LoadClaudeMd(cwd, os.Getenv("HOME"))
 			gitStatus, _ := system.GitStatusSnapshot(cwd)
 			systemPrompt := system.BuildSystemPrompt(system.Options{
@@ -121,6 +141,7 @@ func main() {
 				CurrentDate: time.Now().Format("2006-01-02"),
 				Cwd:         cwd,
 				PlanModeOn:  cfg.Mode == permissions.ModePlan,
+				Skills:      skillReg.List(),
 			})
 
 			var sess *session.Store
@@ -212,7 +233,7 @@ func main() {
 				})
 			}
 
-			cmds := registerCommands()
+			cmds := registerCommands(homeSkillsRoot, cwdSkillsRoot)
 			app := tui.New(tui.Options{
 				Provider:        p,
 				Tools:           tools,
@@ -227,6 +248,7 @@ func main() {
 				RecordHook:      sess.NewRecordHook(),
 				MCP:             mcpMgr,
 				Hooks:           hookMgr,
+				Skills:          skillReg,
 			})
 			program := tea.NewProgram(app, tea.WithAltScreen())
 			app.SetProgram(program)
@@ -274,7 +296,7 @@ func registerTools(cfg config.Config) *tool.Registry {
 	return r
 }
 
-func registerCommands() *command.Registry {
+func registerCommands(skillsHome, skillsCwd string) *command.Registry {
 	reg := command.NewRegistry()
 	reg.Register(&builtins.Help{Reg: reg})
 	reg.Register(builtins.Tools{})
@@ -287,6 +309,7 @@ func registerCommands() *command.Registry {
 	reg.Register(builtins.Model{})
 	reg.Register(builtins.Mode{})
 	reg.Register(builtins.MCP{})
+	reg.Register(builtins.Skills{HomeRoot: skillsHome, CwdRoot: skillsCwd})
 	return reg
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/query"
+	"github.com/ricardo/anthrogo/pkg/skill"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -41,6 +42,7 @@ type Host interface {
 	Cwd() string
 	Registry() *Registry
 	MCP() *mcp.Manager
+	Skills() *skill.Registry
 }
 
 type Result struct {

@@ -13,6 +13,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/query"
+	"github.com/ricardo/anthrogo/pkg/skill"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -25,6 +26,7 @@ type fakeHost struct {
 	claudeMd string
 	mgr      *mcp.Manager
 	engine   *query.Engine
+	skills   *skill.Registry
 }
 
 func newFakeHost() *fakeHost {
@@ -44,6 +46,7 @@ func (f *fakeHost) Quit()                             {}
 func (f *fakeHost) Cwd() string                       { return f.cwd }
 func (f *fakeHost) Registry() *command.Registry       { return f.cmdReg }
 func (f *fakeHost) MCP() *mcp.Manager                 { return f.mgr }
+func (f *fakeHost) Skills() *skill.Registry           { return f.skills }
 
 func TestHelp_ListsRegisteredCommands(t *testing.T) {
 	h := newFakeHost()

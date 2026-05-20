@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.4.2-dev] — 2026-05-20
+
+M4.3 — Skills (markdown + frontmatter, model-invoked).
+
+### Added
+- `pkg/skill/` package: Skill struct + Loader + Registry, scans `~/.anthrogo/skills/<n>/SKILL.md` and `<cwd>/.anthrogo/skills/<n>/SKILL.md`.
+- Built-in `Skill` tool: model invokes a registered skill by name; tool returns the skill's markdown body as tool_result text. Allow-by-default (no side effect — model uses other gated tools to act on skill instructions).
+- BuildSystemPrompt lists available skills as `- name: description` after the tool list.
+- `/skills` slash command: bare lists, `show <name>` prints body, `reload` re-scans both roots.
+- Frontmatter validation: name must match `^[a-z][a-z0-9-]{0,63}$`, match directory name, non-empty description; SKILL.md body > 1 MiB truncated with warning.
+
+### Changed
+- `command.Host` gains `Skills() *skill.Registry`.
+- `tui.Options` gains `Skills *skill.Registry`.
+- `system.Options` gains `Skills []skill.Skill`.
+
+### Known issues / deferred
+- Plugin-bundled skills + namespacing (`plugin:skill-name`) land in M4.4.
+- Skill packaging / install commands (`/skills install <url>`) are deferred.
+- Skill versioning + dependency declarations are deferred.
+
 ## [0.4.1-dev] — 2026-05-20
 
 M4.2 — Real `/compact` (MCP-aware history compaction).

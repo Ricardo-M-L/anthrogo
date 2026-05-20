@@ -286,6 +286,20 @@ func TestEngine_Compact_ConcurrentSafe(t *testing.T) {
 	wg.Wait()
 }
 
+// TestEngine_SkillRespectsAlwaysDeny verifies that an alwaysDeny rule for the
+// Skill tool wins even when alwaysAllow is also present (deny > allow in gate).
+// This is a direct Decide-level test; the engine respects Decide via loop.go.
+func TestEngine_SkillRespectsAlwaysDeny(t *testing.T) {
+	perms := permissions.Empty()
+	// Both allow and deny rules present for Skill — deny must win.
+	perms.AlwaysAllowRules[permissions.SourceCLI] = []permissions.Rule{{Tool: "Skill"}}
+	perms.AlwaysDenyRules[permissions.SourceCLI] = []permissions.Rule{{Tool: "Skill"}}
+	perms.ShouldAvoidPrompts = true
+
+	d := permissions.Decide(perms, "Skill", map[string]any{"skill": "git-flow"})
+	require.Equal(t, permissions.BehaviorDeny, d.Behavior, "alwaysDeny must trump alwaysAllow for Skill")
+}
+
 type slowFakeProvider struct{}
 
 func (s *slowFakeProvider) Stream(ctx context.Context, _ provider.Request) (<-chan provider.Event, error) {

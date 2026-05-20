@@ -4,6 +4,8 @@ import (
 	_ "embed"
 	"fmt"
 	"strings"
+
+	"github.com/ricardo/anthrogo/pkg/skill"
 )
 
 //go:embed prompts/core_v2_1_88.txt
@@ -21,6 +23,7 @@ type Options struct {
 	CurrentDate string
 	Cwd         string
 	PlanModeOn  bool
+	Skills      []skill.Skill
 }
 
 // BuildSystemPrompt produces the prompt sent in `system` to the API. It's the
@@ -43,6 +46,12 @@ func BuildSystemPrompt(opts Options) string {
 	}
 	if hasMCPTool(opts.ToolNames) {
 		b.WriteString("Tools prefixed `mcp__` are provided by external MCP servers and may behave differently from built-in tools.\n")
+	}
+	if len(opts.Skills) > 0 {
+		b.WriteString("\nAvailable skills (invoke via the Skill tool, e.g. {\"skill\":\"git-flow\"}):\n")
+		for _, sk := range opts.Skills {
+			fmt.Fprintf(&b, "- %s: %s\n", sk.Name, sk.Description)
+		}
 	}
 	if opts.PlanModeOn {
 		b.WriteString("\n# Plan mode\n")

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/ricardo/anthrogo/pkg/skill"
 )
 
 func TestBuildSystemPrompt_IncludesAllComponents(t *testing.T) {
@@ -51,4 +53,21 @@ func TestBuildSystemPrompt_MentionsMCPWhenPresent(t *testing.T) {
 func TestBuildSystemPrompt_OmitsMCPWhenAbsent(t *testing.T) {
 	got := BuildSystemPrompt(Options{ToolNames: []string{"Read", "Bash"}})
 	require.NotContains(t, got, "external MCP servers")
+}
+
+func TestBuildSystemPrompt_ListsSkillsWhenPresent(t *testing.T) {
+	got := BuildSystemPrompt(Options{
+		Skills: []skill.Skill{
+			{Name: "a", Description: "use when X"},
+			{Name: "b", Description: "use when Y"},
+		},
+	})
+	require.Contains(t, got, "Available skills")
+	require.Contains(t, got, "- a: use when X")
+	require.Contains(t, got, "- b: use when Y")
+}
+
+func TestBuildSystemPrompt_OmitsSkillsBlockWhenEmpty(t *testing.T) {
+	got := BuildSystemPrompt(Options{})
+	require.NotContains(t, got, "Available skills")
 }

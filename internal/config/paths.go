@@ -33,3 +33,10 @@ func SettingsPath() (string, error) {
 	}
 	return filepath.Join(h, "settings.yaml"), nil
 }
+
+// SkillsDir returns the absolute path to <home>/.anthrogo/skills/. Pass the
+// raw user home (os.UserHomeDir() or os.Getenv("HOME")); do NOT pass the
+// already-resolved anthrogo home directory.
+func SkillsDir(home string) string {
+	return filepath.Join(home, ".anthrogo", "skills")
+}

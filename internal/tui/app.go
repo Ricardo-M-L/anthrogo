@@ -14,6 +14,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/query"
+	"github.com/ricardo/anthrogo/pkg/skill"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -45,6 +46,7 @@ type Options struct {
 	RecordHook      func(session.Record)
 	MCP             *mcp.Manager
 	Hooks           PromptHookSink
+	Skills          *skill.Registry
 }
 
 // serverLogMsg is dispatched via tea.Program.Send from AppendServerLog so that
@@ -317,6 +319,7 @@ func (a *App) Quit()                             { /* triggered by tea.Quit in U
 func (a *App) Cwd() string                       { return a.opts.Cwd }
 func (a *App) Registry() *command.Registry       { return a.cmdReg }
 func (a *App) MCP() *mcp.Manager                 { return a.opts.MCP }
+func (a *App) Skills() *skill.Registry           { return a.opts.Skills }
 
 // SetProgram must be called with the tea.Program before Run so that
 // AppendServerLog can route through Program.Send instead of mutating chat

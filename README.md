@@ -141,6 +141,38 @@ Plan-mode hard-lock still overrides hook-allow for write tools.
 
 `PreCompact` fires synchronously before `/compact` runs (M4.2).
 
+## Skills
+
+A Skill is a markdown file the model can invoke on demand. Layout:
+
+```
+~/.anthrogo/skills/<name>/
+├── SKILL.md                # required, with frontmatter (name + description)
+├── scripts/                # optional, model reads via the Read tool
+└── references/             # optional
+```
+
+`SKILL.md`:
+
+```markdown
+---
+name: git-flow
+description: Use when starting a new feature branch off main.
+---
+
+# git-flow
+
+When the user asks to start a new branch, do X then Y.
+```
+
+anthrogo lists every loaded skill in the system prompt (name + description). The model picks one, calls the `Skill` tool with `{"skill": "git-flow"}`, and gets the full markdown back. From there it follows the instructions, using Read / Bash / Write etc. as the skill dictates — all gated by the existing permission rules.
+
+`/skills` lists them, `/skills show <name>` prints one, `/skills reload` re-scans.
+
+Project-level `<cwd>/.anthrogo/skills/<name>/SKILL.md` overrides a same-named home skill.
+
+**Trust:** the body of a SKILL.md becomes part of the prompt sent to the model when invoked. A malicious skill can instruct the model to leak data, exfiltrate files, or trigger side effects — though every action still flows through anthrogo's tool permission gate. Only install skills from sources you trust.
+
 ## Compaction
 
 For long sessions, `/compact` summarizes earlier turns to cut token cost:
