@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.10.3-dev] — 2026-05-21
+
+M10.4 — /audit log viewer.
+
+### Added
+- `/audit` slash command — surfaces tool calls + errors + compact events + subagent starts across every session JSONL in the current cwd's project directory. Subcommands:
+  - `list [N]` (default 50, newest first)
+  - `by-tool <name>` filters to one tool name
+  - `errors` filters to records with `IsError=true`
+  - `search <keyword>` matches against tool name + input summary
+- Per-row format: `<ts>  [<short-session-id>]  <kind:tool>  <summary>`
+
+### Known issues / deferred
+- Permission decisions (allow/deny/ask) aren't currently recorded in JSONL — only the resulting tool calls + results are visible. A future milestone could record them via the gate.
+- Single-pass linear scan over all sessions; no PersistentCache integration yet (M10.1's L2 isn't wired through to /audit).
+- No `--since` / `--until` filters (use /sessions stats for date ranges).
+- Doesn't recurse into subagent JSONLs.
+
 ## [0.10.2-dev] — 2026-05-21
 
 M10.3 — WebSearch multi-backend.

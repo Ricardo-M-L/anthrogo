@@ -695,6 +695,7 @@ func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOv
 	reg.Register(builtins.Cost{})
 	reg.Register(builtins.Sessions{ReplayCache: replayCache})
 	reg.Register(builtins.System{HomeOverlayPath: homeOverlayPath, ProjectOverlayPath: projectOverlayPath})
+	reg.Register(builtins.Audit{})
 	return reg
 }
 

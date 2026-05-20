@@ -619,6 +619,19 @@ Use `/sessions reindex` (alias `search-rebuild-index`) to clear the in-memory LR
 
 **Persistence (M10.1):** The search cache is now two-level. L1 is the in-memory LRU (same as before). L2 is a SQLite database at `~/.anthrogo/search_index.db` (pure-Go, no cgo). Parsed records survive process restarts — on the next search the L2 hit is served directly without re-parsing the JSONL files. The cache degrades gracefully to L1-only if the DB can't be opened. To fully reset persistence, remove `~/.anthrogo/search_index.db` and restart.
 
+### /audit (M10.4)
+
+Use `/audit` (or `/audit list [N]`) to scan all session JSONLs for the current cwd and surface tool calls, errors, compact events, and subagent starts — newest first. N defaults to 50. Each row: `<ts>  [<short-session-id>]  <kind:tool>  <summary>`.
+
+| Subcommand            | Description                                                  |
+|-----------------------|--------------------------------------------------------------|
+| `list [N]`            | Most-recent N audit events across all sessions (default 50). |
+| `by-tool <name>`      | Filter to a specific tool name (e.g. `by-tool Bash`).        |
+| `errors`              | Show only records where `IsError=true`.                      |
+| `search <keyword>`    | Case-insensitive match against tool name + input summary.    |
+
+Note: permission decisions (allow/deny/ask) are not currently recorded in the JSONL and are therefore not visible in `/audit` output. Only the resulting tool calls and error results are surfaced.
+
 ## Tools (M1)
 
 | Tool        | Read-only | What it does                                                       |
