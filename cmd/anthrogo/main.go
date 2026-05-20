@@ -518,6 +518,7 @@ func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd string)
 	reg.Register(builtins.MCP{})
 	reg.Register(builtins.Skills{HomeRoot: skillsHome, CwdRoot: skillsCwd})
 	reg.Register(builtins.Subagents{HomeRoot: subagentsHome, CwdRoot: subagentsCwd})
+	reg.Register(builtins.Usage{})
 	return reg
 }
 

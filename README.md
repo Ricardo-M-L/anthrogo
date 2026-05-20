@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M6.6 complete (v0.6.0-dev). KAIROS cross-process subagent coordinator landed. See `docs/superpowers/specs/` for design docs.
+> **Status**: M7.3 complete (v0.7.2-dev). Cumulative token tracking + `/usage` builtin landed. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -400,7 +400,18 @@ For long sessions, `/compact` summarizes earlier turns to cut token cost:
 
 Currently all earlier messages including MCP tool calls are summarized to prose; pair-preserving compaction is a future milestone. `PreCompact` hooks (configured under `hooks.PreCompact`) fire before each compact.
 
-Set `auto_compact_threshold: 150000` (or pass `--auto-compact 150000`) to have anthrogo automatically run /compact at the end of any turn whose token usage exceeds the threshold. Set to 0 (default) to disable. The TUI status line always shows the latest turn's token count; when auto-compact is enabled it also shows the threshold.
+Set `auto_compact_threshold: 150000` (or pass `--auto-compact 150000`) to have anthrogo automatically run `/compact` when cumulative token usage since the last compact exceeds the threshold. The threshold is checked at the end of every turn using the cumulative `usageSinceLastCompact` counter — not just the latest turn's usage — so sessions with many small turns are handled correctly. Set to 0 (default) to disable. After a successful compact the counter resets to zero. Manual `/compact` also resets the counter.
+
+Use `/usage` at any time to inspect the current state:
+
+```
+/usage
+Session totals: 1,240 input + 380 output = 1,620 tokens
+Since last compact: 420 input + 130 output = 550 tokens
+Auto-compact at: 150,000 tokens (keep recent: 10) — 149,450 tokens until trigger
+```
+
+The TUI status line shows `tok: <in>in/<out>out (since: <Z>) [⚙ <N>]` where `since` is the post-compact accumulation and `⚙ N` is the auto-compact threshold (omitted when disabled).
 
 ## Tools (M1)
 

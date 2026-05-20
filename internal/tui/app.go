@@ -304,11 +304,14 @@ func (a *App) View() string {
 		return a.perm.view()
 	}
 	planOn := a.opts.Permissions != nil && a.opts.Permissions.Mode == permissions.ModePlan
-	lu := a.engine.LastUsage()
-	tokenInfo := fmt.Sprintf("tokens: %s in / %s out",
-		formatTokens(lu.InputTokens), formatTokens(lu.OutputTokens))
+	lu := a.engine.Usage()
+	sc := a.engine.UsageSinceLastCompact()
+	sinceTotal := sc.InputTokens + sc.OutputTokens
+	tokenInfo := fmt.Sprintf("tok: %sin/%sout (since: %s)",
+		formatTokens(lu.InputTokens), formatTokens(lu.OutputTokens),
+		formatTokens(sinceTotal))
 	if a.opts.AutoCompactThreshold > 0 {
-		tokenInfo += fmt.Sprintf("  [auto-compact at %s]", formatTokens(a.opts.AutoCompactThreshold))
+		tokenInfo += fmt.Sprintf(" [⚙ %s]", formatTokens(a.opts.AutoCompactThreshold))
 	}
 	status := a.theme.StatusLine.Render(fmt.Sprintf("model=%s  cwd=%s  %s", a.opts.Model, a.opts.Cwd, tokenInfo))
 	if badge := renderPlanBadge(a.theme, planOn); badge != "" {

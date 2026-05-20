@@ -77,6 +77,11 @@ type Engine struct {
 	// Reset to message.Usage{} at the start of each new turn; updated on every
 	// EventUsage; consulted at end-of-turn for auto-compact decision.
 	lastUsage     message.Usage
+	// usageSinceLastCompact accumulates token usage since the session started
+	// or since the most recent successful Compact(), whichever is later.
+	// Used for the auto-compact threshold check instead of per-turn lastUsage.
+	// Reset to zero inside Compact() when Skipped==false.
+	usageSinceLastCompact message.Usage
 	denials       []PermissionDenial
 	subagentDepth int
 }
@@ -286,6 +291,22 @@ func (e *Engine) LastUsage() message.Usage {
 	return e.lastUsage
 }
 
+// UsageSinceLastCompact returns the cumulative token usage accumulated since
+// the session started or since the most recent successful Compact(), whichever
+// is later. Updated under lock on every EventUsage; reset by Compact when
+// Skipped==false.
+func (e *Engine) UsageSinceLastCompact() message.Usage {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.usageSinceLastCompact
+}
+
+// AutoCompactConfig returns the configured auto-compact threshold and
+// keep-recent values. A threshold of 0 means auto-compact is disabled.
+func (e *Engine) AutoCompactConfig() (threshold, keep int) {
+	return e.cfg.AutoCompactThreshold, e.cfg.AutoCompactKeepRecent
+}
+
 // CompactOptions controls Engine.Compact behaviour.
 type CompactOptions struct {
 	KeepRecent int    // default 10
@@ -348,8 +369,11 @@ func (e *Engine) Compact(ctx context.Context, opts CompactOptions) (Summary, err
 	if !out.Skipped {
 		// Install compacted messages directly under lock to avoid a double-copy
 		// that SetInitialMessages would introduce.
+		// Reset usageSinceLastCompact so the next auto-compact threshold check
+		// starts from the post-compact baseline.
 		e.mu.Lock()
 		e.messages = out.NewMessages
+		e.usageSinceLastCompact = message.Usage{}
 		e.mu.Unlock()
 
 		if e.cfg.RecordHook != nil {

@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.2-dev] — 2026-05-20
+
+M7.3 — Cumulative token tracking + /usage builtin.
+
+### Added
+- `query.Engine.UsageSinceLastCompact() message.Usage` — usage accumulated since the start of the session OR since the most recent successful Compact, whichever is later. Updated under lock on every EventUsage. Reset by Compact when Skipped==false.
+- `/usage` slash command — prints session totals, since-last-compact totals, and (if enabled) the auto-compact threshold + tokens-until-trigger.
+- `query.Engine.AutoCompactConfig() (threshold, keep int)` accessor for builtins.
+- TUI status line now shows `tok: <Xin>in/<Yout>out (since: <Z>) [⚙ <N>]` — `since` is post-compact accumulation, `⚙` symbol denotes the auto-compact threshold.
+
+### Changed
+- Auto-compact threshold now uses cumulative `usageSinceLastCompact.InputTokens + .OutputTokens` instead of just the latest turn's usage. Closes M7.2's known issue.
+
+### Known issues / deferred
+- Token count is still provider-reported (no client-side precise tokenizer).
+- Compact() called manually via `/compact` also resets usageSinceLastCompact (intended).
+- usageSinceLastCompact resets only on successful Compact; if Compact is skipped (e.g. too few messages), the counter keeps accumulating.
+
 ## [0.7.1-dev] — 2026-05-20
 
 M7.2 — Automatic /compact on token threshold.

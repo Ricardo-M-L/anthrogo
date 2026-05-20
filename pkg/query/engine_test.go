@@ -871,6 +871,101 @@ func TestEngine_LastUsage_TracksMostRecentEventUsage(t *testing.T) {
 	require.Equal(t, 1, lu.OutputTokens, "expected OutputTokens=1")
 }
 
+// TestEngine_UsageSinceLastCompact_ResetsOnCompact verifies that after a
+// successful Compact(), UsageSinceLastCompact() returns zero.
+func TestEngine_UsageSinceLastCompact_ResetsOnCompact(t *testing.T) {
+	// Run one turn to accumulate usageSinceLastCompact.
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventStart, Usage: message.Usage{InputTokens: 60}},
+			{Kind: provider.EventTextDelta, Text: "hi"},
+			{Kind: provider.EventUsage, Usage: message.Usage{OutputTokens: 50}},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+		// compact.Run will call the provider once for its summarisation.
+		[]provider.Event{
+			{Kind: provider.EventStart},
+			{Kind: provider.EventTextDelta, Text: "SUMMARY"},
+			{Kind: provider.EventMessageStop},
+		},
+	)
+	e := NewEngine(Config{
+		Provider:    fp,
+		Tools:       tool.NewRegistry(),
+		Permissions: permissions.Empty(),
+		Model:       "m",
+	})
+	// Pre-load enough messages for compact to not skip.
+	e.SetInitialMessages(makeAutoCompactMessages(15))
+
+	// Run one turn so usageSinceLastCompact accumulates 60+50=110 tokens.
+	for range e.SubmitMessage(context.Background(), "hello") {
+	}
+	sc := e.UsageSinceLastCompact()
+	require.Equal(t, 60, sc.InputTokens, "expected 60 input tokens since last compact")
+	require.Equal(t, 50, sc.OutputTokens, "expected 50 output tokens since last compact")
+
+	// Now compact manually.
+	s, err := e.Compact(context.Background(), CompactOptions{KeepRecent: 10})
+	require.NoError(t, err)
+	require.False(t, s.Skipped, "expected compact to succeed")
+
+	// After compact, usageSinceLastCompact must be zero.
+	sc = e.UsageSinceLastCompact()
+	require.Equal(t, message.Usage{}, sc, "UsageSinceLastCompact must be zero after successful Compact")
+}
+
+// TestEngine_AutoCompact_UsesCumulativeUsageSinceLastCompact verifies that the
+// auto-compact predicate uses cumulative usage across turns rather than
+// per-turn usage. Two turns each emitting 60 input + 50 output = 110 tokens
+// each; threshold=200; first turn (110 total) does not trigger; second turn
+// (220 total) triggers compact.
+func TestEngine_AutoCompact_UsesCumulativeUsageSinceLastCompact(t *testing.T) {
+	fp := fake.New(
+		// Turn 1: 110 tokens — below threshold 200.
+		[]provider.Event{
+			{Kind: provider.EventStart, Usage: message.Usage{InputTokens: 60}},
+			{Kind: provider.EventTextDelta, Text: "turn1"},
+			{Kind: provider.EventUsage, Usage: message.Usage{OutputTokens: 50}},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+		// Turn 2: 110 more tokens → cumulative 220 ≥ 200; compact fires.
+		[]provider.Event{
+			{Kind: provider.EventStart, Usage: message.Usage{InputTokens: 60}},
+			{Kind: provider.EventTextDelta, Text: "turn2"},
+			{Kind: provider.EventUsage, Usage: message.Usage{OutputTokens: 50}},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+		// compact.Run summarisation call.
+		[]provider.Event{
+			{Kind: provider.EventStart},
+			{Kind: provider.EventTextDelta, Text: "SUMMARY"},
+			{Kind: provider.EventMessageStop},
+		},
+	)
+	rec := &recordingHookSink{}
+	e := NewEngine(Config{
+		Provider:             fp,
+		Tools:                tool.NewRegistry(),
+		Permissions:          permissions.Empty(),
+		Model:                "m",
+		Hooks:                rec,
+		AutoCompactThreshold: 200,
+		AutoCompactKeepRecent: 10,
+	})
+	e.SetInitialMessages(makeAutoCompactMessages(15))
+
+	// Turn 1 — should NOT trigger compact.
+	for range e.SubmitMessage(context.Background(), "turn1") {
+	}
+	require.False(t, rec.preCompactCalled, "compact must not fire after turn 1 (110 < 200)")
+
+	// Turn 2 — cumulative 220 should trigger compact.
+	for range e.SubmitMessage(context.Background(), "turn2") {
+	}
+	require.True(t, rec.preCompactCalled, "compact must fire after turn 2 (cumulative 220 ≥ 200)")
+}
+
 // alwaysEndTurnProvider returns an immediate end_turn for every call.
 type alwaysEndTurnProvider struct{}
 

@@ -59,15 +59,16 @@ func (e *Engine) SubmitMessage(ctx context.Context, prompt string) <-chan Event 
 					}
 					e.cfg.Hooks.FireStop(ctx, stopReason)
 				}
-				// Auto-compact check: after the turn completes and the stream channel
-				// is about to be closed, check if the latest turn's token usage
-				// exceeds the configured threshold. Run synchronously so the next
-				// SubmitMessage call sees compacted history.
+				// Auto-compact check: after the turn completes, check if cumulative
+				// usage since the last compact exceeds the configured threshold.
+				// Uses usageSinceLastCompact (not per-turn lastUsage) so small turns
+				// that aggregate to a large context also trigger compact.
+				// Run synchronously so the next SubmitMessage call sees compacted history.
 				if e.cfg.AutoCompactThreshold > 0 {
 					e.mu.Lock()
-					lu := e.lastUsage
+					sc := e.usageSinceLastCompact
 					e.mu.Unlock()
-					if lu.InputTokens+lu.OutputTokens >= e.cfg.AutoCompactThreshold {
+					if sc.InputTokens+sc.OutputTokens >= e.cfg.AutoCompactThreshold {
 						keep := e.cfg.AutoCompactKeepRecent
 						if keep == 0 {
 							keep = 10
@@ -151,6 +152,7 @@ func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReaso
 			e.mu.Lock()
 			e.usage.Add(ev.Usage)
 			e.lastUsage.Add(ev.Usage)
+			e.usageSinceLastCompact.Add(ev.Usage)
 			e.mu.Unlock()
 			out <- Event{Kind: KindUsage, Usage: ev.Usage}
 			e.recordIfHooked(session.Record{
