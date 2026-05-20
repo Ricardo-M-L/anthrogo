@@ -19,10 +19,13 @@ type permissionAsk struct {
 
 type formField struct {
 	name        string
-	typ         string // "string" | "number" | "integer" | "boolean"
+	typ         string // "string" | "number" | "integer" | "boolean" | "enum"
 	description string
 	required    bool
 	buffer      []rune // current input
+	cursor      int    // rune position within buffer
+	enum        []string
+	enumIdx     int
 }
 
 type permission struct {
@@ -102,12 +105,56 @@ func parseSimpleSchema(schema map[string]any) ([]formField, bool) {
 			return nil, false
 		}
 		desc, _ := prop["description"].(string)
-		fields = append(fields, formField{
+		field := formField{
 			name:        name,
 			typ:         ptyp,
 			description: desc,
 			required:    requiredSet[name],
-		})
+		}
+
+		// enum support
+		if enumRaw, ok := prop["enum"].([]any); ok && len(enumRaw) > 0 {
+			var vals []string
+			for _, v := range enumRaw {
+				if s, ok := v.(string); ok {
+					vals = append(vals, s)
+				}
+			}
+			if len(vals) > 0 {
+				field.enum = vals
+				field.typ = "enum"
+			}
+		}
+
+		// default value pre-fill
+		if def, ok := prop["default"]; ok {
+			switch v := def.(type) {
+			case string:
+				if field.typ == "enum" {
+					for i, ev := range field.enum {
+						if ev == v {
+							field.enumIdx = i
+							break
+						}
+					}
+				} else {
+					field.buffer = []rune(v)
+					field.cursor = len(field.buffer)
+				}
+			case bool:
+				if v {
+					field.buffer = []rune("true")
+				} else {
+					field.buffer = []rune("false")
+				}
+				field.cursor = len(field.buffer)
+			case float64:
+				field.buffer = []rune(strconv.FormatFloat(v, 'f', -1, 64))
+				field.cursor = len(field.buffer)
+			}
+		}
+
+		fields = append(fields, field)
 	}
 	return fields, true
 }
@@ -226,6 +273,12 @@ func (p *permission) handleElicitMulti(k tea.KeyMsg) bool {
 	case tea.KeyEnter:
 		data := map[string]any{}
 		for _, f := range p.formFields {
+			if f.typ == "enum" {
+				if len(f.enum) > 0 {
+					data[f.name] = f.enum[f.enumIdx]
+				}
+				continue
+			}
 			raw := strings.TrimSpace(string(f.buffer))
 			if raw == "" {
 				if f.required {
@@ -291,27 +344,121 @@ func (p *permission) handleElicitMulti(k tea.KeyMsg) bool {
 	case tea.KeyShiftTab:
 		p.formFocus = (p.formFocus - 1 + len(p.formFields)) % len(p.formFields)
 		return true
-	case tea.KeyBackspace, tea.KeyDelete:
-		if len(p.formFields[p.formFocus].buffer) > 0 {
-			p.formFields[p.formFocus].buffer = p.formFields[p.formFocus].buffer[:len(p.formFields[p.formFocus].buffer)-1]
+	case tea.KeyLeft:
+		f := &p.formFields[p.formFocus]
+		if f.typ == "enum" {
+			f.enumIdx = (f.enumIdx - 1 + len(f.enum)) % len(f.enum)
+		} else if f.cursor > 0 {
+			f.cursor--
+		}
+		return true
+	case tea.KeyRight:
+		f := &p.formFields[p.formFocus]
+		if f.typ == "enum" {
+			f.enumIdx = (f.enumIdx + 1) % len(f.enum)
+		} else if f.cursor < len(f.buffer) {
+			f.cursor++
+		}
+		return true
+	case tea.KeyUp:
+		f := &p.formFields[p.formFocus]
+		if f.typ == "enum" {
+			f.enumIdx = (f.enumIdx - 1 + len(f.enum)) % len(f.enum)
+		}
+		return true
+	case tea.KeyDown:
+		f := &p.formFields[p.formFocus]
+		if f.typ == "enum" {
+			f.enumIdx = (f.enumIdx + 1) % len(f.enum)
+		}
+		return true
+	case tea.KeyHome:
+		p.formFields[p.formFocus].cursor = 0
+		return true
+	case tea.KeyEnd:
+		p.formFields[p.formFocus].cursor = len(p.formFields[p.formFocus].buffer)
+		return true
+	case tea.KeyCtrlJ: // Ctrl+J (LF) → insert newline into string fields
+		f := &p.formFields[p.formFocus]
+		if f.typ == "string" {
+			f.buffer = append(f.buffer[:f.cursor], append([]rune{'\n'}, f.buffer[f.cursor:]...)...)
+			f.cursor++
+		}
+		return true
+	case tea.KeyBackspace:
+		f := &p.formFields[p.formFocus]
+		if f.cursor > 0 {
+			f.buffer = append(f.buffer[:f.cursor-1], f.buffer[f.cursor:]...)
+			f.cursor--
+		}
+		return true
+	case tea.KeyDelete:
+		f := &p.formFields[p.formFocus]
+		if f.cursor < len(f.buffer) {
+			f.buffer = append(f.buffer[:f.cursor], f.buffer[f.cursor+1:]...)
 		}
 		return true
 	case tea.KeyRunes:
-		p.formFields[p.formFocus].buffer = append(p.formFields[p.formFocus].buffer, k.Runes...)
+		f := &p.formFields[p.formFocus]
+		if f.typ == "enum" {
+			// runes don't edit enum fields; only arrow keys cycle
+			return true
+		}
+		f.buffer = append(f.buffer[:f.cursor], append(append([]rune{}, k.Runes...), f.buffer[f.cursor:]...)...)
+		f.cursor += len(k.Runes)
 		return true
 	case tea.KeySpace:
-		p.formFields[p.formFocus].buffer = append(p.formFields[p.formFocus].buffer, ' ')
+		f := &p.formFields[p.formFocus]
+		if f.typ == "enum" {
+			return true
+		}
+		f.buffer = append(f.buffer[:f.cursor], append([]rune{' '}, f.buffer[f.cursor:]...)...)
+		f.cursor++
 		return true
 	}
 	return true
 }
 
 func renderInput(s string, focused bool) string {
-	cursor := ""
 	if focused {
-		cursor = "█"
+		return fmt.Sprintf("> %s█", s)
 	}
-	return fmt.Sprintf("> %s%s", s, cursor)
+	return fmt.Sprintf("> %s", s)
+}
+
+// renderInputWithCursor renders the buffer with a block cursor at the given rune position.
+func renderInputWithCursor(buf []rune, cursor int, focused bool) string {
+	if !focused {
+		return fmt.Sprintf("> %s", string(buf))
+	}
+	before := string(buf[:cursor])
+	after := string(buf[cursor:])
+	return fmt.Sprintf("> %s█%s", before, after)
+}
+
+// renderEnum renders an enum field as a horizontal cycler: [selected] other1 other2
+func renderEnum(field formField, focused bool) string {
+	if len(field.enum) == 0 {
+		return "> (no options)"
+	}
+	var sb strings.Builder
+	sb.WriteString("> ")
+	for i, v := range field.enum {
+		if i == field.enumIdx {
+			sb.WriteString("[")
+			sb.WriteString(v)
+			sb.WriteString("]")
+		} else {
+			sb.WriteString(v)
+		}
+		if i < len(field.enum)-1 {
+			sb.WriteString(" ")
+		}
+	}
+	if focused {
+		sb.WriteString("█")
+	}
+	return sb.String()
 }
 
 func (p permission) view() string {
@@ -328,22 +475,28 @@ func (p permission) view() string {
 			}
 			for i, f := range p.formFields {
 				marker := " "
-				if i == p.formFocus {
+				focused := i == p.formFocus
+				if focused {
 					marker = "▶"
 				}
 				req := ""
 				if f.required {
 					req = " (required)"
 				}
+				var inputLine string
+				if f.typ == "enum" {
+					inputLine = renderEnum(f, focused)
+				} else {
+					inputLine = renderInputWithCursor(f.buffer, f.cursor, focused)
+				}
 				fmt.Fprintf(&body, "%s %s (%s)%s\n   %s\n",
-					marker, f.name, f.typ, req,
-					renderInput(string(f.buffer), i == p.formFocus))
+					marker, f.name, f.typ, req, inputLine)
 				if f.description != "" {
 					fmt.Fprintf(&body, "   %s\n", f.description)
 				}
 				body.WriteString("\n")
 			}
-			body.WriteString("[Tab/Shift-Tab] navigate   [Enter] submit   [Esc] cancel")
+			body.WriteString("[Tab/Shift-Tab] navigate   [←/→] cursor/enum   [Ctrl+J] newline   [Enter] submit   [Esc] cancel")
 			return p.theme.ModalBorder.Padding(1, 2).Render(body.String())
 		}
 		// single-textarea (M6.3 fallback)

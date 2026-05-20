@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.6-dev] — 2026-05-20
+
+M9.7 — Form UI completion.
+
+### Added
+- Arrow keys (Left/Right/Home/End) navigate within the focused field's text. Cursor renders as `█`. Insertions go at cursor position; Backspace removes char BEFORE cursor; Delete removes char AT cursor.
+- Multi-line string fields: Ctrl+J inserts a literal `\n` into a string-typed buffer. Plain Enter still submits.
+- Enum support: schemas with `enum: [...]` render as a horizontal cycler (`[selected] other1 other2`). Left/Right or Up/Down cycles options; Tab moves to next field; Enter submits the focused selection.
+- Schema `default` values pre-fill the field buffer at modal open. String defaults populate text; boolean defaults populate as "true"/"false"; number/integer as their string form; enum defaults match-index into the option list.
+
+### Known issues / deferred
+- Multi-line render shows `\n` as literal `\n` in the input row (no visual line break in the modal); the model still receives a real newline at submit.
+- Enum is single-select only; multi-select schemas drop to textarea fallback.
+- No tooltip / help bubble per field.
+
 ## [0.9.5-dev] — 2026-05-20
 
 M9.6 — YAML config polish.

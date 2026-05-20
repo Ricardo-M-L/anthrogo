@@ -374,3 +374,194 @@ func TestPermission_ElicitMulti_NumberField(t *testing.T) {
 	require.Equal(t, "accept", resp.Action)
 	require.InDelta(t, 3.14, resp.FormData["price"], 0.001)
 }
+
+// ── M9.7 item 1: Arrow keys + cursor ──────────────────────────────────────────
+
+func TestPermission_ElicitMulti_ArrowKeyMovesCursor(t *testing.T) {
+	schema := simpleObjectSchema(nil, map[string]map[string]any{
+		"word": {"type": "string"},
+	})
+	p, _ := makeElicitPermission("", schema)
+	// type "abc"
+	p.handleElicitMulti(keyMsg(tea.KeyRunes, 'a', 'b', 'c'))
+	require.Equal(t, 3, p.formFields[0].cursor)
+	// move left twice
+	p.handleElicitMulti(keyMsg(tea.KeyLeft))
+	p.handleElicitMulti(keyMsg(tea.KeyLeft))
+	require.Equal(t, 1, p.formFields[0].cursor)
+	// move right once
+	p.handleElicitMulti(keyMsg(tea.KeyRight))
+	require.Equal(t, 2, p.formFields[0].cursor)
+	// Home → 0
+	p.handleElicitMulti(keyMsg(tea.KeyHome))
+	require.Equal(t, 0, p.formFields[0].cursor)
+	// End → 3
+	p.handleElicitMulti(keyMsg(tea.KeyEnd))
+	require.Equal(t, 3, p.formFields[0].cursor)
+}
+
+func TestPermission_ElicitMulti_InsertAtCursor(t *testing.T) {
+	schema := simpleObjectSchema(nil, map[string]map[string]any{
+		"w": {"type": "string"},
+	})
+	p, _ := makeElicitPermission("", schema)
+	// type "ac", move left, insert "b"
+	p.handleElicitMulti(keyMsg(tea.KeyRunes, 'a', 'c'))
+	p.handleElicitMulti(keyMsg(tea.KeyLeft))
+	p.handleElicitMulti(keyMsg(tea.KeyRunes, 'b'))
+	require.Equal(t, []rune{'a', 'b', 'c'}, p.formFields[0].buffer)
+	require.Equal(t, 2, p.formFields[0].cursor)
+}
+
+func TestPermission_ElicitMulti_BackspaceMid(t *testing.T) {
+	schema := simpleObjectSchema(nil, map[string]map[string]any{
+		"w": {"type": "string"},
+	})
+	p, _ := makeElicitPermission("", schema)
+	// type "abc", move left, backspace removes 'b' (char before cursor)
+	p.handleElicitMulti(keyMsg(tea.KeyRunes, 'a', 'b', 'c'))
+	p.handleElicitMulti(keyMsg(tea.KeyLeft)) // cursor at 2, between b and c
+	p.handleElicitMulti(keyMsg(tea.KeyBackspace))
+	require.Equal(t, []rune{'a', 'c'}, p.formFields[0].buffer)
+	require.Equal(t, 1, p.formFields[0].cursor)
+}
+
+func TestPermission_ElicitMulti_DeleteMid(t *testing.T) {
+	schema := simpleObjectSchema(nil, map[string]map[string]any{
+		"w": {"type": "string"},
+	})
+	p, _ := makeElicitPermission("", schema)
+	// type "abc", Home, delete removes 'a' (char at cursor)
+	p.handleElicitMulti(keyMsg(tea.KeyRunes, 'a', 'b', 'c'))
+	p.handleElicitMulti(keyMsg(tea.KeyHome))
+	p.handleElicitMulti(keyMsg(tea.KeyDelete))
+	require.Equal(t, []rune{'b', 'c'}, p.formFields[0].buffer)
+	require.Equal(t, 0, p.formFields[0].cursor)
+}
+
+// ── M9.7 item 2: Multiline string (Ctrl+J) ────────────────────────────────────
+
+func TestPermission_ElicitMulti_MultilineString_AltEnterInsertsNewline(t *testing.T) {
+	schema := simpleObjectSchema(nil, map[string]map[string]any{
+		"msg": {"type": "string"},
+	})
+	p, _ := makeElicitPermission("", schema)
+	p.handleElicitMulti(keyMsg(tea.KeyRunes, 'h', 'i'))
+	// Ctrl+J inserts newline
+	p.handleElicitMulti(keyMsg(tea.KeyCtrlJ))
+	p.handleElicitMulti(keyMsg(tea.KeyRunes, 'b', 'y', 'e'))
+	require.Equal(t, []rune{'h', 'i', '\n', 'b', 'y', 'e'}, p.formFields[0].buffer)
+	require.Equal(t, 6, p.formFields[0].cursor)
+}
+
+// ── M9.7 item 3: Enum cycling + submit ────────────────────────────────────────
+
+func TestPermission_ElicitMulti_EnumCycling(t *testing.T) {
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"color": map[string]any{
+				"type": "string",
+				"enum": []any{"red", "green", "blue"},
+			},
+		},
+		"required": []any{},
+	}
+	p, _ := makeElicitPermission("", schema)
+	require.Equal(t, "multi", p.formMode)
+	require.Equal(t, "enum", p.formFields[0].typ)
+	require.Equal(t, 0, p.formFields[0].enumIdx)
+	// Right cycles forward
+	p.handleElicitMulti(keyMsg(tea.KeyRight))
+	require.Equal(t, 1, p.formFields[0].enumIdx)
+	p.handleElicitMulti(keyMsg(tea.KeyRight))
+	require.Equal(t, 2, p.formFields[0].enumIdx)
+	// Wraps around
+	p.handleElicitMulti(keyMsg(tea.KeyRight))
+	require.Equal(t, 0, p.formFields[0].enumIdx)
+	// Left cycles backward
+	p.handleElicitMulti(keyMsg(tea.KeyLeft))
+	require.Equal(t, 2, p.formFields[0].enumIdx)
+	// Up/Down also cycle
+	p.handleElicitMulti(keyMsg(tea.KeyDown))
+	require.Equal(t, 0, p.formFields[0].enumIdx)
+	p.handleElicitMulti(keyMsg(tea.KeyUp))
+	require.Equal(t, 2, p.formFields[0].enumIdx)
+}
+
+func TestPermission_ElicitMulti_EnumSubmit(t *testing.T) {
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"size": map[string]any{
+				"type": "string",
+				"enum": []any{"small", "medium", "large"},
+			},
+		},
+		"required": []any{},
+	}
+	p, reply := makeElicitPermission("", schema)
+	// cycle to "medium"
+	p.handleElicitMulti(keyMsg(tea.KeyRight))
+	require.Equal(t, 1, p.formFields[0].enumIdx)
+	p.handleElicitMulti(keyMsg(tea.KeyEnter))
+	resp := <-reply
+	require.Equal(t, "accept", resp.Action)
+	require.Equal(t, "medium", resp.FormData["size"])
+}
+
+// ── M9.7 item 4: Schema default values ────────────────────────────────────────
+
+func TestPermission_ElicitMulti_DefaultValuePrefilled(t *testing.T) {
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"name":  map[string]any{"type": "string", "default": "Alice"},
+			"age":   map[string]any{"type": "integer", "default": float64(30)},
+			"score": map[string]any{"type": "number", "default": float64(9.5)},
+			"flag":  map[string]any{"type": "boolean", "default": true},
+		},
+		"required": []any{},
+	}
+	p, reply := makeElicitPermission("", schema)
+	require.Equal(t, "multi", p.formMode)
+	// fields sorted: age, flag, name, score
+	// verify pre-fills
+	byName := map[string]formField{}
+	for _, f := range p.formFields {
+		byName[f.name] = f
+	}
+	require.Equal(t, []rune("Alice"), byName["name"].buffer)
+	require.Equal(t, 5, byName["name"].cursor)
+	require.Equal(t, []rune("30"), byName["age"].buffer)
+	require.Equal(t, []rune("9.5"), byName["score"].buffer)
+	require.Equal(t, []rune("true"), byName["flag"].buffer)
+
+	// submit without changes — should accept defaults
+	p.handleElicitMulti(keyMsg(tea.KeyEnter))
+	resp := <-reply
+	require.Equal(t, "accept", resp.Action)
+	require.Equal(t, "Alice", resp.FormData["name"])
+	require.Equal(t, 30, resp.FormData["age"])
+}
+
+func TestPermission_ElicitMulti_DefaultEnumPrefilled(t *testing.T) {
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"color": map[string]any{
+				"type":    "string",
+				"enum":    []any{"red", "green", "blue"},
+				"default": "green",
+			},
+		},
+		"required": []any{},
+	}
+	p, reply := makeElicitPermission("", schema)
+	require.Equal(t, "enum", p.formFields[0].typ)
+	require.Equal(t, 1, p.formFields[0].enumIdx) // "green" is index 1
+	p.handleElicitMulti(keyMsg(tea.KeyEnter))
+	resp := <-reply
+	require.Equal(t, "accept", resp.Action)
+	require.Equal(t, "green", resp.FormData["color"])
+}

@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M8.11 complete (v0.8.11-dev). Diff / Format / Git built-in tools. See `docs/superpowers/specs/` for design docs.
+> **Status**: M9.7 complete (v0.9.6-dev). Form UI completion: cursor nav, enum cycler, multiline, default values. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -34,6 +34,7 @@ update/view loops.
 | M6.6      | KAIROS coordinator (minimal cross-process subagent dispatch)               | shipped  |
 | M9.4      | Subagent real-time stream to parent TUI (OnTextDelta callback + buffering)  | shipped  |
 | M9.5      | LSP-style code intel tools: SymbolSearch + References                       | shipped  |
+| M9.7      | Form UI completion: cursor nav, enum cycler, Ctrl+J newline, schema defaults | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout
@@ -223,8 +224,8 @@ The `MCPResource` tool has a default `alwaysAllow` rule at the CLI level (read-o
 
 When an MCP server sends an `elicitation/create` request, TUI users get a form modal. The form behaviour depends on the schema:
 
-- **Multi-field mode (M8.9):** If the schema is a flat `object` whose properties are all primitive types (`string`, `number`, `integer`, `boolean`), each property is rendered as its own input row showing the field name, type hint, and a `(required)` marker. Tab/Shift-Tab moves focus between fields; Enter submits; Esc cancels. Type coercion is applied on submit (boolean accepts `yes/no/y/n/true/false/1/0`; integer/number are parsed and declined with a reason on invalid input; required-empty fields are declined with a reason; optional empty fields are omitted from the response).
-- **Single-textarea fallback (M6.3):** Schemas with nested objects, arrays, or enums fall back to the original single-textarea JSON-blob form. Type a JSON object that matches the schema, then press Enter to submit.
+- **Multi-field mode (M9.7):** If the schema is a flat `object` whose properties are all primitive types (`string`, `number`, `integer`, `boolean`) or `enum` string arrays, each property is rendered as its own input row. Tab/Shift-Tab moves focus; Enter submits; Esc cancels. Per-field cursor: Left/Right/Home/End navigate within the text; Backspace deletes before cursor; Delete removes at cursor; insertions go at cursor position. Ctrl+J inserts a literal newline into `string` fields. `enum` properties render as a horizontal cycler (`[selected] other1 other2`); Left/Right/Up/Down cycle the selection. Schema `default` values pre-fill buffers (or enum index) when the modal opens. Type coercion on submit: booleans accept `yes/no/y/n/true/false/1/0`; integers and numbers are parsed and declined with a reason on invalid input; required-empty fields decline; optional empty fields are omitted.
+- **Single-textarea fallback (M6.3):** Schemas with nested objects, arrays, or multi-select enums fall back to the original single-textarea JSON-blob form. Type a JSON object that matches the schema, then press Enter to submit.
 
 Headless mode (`-p`) always declines. To opt out entirely (suppress the capability advertisement), set `elicitation_mode: "disabled"` on the server config:
 
