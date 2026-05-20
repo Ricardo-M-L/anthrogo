@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.11.4-dev] — 2026-05-21
+
+M11.5 — /login Anthropic OAuth flow.
+
+### Added
+- `/login` builtin runs the M6.5 OAuth 2.1 PKCE flow (browser-redirect on a local loopback port) and saves the resulting access token to `~/.anthrogo/auth/anthropic.json`.
+- `/login status` shows the current token's expiry and EXPIRED warning.
+- `/login logout` removes the cached token.
+- `auth: {authorization_url, token_url, client_id, client_secret?, scopes, redirect_port}` YAML stanza configures the IdP endpoints. Default empty — anthrogo doesn't ship a built-in IdP; user supplies their org's SSO or a public IdP.
+- Anthropic provider now prefers the OAuth token (when non-expired) over the YAML `apiKey`. Raw `apiKey` remains the fallback.
+
+### Use cases
+- Corporate SSO via Auth0 / Okta / Microsoft Entra ID
+- Self-hosted IdP (Keycloak, Authelia, etc.)
+- (Future) Anthropic Console OAuth when/if publicly available
+
+### Known issues / deferred
+- Anthropic Console doesn't publish a public OAuth flow; users currently must configure their own IdP.
+- Token refresh is automatic via M6.5's flow (refresh_token re-exchange when expired), but only fires on /login retry or next provider init.
+- No multi-account / profile switching for tokens.
+
 ## [0.11.3-dev] — 2026-05-21
 
 M11.4 — mkdocs documentation site.

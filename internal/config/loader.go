@@ -51,12 +51,23 @@ type ThemeConfig struct {
 	ModalBorder string `yaml:"modal_border,omitempty"`
 }
 
+// AuthConfig holds OAuth 2.1 IdP configuration for /login.
+type AuthConfig struct {
+	AuthorizationURL string   `yaml:"authorization_url,omitempty"`
+	TokenURL         string   `yaml:"token_url,omitempty"`
+	ClientID         string   `yaml:"client_id,omitempty"`
+	ClientSecret     string   `yaml:"client_secret,omitempty"`
+	Scopes           []string `yaml:"scopes,omitempty"`
+	RedirectPort     int      `yaml:"redirect_port,omitempty"`
+}
+
 // Config mirrors the on-disk settings.yaml shape.
 type Config struct {
 	Mode        permissions.Mode               `yaml:"mode"`
 	Model       string                         `yaml:"model"`
 	APIKey      string                         `yaml:"apiKey,omitempty"`
 	Provider    string                         `yaml:"provider,omitempty"` // default "anthropic"
+	Auth        AuthConfig                     `yaml:"auth,omitempty"`
 	Profiles    map[string]Profile             `yaml:"profiles,omitempty"`
 	WebSearch   WebSearchConfig                `yaml:"webSearch,omitempty"`
 	MCPServers  map[string]mcp.MCPServerConfig `yaml:"mcpServers,omitempty"`

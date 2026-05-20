@@ -5,7 +5,7 @@ source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
 **Documentation:** https://Ricardo-M-L.github.io/anthrogo/
 
-> **Status**: M11.4 complete (v0.11.3-dev). mkdocs documentation site. See `docs/superpowers/specs/` for design docs.
+> **Status**: M11.5 complete (v0.11.4-dev). /login OAuth flow. See `docs/superpowers/specs/` for design docs.
 
 ## Input history
 
@@ -58,6 +58,8 @@ update/view loops.
 | M11.1     | TUI multi-pane layout: F2 cycles single/split/triple; log pane; status sidebar | shipped  |
 | M11.2     | Background task tools: BackgroundLaunch/Status/Output/Cancel                  | shipped  |
 | M11.3     | Plugin remote install: `/plugin install <url>` and `git+https://` specs        | shipped  |
+| M11.4     | mkdocs documentation site                                                      | shipped  |
+| M11.5     | `/login` OAuth 2.1 PKCE flow; Anthropic provider prefers saved token           | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout
@@ -100,6 +102,43 @@ Set `ANTHROPIC_API_KEY` in your environment, then:
 ./bin/anthrogo --model claude-haiku-4-5-20251001
 ./bin/anthrogo --cwd /path/to/project
 ```
+
+## Authentication / OAuth login
+
+By default anthrogo reads your Anthropic API key from `ANTHROPIC_API_KEY` or
+the `apiKey` field in `settings.yaml`.
+
+M11.5 adds an optional OAuth 2.1 PKCE flow so you can authenticate via a
+corporate SSO or a public IdP instead:
+
+```yaml
+# settings.yaml
+auth:
+  authorization_url: https://your-idp.example.com/oauth2/authorize
+  token_url:         https://your-idp.example.com/oauth2/token
+  client_id:         your-client-id
+  # client_secret:   optional, for confidential clients
+  scopes:
+    - openid
+    - profile
+  redirect_port: 8765   # local loopback port for the OAuth callback
+```
+
+Then in the TUI:
+
+```
+/login          # opens a browser, saves token to ~/.anthrogo/auth/anthropic.json
+/login status   # show current token expiry
+/login logout   # remove the cached token
+```
+
+When a valid token is present, it is used as the API key automatically. The raw
+`apiKey` / `ANTHROPIC_API_KEY` remain as the fallback when no token exists or it
+has expired and `/login` has not been re-run.
+
+> **Note:** Anthropic Console doesn't publish a public OAuth flow today. Common
+> use cases are corporate SSO (Auth0, Okta, Entra ID) and self-hosted IdPs
+> (Keycloak, Authelia).
 
 ## Update check
 

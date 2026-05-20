@@ -22,6 +22,7 @@ import (
 	"github.com/ricardo/anthrogo/internal/headless"
 	"github.com/ricardo/anthrogo/internal/hooks"
 	"github.com/ricardo/anthrogo/internal/mcp"
+	"github.com/ricardo/anthrogo/internal/oauth"
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/internal/system"
 	"github.com/ricardo/anthrogo/internal/tui"
@@ -552,7 +553,7 @@ func main() {
 
 			// M10.11: opt-in Anthropic token-counting API for Claude models.
 			if cfg.UseAnthropicTokenAPI {
-				apiKey := expandEnvKey(cfg.APIKey)
+				apiKey := resolveAnthropicAPIKey(cfg.APIKey)
 				if apiKey == "" {
 					fmt.Fprintln(os.Stderr, "warning: use_anthropic_token_api set but no Anthropic API key resolved; falling back to char/4")
 				} else {
@@ -614,10 +615,19 @@ func main() {
 			dbPath := filepath.Join(os.Getenv("HOME"), ".anthrogo", "search_index.db")
 			searchCache := session.NewPersistentCache(dbPath, searchCacheCap)
 			defer searchCache.Close()
+			loginCfg := oauth.Config{
+				AuthorizationURL: cfg.Auth.AuthorizationURL,
+				TokenURL:         cfg.Auth.TokenURL,
+				ClientID:         cfg.Auth.ClientID,
+				ClientSecret:     cfg.Auth.ClientSecret,
+				Scopes:           cfg.Auth.Scopes,
+				RedirectPort:     cfg.Auth.RedirectPort,
+			}
 			cmds := registerCommands(homeSkillsRoot, cwdSkillsRoot, homeSubRoot, cwdSubRoot,
 				config.SystemOverlayPath(os.Getenv("HOME")),
 				config.ProjectSystemOverlayPath(cwd),
 				searchCache,
+				loginCfg,
 			)
 			// Register plugin commands; warn on duplicates (last-writer-wins).
 			for _, p := range loadedPlugins {
@@ -750,9 +760,10 @@ func registerTools(cfg config.Config) *tool.Registry {
 	return r
 }
 
-func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOverlayPath, projectOverlayPath string, replayCache builtins.SessionCache) *command.Registry {
+func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOverlayPath, projectOverlayPath string, replayCache builtins.SessionCache, loginCfg oauth.Config) *command.Registry {
 	reg := command.NewRegistry()
 	reg.Register(&builtins.Help{Reg: reg})
+	reg.Register(builtins.Login{Config: loginCfg})
 	reg.Register(builtins.Tools{})
 	reg.Register(builtins.Memory{})
 	reg.Register(builtins.Cwd{})
@@ -806,6 +817,17 @@ func expandEnvKey(s string) string {
 		return os.Getenv(strings.TrimPrefix(s, "env:"))
 	}
 	return s
+}
+
+// resolveAnthropicAPIKey returns the best available API key for the Anthropic
+// provider. It prefers a valid (non-expired) cached OAuth token from the
+// /login flow; falling back to cfgAPIKey (which may itself be an env: ref).
+func resolveAnthropicAPIKey(cfgAPIKey string) string {
+	cacheRoot := filepath.Join(os.Getenv("HOME"), ".anthrogo", "auth")
+	if tok, err := oauth.LoadToken(cacheRoot, "anthropic"); err == nil && tok != nil && !tok.IsExpired() {
+		return tok.AccessToken
+	}
+	return expandEnvKey(cfgAPIKey)
 }
 
 // skipRelativeHookPaths removes hook specs whose Command is a relative path
@@ -932,7 +954,7 @@ func buildProvider(cfg config.Config, providerFlagValue string) (provider.Provid
 
 	switch {
 	case providerName == "" || providerName == "anthropic":
-		primary = anthropic.New(expandEnvKey(cfg.APIKey), cfg.Model)
+		primary = anthropic.New(resolveAnthropicAPIKey(cfg.APIKey), cfg.Model)
 		primaryName = "anthropic"
 		effectiveModel = cfg.Model
 	default:
