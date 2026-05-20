@@ -55,6 +55,10 @@ type Config struct {
 	AutoCompactThreshold  int `yaml:"auto_compact_threshold,omitempty"`
 	AutoCompactKeepRecent int `yaml:"auto_compact_keep_recent,omitempty"`
 
+	// SessionSearchCacheSize overrides the default LRU cap (64) for the session
+	// search replay cache. 0 or missing means use the default.
+	SessionSearchCacheSize int `yaml:"session_search_cache_size,omitempty"`
+
 	// Pricing maps model names (exact or glob) to per-million-token USD rates.
 	// Default empty (no cost tracking).
 	Pricing map[string]Pricing `yaml:"pricing,omitempty"`

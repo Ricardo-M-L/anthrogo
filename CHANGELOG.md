@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.5-dev] — 2026-05-20
+
+M9.6 — YAML config polish.
+
+### Added
+- `env:VARNAME` expansion now applies to `MCPServerConfig.Headers` values (matching M6.5 OAuth + M5.3 subagent loader pattern).
+- `/mcp status <name>` prints the configured headers with sensitive values redacted (`<redacted>` for keys containing authorization/auth/token/key/secret/password/bearer, case-insensitive).
+- `Config.SessionSearchCacheSize` (YAML `session_search_cache_size`) — overrides the default M8.12 cap of 64. 0/missing = default.
+
+### Known issues / deferred
+- Redaction is heuristic by key name; if a server uses a non-standard key for credentials it'll print in clear. Future could allow explicit `redact: ["X-Custom-Auth"]` list.
+- env-prefix expansion happens once at startup; YAML changes during a session aren't picked up.
+
 ## [0.9.4-dev] — 2026-05-20
 
 M9.5 — LSP-style code intel tools.

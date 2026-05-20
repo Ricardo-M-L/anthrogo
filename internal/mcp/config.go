@@ -1,6 +1,10 @@
 package mcp
 
-import "time"
+import (
+	"os"
+	"strings"
+	"time"
+)
 
 // MCPServerConfig describes one MCP server. Type selects the transport:
 //   - "" or "stdio": spawn a subprocess via Command/Args (default)
@@ -55,6 +59,17 @@ type OAuthConfig struct {
 	ClientSecret     string   `yaml:"client_secret,omitempty"` // optional (PKCE-only public clients)
 	Scopes           []string `yaml:"scopes,omitempty"`
 	RedirectPort     int      `yaml:"redirect_port,omitempty"` // local loopback port; default 8765
+}
+
+// Expand resolves any env: prefixed values in Headers to their actual
+// environment variable values. This mirrors the env:VARNAME expansion used
+// for APIKey (M5.3 subagent loader, M6.5 OAuth).
+func (c *MCPServerConfig) Expand() {
+	for k, v := range c.Headers {
+		if strings.HasPrefix(v, "env:") {
+			c.Headers[k] = os.Getenv(strings.TrimPrefix(v, "env:"))
+		}
+	}
 }
 
 // DefaultInitTimeout is applied when MCPServerConfig.Timeout == 0.

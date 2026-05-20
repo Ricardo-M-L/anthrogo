@@ -170,6 +170,18 @@ func (m *Manager) namesLocked() []string {
 	return out
 }
 
+// ServerConfig returns the MCPServerConfig for the named server, and whether
+// the server exists. Used by status display to show (redacted) headers.
+func (m *Manager) ServerConfig(name string) (MCPServerConfig, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	s, ok := m.servers[name]
+	if !ok {
+		return MCPServerConfig{}, false
+	}
+	return s.cfg, true
+}
+
 // Close terminates every server.
 func (m *Manager) Close() error {
 	m.mu.Lock()

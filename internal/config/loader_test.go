@@ -40,6 +40,25 @@ alwaysDeny:
 	require.Equal(t, "rm -rf*", cfg.AlwaysDeny[0].Pattern)
 }
 
+func TestConfig_SessionSearchCacheSize_Default(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("ANTHROGO_HOME", dir)
+	// No session_search_cache_size in YAML → field stays zero (caller uses default 64).
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, 0, cfg.SessionSearchCacheSize)
+}
+
+func TestConfig_SessionSearchCacheSize_Configured(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("ANTHROGO_HOME", dir)
+	yaml := "session_search_cache_size: 128\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "settings.yaml"), []byte(yaml), 0o644))
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, 128, cfg.SessionSearchCacheSize)
+}
+
 func TestLoad_ParsesMCPServers(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("ANTHROGO_HOME", dir)

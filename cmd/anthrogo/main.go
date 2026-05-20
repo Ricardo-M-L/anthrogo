@@ -303,6 +303,8 @@ func main() {
 				fmt.Fprintf(os.Stderr, "[mcp:%s] %s\n", name, msg)
 			})
 			for name, scfg := range cfg.MCPServers {
+				scfg.Expand()
+				cfg.MCPServers[name] = scfg
 				mcpMgr.AddServer(name, scfg)
 			}
 			// Wire TUI elicitation: when the TUI is running, route elicitation
@@ -565,7 +567,11 @@ func main() {
 				})
 			}
 
-			searchCache := session.NewReplayCache(64)
+			searchCacheCap := cfg.SessionSearchCacheSize
+			if searchCacheCap <= 0 {
+				searchCacheCap = 64
+			}
+			searchCache := session.NewReplayCache(searchCacheCap)
 			cmds := registerCommands(homeSkillsRoot, cwdSkillsRoot, homeSubRoot, cwdSubRoot,
 				config.SystemOverlayPath(os.Getenv("HOME")),
 				config.ProjectSystemOverlayPath(cwd),

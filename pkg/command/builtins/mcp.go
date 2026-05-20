@@ -77,5 +77,38 @@ func statusDetail(mgr *mcp.Manager, name string) string {
 	if err != nil {
 		out += "last error: " + err.Error() + "\n"
 	}
+	if scfg, ok := mgr.ServerConfig(name); ok && len(scfg.Headers) > 0 {
+		out += "headers:\n"
+		keys := make([]string, 0, len(scfg.Headers))
+		for k := range scfg.Headers {
+			keys = append(keys, k)
+		}
+		// stable output
+		for i := 0; i < len(keys); i++ {
+			for j := i + 1; j < len(keys); j++ {
+				if keys[i] > keys[j] {
+					keys[i], keys[j] = keys[j], keys[i]
+				}
+			}
+		}
+		for _, k := range keys {
+			out += fmt.Sprintf("  %s: %s\n", k, redactValue(k, scfg.Headers[k]))
+		}
+	}
 	return out
+}
+
+// redactValue returns "<redacted>" when the header key name looks like it holds
+// a credential (case-insensitive substring match). Empty values pass through.
+func redactValue(key, value string) string {
+	if value == "" {
+		return ""
+	}
+	lower := strings.ToLower(key)
+	for _, s := range []string{"authorization", "auth", "token", "key", "secret", "password", "bearer"} {
+		if strings.Contains(lower, s) {
+			return "<redacted>"
+		}
+	}
+	return value
 }

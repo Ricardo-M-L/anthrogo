@@ -200,6 +200,8 @@ mcpServers:
 
 `headers` injects arbitrary HTTP headers on every outgoing request for `sse`, `streamable`, and `websocket` transports. When `oauth:` is also set, headers are applied first and the OAuth `Authorization: Bearer` header is layered on top.
 
+Header values support `env:VARNAME` expansion (resolved once at startup): `X-Api-Key: "env:MY_API_KEY"` reads `$MY_API_KEY` from the environment, keeping secrets out of the YAML file. `/mcp status <name>` prints headers with sensitive values redacted — any key containing `authorization`, `auth`, `token`, `key`, `secret`, `password`, or `bearer` (case-insensitive) shows as `<redacted>`.
+
 `subprotocols` (websocket only) advertises the listed subprotocols during the WebSocket handshake (`Sec-WebSocket-Protocol`). The server's chosen subprotocol is echoed back in the response header.
 
 Tools surface as `mcp__<server>__<tool>` (names exceeding 64 chars get a sha-8 suffix). Inspect status with `/mcp`, view one server's last error with `/mcp status <name>`, restart all servers with `/mcp reload` (removes and re-registers all `mcp__*` tools; the model's system prompt is still built at startup, so restart anthrogo to refresh model awareness of newly-added tools). Server log notifications render dim-styled in the TUI; in headless they go to stderr.

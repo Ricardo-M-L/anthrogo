@@ -54,6 +54,27 @@ func TestMCP_UnknownSubcommand(t *testing.T) {
 	require.Contains(t, res.Text, "usage:")
 }
 
+func TestMCP_Status_RedactsSensitiveHeaders(t *testing.T) {
+	h := newFakeHost()
+	mgr := mcp.NewManager(nil)
+	mgr.AddServer("myserver", mcp.MCPServerConfig{
+		Type:     "sse",
+		Endpoint: "http://example.com/sse",
+		Headers: map[string]string{
+			"Authorization": "Bearer secret-token",
+			"X-Safe-Header": "visible-value",
+		},
+	})
+	h.mgr = mgr
+
+	res, err := (MCP{}).Run(context.Background(), "status myserver", h)
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "<redacted>", "sensitive header value must be redacted")
+	require.NotContains(t, res.Text, "secret-token", "raw secret must not appear in output")
+	require.Contains(t, res.Text, "visible-value", "non-sensitive header value must be visible")
+	require.Contains(t, res.Text, "Authorization", "header key must appear")
+}
+
 func TestMCP_Reload_RemovesAndReregisters(t *testing.T) {
 	h := newFakeHost()
 	h.mgr = mcp.NewManager(nil) // empty manager — no servers, no live procs
