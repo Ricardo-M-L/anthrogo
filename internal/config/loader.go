@@ -56,6 +56,10 @@ type Config struct {
 	// Pricing maps model names (exact or glob) to per-million-token USD rates.
 	// Default empty (no cost tracking).
 	Pricing map[string]Pricing `yaml:"pricing,omitempty"`
+
+	// CostLimitUSD, when > 0 and Pricing is configured, denies tool calls once
+	// the cumulative estimated session cost reaches or exceeds this amount (USD).
+	CostLimitUSD float64 `yaml:"cost_limit_usd,omitempty"`
 }
 
 func defaults() Config {

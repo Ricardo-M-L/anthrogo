@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.7.4-dev] — 2026-05-20
+
+M7.5 — Budget hard caps + /sessions list.
+
+### Added
+- `Config.CostLimitUSD float64` (YAML `cost_limit_usd`) + CLI flag `--cost-limit <USD>` — when set AND pricing is configured, anthrogo denies tool calls once the cumulative estimated session cost equals or exceeds the limit. Deny reason includes current cost and the limit.
+- Budget enforcement piggybacks on `permissions.Context.HookDecide` — registered as a wrapper around M4.1's existing chain, so user-defined PreToolUse hooks still get to run after the budget check.
+- `query.Engine.IsOverBudget() (over bool, current, limit float64)` accessor.
+- `/sessions` slash command — `list` (default, sorted newest-first) and `show <id-prefix>` (unambiguous prefix match) for the current cwd's JSONLs.
+
+### Known issues / deferred
+- Budget only enforces on tool dispatch, not on assistant text generation cost; a high-cost text-only turn can push past the limit before the next tool runs.
+- `/sessions show` only shows metadata, not content. Future milestones add `/sessions replay <id>` and `/sessions search <kw>`.
+- Subagent JSONLs (nested under `<session>/subagents/`) are not listed by `/sessions list`.
+- No automatic budget reset on `/compact` or new session — set new `--cost-limit` manually after compact if needed.
+
 ## [0.7.3-dev] — 2026-05-20
 
 M7.4 — Cost tracking + /cost builtin + pricing config.

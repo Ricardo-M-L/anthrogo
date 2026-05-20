@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M7.4 complete (v0.7.3-dev). Cost tracking + `/cost` builtin landed. See `docs/superpowers/specs/` for design docs.
+> **Status**: M7.5 complete (v0.7.4-dev). Budget hard caps + `/sessions list` builtin landed. See `docs/superpowers/specs/` for design docs.
 
 ## Why
 
@@ -121,7 +121,13 @@ Session usage: 12345 input + 1234 output = 13579 total tokens
 Estimated cost: $0.0555 USD
 ```
 
-anthrogo does not enforce budget caps or alert thresholds — the table is informational only. No automatic price updates: you maintain the table yourself.
+To hard-cap spending, add `cost_limit_usd` to `settings.yaml` or pass `--cost-limit <USD>` on the command line. Once the cumulative estimated session cost reaches the limit, all tool calls are denied with a message showing the current cost and the limit. Set `--cost-limit 0` (or omit the field) to disable.
+
+```yaml
+cost_limit_usd: 0.50   # deny tools after ~$0.50 of estimated spend
+```
+
+No automatic price updates: you maintain the table yourself.
 
 ## MCP servers
 
@@ -440,6 +446,19 @@ Auto-compact at: 150,000 tokens (keep recent: 10) — 149,450 tokens until trigg
 ```
 
 The TUI status line shows `tok: <in>in/<out>out (since: <Z>) [⚙ <N>]` where `since` is the post-compact accumulation and `⚙ N` is the auto-compact threshold (omitted when disabled).
+
+## Session history
+
+Use `/sessions` (or `/sessions list`) to inspect historical JSONLs for the current working directory, sorted newest-first:
+
+```
+/sessions
+ID                                      Modified          Size
+550e8400-e29b-41d4-a716-446655440000    2026-05-20 14:32  18423 B
+3f2504e0-4f89-11d3-9a0c-0305e82c3301    2026-05-19 09:11  4201 B
+```
+
+Use `/sessions show <id-prefix>` for a quick metadata summary of a specific session (unambiguous prefix match). Future milestones will add `/sessions replay` and `/sessions search`.
 
 ## Tools (M1)
 

@@ -65,6 +65,9 @@ type Options struct {
 
 	// Pricing is the optional pricing table for cost tracking. nil = disabled.
 	Pricing *pricing.Table
+
+	// CostLimitUSD, when > 0, enables hard budget enforcement via IsOverBudget().
+	CostLimitUSD float64
 }
 
 // serverLogMsg is dispatched via tea.Program.Send from AppendServerLog so that
@@ -121,6 +124,7 @@ func New(opts Options) *App {
 		AutoCompactThreshold:  opts.AutoCompactThreshold,
 		AutoCompactKeepRecent: opts.AutoCompactKeepRecent,
 		Pricing:               opts.Pricing,
+		CostLimitUSD:          opts.CostLimitUSD,
 	})
 	if opts.OnEngineReady != nil {
 		opts.OnEngineReady(a.engine)

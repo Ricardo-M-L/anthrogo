@@ -68,6 +68,10 @@ type Config struct {
 
 	// Pricing is the optional pricing table used by EstimatedCost(). nil = no cost tracking.
 	Pricing *pricing.Table
+
+	// CostLimitUSD, when > 0 and Pricing != nil, enables hard budget enforcement.
+	// IsOverBudget() returns true once the cumulative session cost >= this value.
+	CostLimitUSD float64
 }
 
 // Engine owns one conversation. Each SubmitMessage starts a new turn within
@@ -324,6 +328,21 @@ func (e *Engine) EstimatedCost() (float64, bool) {
 	}
 	u := e.Usage()
 	return pricing.EstimateUSD(rate, u.InputTokens, u.OutputTokens), true
+}
+
+// IsOverBudget reports whether the session's cumulative estimated cost has
+// reached or exceeded the configured CostLimitUSD. It returns (over, current,
+// limit). When no limit is configured or pricing is unavailable it returns
+// (false, 0, 0).
+func (e *Engine) IsOverBudget() (bool, float64, float64) {
+	if e.cfg.CostLimitUSD <= 0 {
+		return false, 0, 0
+	}
+	cur, ok := e.EstimatedCost()
+	if !ok {
+		return false, 0, e.cfg.CostLimitUSD
+	}
+	return cur >= e.cfg.CostLimitUSD, cur, e.cfg.CostLimitUSD
 }
 
 // CompactOptions controls Engine.Compact behaviour.

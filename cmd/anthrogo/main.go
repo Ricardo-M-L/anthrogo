@@ -51,6 +51,7 @@ func main() {
 		kairosServeAddr     string
 		providerFlag        string
 		autoCompactFlag     int
+		costLimitFlag       float64
 	)
 
 	root := &cobra.Command{
@@ -144,6 +145,9 @@ func main() {
 			}
 			if autoCompactFlag > 0 {
 				cfg.AutoCompactThreshold = autoCompactFlag
+			}
+			if costLimitFlag > 0 {
+				cfg.CostLimitUSD = costLimitFlag
 			}
 			perms := cfg.ToPermissionContext()
 			// Skill tool is benign on its own (returns prepared markdown); ship a CLI-level
@@ -383,7 +387,7 @@ func main() {
 				hookMgr.Drain(5 * time.Second)
 			}()
 
-			perms.HookDecide = func(toolName string, input map[string]any) permissions.HookOutcome {
+			hookDecide := func(toolName string, input map[string]any) permissions.HookOutcome {
 				d := hookMgr.FirePreToolUse(context.Background(), toolName, input)
 				switch d.Behavior {
 				case hooks.DecisionAllow:
@@ -393,6 +397,17 @@ func main() {
 				default:
 					return permissions.HookOutcome{Pass: true, ModifiedInput: d.ModifiedInput}
 				}
+			}
+			perms.HookDecide = func(toolName string, input map[string]any) permissions.HookOutcome {
+				if e := engineRef.Load(); e != nil {
+					if over, cur, lim := e.IsOverBudget(); over {
+						return permissions.HookOutcome{
+							Deny:   true,
+							Reason: fmt.Sprintf("budget exceeded: $%.4f >= $%.2f (set --cost-limit higher or 0 to disable)", cur, lim),
+						}
+					}
+				}
+				return hookDecide(toolName, input)
 			}
 
 			p, effectiveModel, err := buildProvider(cfg, providerFlag)
@@ -430,6 +445,7 @@ func main() {
 					AutoCompactThreshold:  cfg.AutoCompactThreshold,
 					AutoCompactKeepRecent: cfg.AutoCompactKeepRecent,
 					Pricing:               pricingTable,
+					CostLimitUSD:          cfg.CostLimitUSD,
 				})
 			}
 
@@ -465,6 +481,7 @@ func main() {
 				AutoCompactThreshold:  cfg.AutoCompactThreshold,
 				AutoCompactKeepRecent: cfg.AutoCompactKeepRecent,
 				Pricing:               pricingTable,
+				CostLimitUSD:          cfg.CostLimitUSD,
 			})
 			program := tea.NewProgram(app, tea.WithAltScreen())
 			app.SetProgram(program)
@@ -486,6 +503,7 @@ func main() {
 	root.Flags().StringVar(&kairosServeAddr, "kairos-serve", "", "Serve as a KAIROS worker on this addr (e.g. :9001)")
 	root.Flags().StringVar(&providerFlag, "provider", "", "Override active provider profile (see profiles in settings.yaml)")
 	root.Flags().IntVar(&autoCompactFlag, "auto-compact", 0, "Auto-compact when combined input+output tokens of the latest turn exceed this threshold (0 = disabled)")
+	root.Flags().Float64Var(&costLimitFlag, "cost-limit", 0, "Deny tool calls once estimated session cost (USD) reaches this amount; 0 = disabled")
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -532,6 +550,7 @@ func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd string)
 	reg.Register(builtins.Subagents{HomeRoot: subagentsHome, CwdRoot: subagentsCwd})
 	reg.Register(builtins.Usage{})
 	reg.Register(builtins.Cost{})
+	reg.Register(builtins.Sessions{})
 	return reg
 }
 

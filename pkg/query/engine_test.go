@@ -19,6 +19,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/kairos"
 	"github.com/ricardo/anthrogo/pkg/message"
 	"github.com/ricardo/anthrogo/pkg/permissions"
+	"github.com/ricardo/anthrogo/pkg/pricing"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/provider/fake"
 	"github.com/ricardo/anthrogo/pkg/subagent"
@@ -1069,4 +1070,85 @@ func TestEngine_RunSubagent_FiresSubagentStopOnError(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, rec.subagentStopCalled, "SubagentStop hook must fire on error path")
 	require.Equal(t, "error", rec.subagentStopReason)
+}
+
+// TestEngine_IsOverBudget verifies the budget-cap accessor.
+func TestEngine_IsOverBudget(t *testing.T) {
+	pt := pricing.NewTable(map[string]pricing.Rate{
+		"test-model": {InputPerM: 3.0, OutputPerM: 15.0},
+	})
+
+	t.Run("no limit configured", func(t *testing.T) {
+		e := NewEngine(Config{
+			Provider:    fake.New(nil),
+			Tools:       tool.NewRegistry(),
+			Permissions: permissions.Empty(),
+			Model:       "test-model",
+			Pricing:     pt,
+			// CostLimitUSD == 0 => never over budget
+		})
+		over, cur, lim := e.IsOverBudget()
+		require.False(t, over)
+		require.Equal(t, float64(0), cur)
+		require.Equal(t, float64(0), lim)
+	})
+
+	t.Run("under budget", func(t *testing.T) {
+		e := NewEngine(Config{
+			Provider:     fake.New(nil),
+			Tools:        tool.NewRegistry(),
+			Permissions:  permissions.Empty(),
+			Model:        "test-model",
+			Pricing:      pt,
+			CostLimitUSD: 1.0,
+		})
+		// Inject a small usage: 100 input + 100 output tokens.
+		// Cost = (100/1e6)*3.0 + (100/1e6)*15.0 = 0.0000030 + 0.0000150 = ~$0.0000018 — well under $1.
+		e.mu.Lock()
+		e.usage.InputTokens = 100
+		e.usage.OutputTokens = 100
+		e.mu.Unlock()
+
+		over, cur, lim := e.IsOverBudget()
+		require.False(t, over, "should be under budget")
+		require.Greater(t, cur, float64(0))
+		require.Equal(t, 1.0, lim)
+	})
+
+	t.Run("over budget", func(t *testing.T) {
+		e := NewEngine(Config{
+			Provider:     fake.New(nil),
+			Tools:        tool.NewRegistry(),
+			Permissions:  permissions.Empty(),
+			Model:        "test-model",
+			Pricing:      pt,
+			CostLimitUSD: 0.001,
+		})
+		// Inject large usage: 1_000_000 input + 1_000_000 output tokens.
+		// Cost = 3.0 + 15.0 = $18.0 >> $0.001.
+		e.mu.Lock()
+		e.usage.InputTokens = 1_000_000
+		e.usage.OutputTokens = 1_000_000
+		e.mu.Unlock()
+
+		over, cur, lim := e.IsOverBudget()
+		require.True(t, over, "should be over budget")
+		require.Equal(t, 18.0, cur)
+		require.Equal(t, 0.001, lim)
+	})
+
+	t.Run("no pricing table", func(t *testing.T) {
+		e := NewEngine(Config{
+			Provider:     fake.New(nil),
+			Tools:        tool.NewRegistry(),
+			Permissions:  permissions.Empty(),
+			Model:        "test-model",
+			Pricing:      nil,
+			CostLimitUSD: 0.01,
+		})
+		over, cur, lim := e.IsOverBudget()
+		require.False(t, over)
+		require.Equal(t, float64(0), cur)
+		require.Equal(t, 0.01, lim)
+	})
 }

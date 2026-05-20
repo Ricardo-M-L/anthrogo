@@ -55,6 +55,9 @@ type Options struct {
 
 	// Pricing is the optional pricing table for cost tracking. nil = disabled.
 	Pricing *pricing.Table
+
+	// CostLimitUSD, when > 0, enables hard budget enforcement via IsOverBudget().
+	CostLimitUSD float64
 }
 
 // Run executes one prompt and writes the assistant's final text to Stdout.
@@ -94,6 +97,7 @@ func Run(ctx context.Context, opts Options) error {
 		AutoCompactThreshold:  opts.AutoCompactThreshold,
 		AutoCompactKeepRecent: opts.AutoCompactKeepRecent,
 		Pricing:               opts.Pricing,
+		CostLimitUSD:          opts.CostLimitUSD,
 	})
 	if opts.OnEngineReady != nil {
 		opts.OnEngineReady(e)
