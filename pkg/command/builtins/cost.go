@@ -13,10 +13,21 @@ type Cost struct{}
 
 func (Cost) Name() string        { return "/cost" }
 func (Cost) Aliases() []string   { return nil }
-func (Cost) Description() string { return "Show estimated USD cost of the session" }
+func (Cost) Description() string {
+	return "Show estimated USD cost of the session. Use '/cost reset' to zero the counter."
+}
 func (Cost) Type() command.Type  { return command.TypeLocal }
 
 func (Cost) Run(ctx context.Context, args string, host command.Host) (command.Result, error) {
+	args = strings.TrimSpace(args)
+	if args == "reset" {
+		eng := host.Engine()
+		if eng == nil {
+			return command.Result{Text: "no active engine"}, nil
+		}
+		eng.ResetUsage()
+		return command.Result{Text: "session usage counter reset to zero. cumulative cost: $0.0000"}, nil
+	}
 	eng := host.Engine()
 	if eng == nil {
 		return command.Result{Text: "no active engine"}, nil

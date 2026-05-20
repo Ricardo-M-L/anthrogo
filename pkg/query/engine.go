@@ -336,6 +336,16 @@ func (e *Engine) EstimatedCost() (float64, bool) {
 	return pricing.EstimateUSD(rate, u.InputTokens, u.OutputTokens), true
 }
 
+// ResetUsage zeroes the cumulative usage counter (and the since-last-compact
+// counter). The last-turn usage is left intact. Tool-budget calculations
+// based on Usage() will see zero until the next EventUsage arrives.
+func (e *Engine) ResetUsage() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.usage = message.Usage{}
+	e.usageSinceLastCompact = message.Usage{}
+}
+
 // IsOverBudget reports whether the session's cumulative estimated cost has
 // reached or exceeded the configured CostLimitUSD. It returns (over, current,
 // limit). When no limit is configured or pricing is unavailable it returns

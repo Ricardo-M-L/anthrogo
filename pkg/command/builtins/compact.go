@@ -14,12 +14,24 @@ type Compact struct{}
 
 func (Compact) Name() string        { return "/compact" }
 func (Compact) Aliases() []string   { return nil }
-func (Compact) Description() string { return "Summarize earlier conversation to reduce context" }
+func (Compact) Description() string {
+	return "Summarize earlier conversation to reduce context. Use '--reset-budget' to also zero the cost counter."
+}
 func (Compact) Type() command.Type  { return command.TypeLocal }
 
 func (Compact) Run(ctx context.Context, args string, host command.Host) (command.Result, error) {
 	opts := query.CompactOptions{Trigger: "manual"}
 	tokens := strings.Fields(args)
+	resetBudget := false
+	filtered := tokens[:0]
+	for _, tok := range tokens {
+		if tok == "--reset-budget" {
+			resetBudget = true
+		} else {
+			filtered = append(filtered, tok)
+		}
+	}
+	tokens = filtered
 	for i, tok := range tokens {
 		if (tok == "--keep" || tok == "-k") && i+1 < len(tokens) {
 			if n, err := strconv.Atoi(tokens[i+1]); err == nil && n > 0 {
@@ -50,6 +62,10 @@ func (Compact) Run(ctx context.Context, args string, host command.Host) (command
 		"compacted %d → %d messages (~%d → ~%d bytes)",
 		s.OriginalCount, s.NewCount, s.OriginalBytes, s.NewBytes,
 	)
+	if resetBudget {
+		eng.ResetUsage()
+		msg += "\nsession usage counter reset to zero."
+	}
 	host.AppendUIMessage(msg)
 	return command.Result{Text: msg}, nil
 }

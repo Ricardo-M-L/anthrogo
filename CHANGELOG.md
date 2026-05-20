@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.4-dev] — 2026-05-20
+
+M8.4 — /cost reset + /compact --reset-budget.
+
+### Added
+- `Engine.ResetUsage()` — zeroes cumulative session usage and since-last-compact counter under lock.
+- `/cost reset` subcommand — calls ResetUsage and reports.
+- `/compact --reset-budget` flag — when /compact succeeds (not Skipped), also resets usage so the post-compact session starts fresh against the budget cap.
+
+### Known issues / deferred
+- ResetUsage doesn't touch the cost-limit budget gate; it just zeroes the counter. Budget remains armed; user can hit it again as new usage accumulates.
+- No "undo" — once reset, prior usage is lost from the in-memory engine. JSONL records still have the prior data.
+
 ## [0.8.3-dev] — 2026-05-20
 
 M8.3 — TUI 1Hz status refresh.

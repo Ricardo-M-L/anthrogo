@@ -150,6 +150,20 @@ cost_limit_usd: 0.50   # deny tools after ~$0.50 of estimated spend
 
 Built-in rates are sourced from published pricing as of 2026-05; they will drift until the next anthrogo release updates them.
 
+To zero the cumulative cost counter (e.g. after `/compact` to start fresh against the budget cap), run:
+
+```
+/cost reset
+```
+
+You can also reset automatically when compacting by passing `--reset-budget`:
+
+```
+/compact --reset-budget
+```
+
+This resets the in-memory usage counter so the post-compact session starts fresh. The budget cap remains armed; usage will accumulate again from zero.
+
 ## MCP servers
 
 anthrogo can spawn MCP (Model Context Protocol) servers at startup and expose their tools to the model. Add to `~/.anthrogo/settings.yaml`:
