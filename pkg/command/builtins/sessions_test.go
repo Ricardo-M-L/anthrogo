@@ -658,3 +658,124 @@ func splitNonEmpty(s string) []string {
 	}
 	return out
 }
+
+// ---------------------------------------------------------------------------
+// Search enhancements tests (M8.6)
+// ---------------------------------------------------------------------------
+
+// TestSessions_SearchRegex — --regex matches a semver pattern in a user message.
+func TestSessions_SearchRegex(t *testing.T) {
+	dir := t.TempDir()
+	ts := time.Now()
+	records := []session.Record{{
+		Kind:      session.KindUserMessage,
+		Timestamp: ts,
+		UserMessage: &session.UserMessage{
+			Content: []message.Block{{Type: message.BlockText, Text: "deploy v1.2.3 succeeded"}},
+		},
+	}}
+	writeJSONL(t, dir, "session-regex", records)
+
+	res, err := searchSessions(dir, `--regex v\d+\.\d+\.\d+`)
+	require.NoError(t, err)
+	require.NotEqual(t, "(no matches)", res.Text)
+	require.Contains(t, res.Text, "[user]")
+	require.Contains(t, res.Text, "v1.2.3")
+}
+
+// TestSessions_SearchRegexInvalid — invalid regexp returns a descriptive error, not a panic.
+func TestSessions_SearchRegexInvalid(t *testing.T) {
+	dir := t.TempDir()
+	res, err := searchSessions(dir, "--regex [invalid")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "invalid regexp")
+}
+
+// TestSessions_SearchSinceUntil — --since excludes records older than the cutoff date.
+func TestSessions_SearchSinceUntil(t *testing.T) {
+	dir := t.TempDir()
+	oldTS := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	newTS := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+
+	records := []session.Record{
+		{
+			Kind:      session.KindUserMessage,
+			Timestamp: oldTS,
+			UserMessage: &session.UserMessage{
+				Content: []message.Block{{Type: message.BlockText, Text: "old record needle"}},
+			},
+		},
+		{
+			Kind:      session.KindUserMessage,
+			Timestamp: newTS,
+			UserMessage: &session.UserMessage{
+				Content: []message.Block{{Type: message.BlockText, Text: "new record needle"}},
+			},
+		},
+	}
+	writeJSONL(t, dir, "session-ts", records)
+
+	// --since 2026-01-01 should exclude the 2025 record.
+	res, err := searchSessions(dir, "--since 2026-01-01 needle")
+	require.NoError(t, err)
+	lines := splitNonEmpty(res.Text)
+	require.Len(t, lines, 1, "expected only the new record")
+	require.Contains(t, lines[0], "new record needle")
+	require.NotContains(t, res.Text, "old record needle")
+
+	// --until 2025-12-31 should exclude the 2026 record.
+	res2, err2 := searchSessions(dir, "--until 2025-12-31 needle")
+	require.NoError(t, err2)
+	lines2 := splitNonEmpty(res2.Text)
+	require.Len(t, lines2, 1, "expected only the old record")
+	require.Contains(t, lines2[0], "old record needle")
+	require.NotContains(t, res2.Text, "new record needle")
+}
+
+// TestSessions_SearchRecurseSubagents — keyword in subagent JSONL is found only with --recurse-subagents.
+func TestSessions_SearchRecurseSubagents(t *testing.T) {
+	dir := t.TempDir()
+	ts := time.Now()
+	parentID := "parent-session-xyz"
+
+	// Main session JSONL — no match.
+	mainRecords := []session.Record{{
+		Kind:      session.KindUserMessage,
+		Timestamp: ts,
+		UserMessage: &session.UserMessage{
+			Content: []message.Block{{Type: message.BlockText, Text: "nothing here"}},
+		},
+	}}
+	writeJSONL(t, dir, parentID, mainRecords)
+
+	// Subagent JSONL — contains the keyword.
+	subDir := filepath.Join(dir, parentID, "subagents")
+	require.NoError(t, os.MkdirAll(subDir, 0o755))
+	subRecords := []session.Record{{
+		Kind:      session.KindUserMessage,
+		Timestamp: ts,
+		UserMessage: &session.UserMessage{
+			Content: []message.Block{{Type: message.BlockText, Text: "subagent-unique-word found"}},
+		},
+	}}
+	var buf bytes.Buffer
+	for _, r := range subRecords {
+		line, err := r.MarshalJSONLine()
+		require.NoError(t, err)
+		buf.Write(line)
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(subDir, "sub-001.jsonl"), buf.Bytes(), 0o644))
+
+	// Without --recurse-subagents: no match.
+	res, err := searchSessions(dir, "subagent-unique-word")
+	require.NoError(t, err)
+	require.Equal(t, "(no matches)", res.Text)
+
+	// With --recurse-subagents: 1 match, sessionID contains "subagents".
+	res2, err2 := searchSessions(dir, "--recurse-subagents subagent-unique-word")
+	require.NoError(t, err2)
+	require.NotEqual(t, "(no matches)", res2.Text)
+	require.Contains(t, res2.Text, "subagents")
+	lines := splitNonEmpty(res2.Text)
+	require.Len(t, lines, 1)
+}

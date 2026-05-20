@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.8.6-dev] — 2026-05-20
+
+M8.6 — /sessions search enhancements.
+
+### Added
+- `/sessions search --regex <pattern>` — interpret keyword as a Go `regexp.Compile` pattern; invalid regex returns an error before scanning. Without `--regex`, behavior is unchanged (case-insensitive substring).
+- `/sessions search --recurse-subagents` — also scan `<session-id>/subagents/*.jsonl`. Matching record IDs are formatted as `<parent>/subagents/<sub>` so the source is clear.
+- `/sessions search --since YYYY-MM-DD` / `--until YYYY-MM-DD` — filter records by Timestamp. Inclusive on both ends (until = start of next day).
+- Context snippet around match: 40 chars before and after; for regex matches, the matched substring's position drives the window.
+
+### Known issues / deferred
+- Only one keyword per invocation (no OR'd patterns).
+- Timestamp filter applies per-record (a session with one in-range record + many out-of-range records still scans the whole file).
+- No `--limit N` flag yet; cap remains 200.
+- Recurse depth is exactly one level (`subagents/`, not `subagents/.../subagents/`).
+
 ## [0.8.5-dev] — 2026-05-20
 
 M8.5 — /sessions stats.

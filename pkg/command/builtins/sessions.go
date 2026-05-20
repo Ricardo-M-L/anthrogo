@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -270,75 +271,166 @@ func truncate(s string, n int) string {
 
 const searchMaxMatches = 200
 
-// searchSessions performs case-insensitive cross-session text search.
-func searchSessions(dir, keyword string) (command.Result, error) {
-	if keyword == "" {
-		return command.Result{Text: "usage: /sessions search <keyword>"}, nil
+// searchSessions performs cross-session text search with optional flags:
+//   --regex               — interpret keyword as a Go regexp
+//   --recurse-subagents   — also scan <session-id>/subagents/*.jsonl
+//   --since YYYY-MM-DD    — skip records before this date
+//   --until YYYY-MM-DD    — skip records after this date (inclusive end-of-day)
+func searchSessions(dir, args string) (command.Result, error) {
+	// Parse flags from args.
+	tokens := strings.Fields(args)
+	var useRegex, recurse bool
+	var since, until time.Time
+	var keyword string
+
+	for i := 0; i < len(tokens); i++ {
+		tok := tokens[i]
+		switch tok {
+		case "--regex":
+			useRegex = true
+		case "--recurse-subagents":
+			recurse = true
+		case "--since":
+			if i+1 < len(tokens) {
+				t, err := time.Parse("2006-01-02", tokens[i+1])
+				if err == nil {
+					since = t
+				}
+				i++
+			}
+		case "--until":
+			if i+1 < len(tokens) {
+				t, err := time.Parse("2006-01-02", tokens[i+1])
+				if err == nil {
+					until = t.Add(24 * time.Hour)
+				}
+				i++
+			}
+		default:
+			if keyword == "" {
+				keyword = tok
+			} else {
+				keyword += " " + tok
+			}
+		}
 	}
+
+	if keyword == "" {
+		return command.Result{Text: "usage: /sessions search [--regex] [--recurse-subagents] [--since YYYY-MM-DD] [--until YYYY-MM-DD] <keyword>"}, nil
+	}
+
+	// Compile regexp if needed.
+	var re *regexp.Regexp
+	if useRegex {
+		compiled, err := regexp.Compile(keyword)
+		if err != nil {
+			return command.Result{Text: "sessions search: invalid regexp: " + err.Error()}, nil
+		}
+		re = compiled
+	}
+	matcher := func(haystack string) bool {
+		if re != nil {
+			return re.MatchString(haystack)
+		}
+		return strings.Contains(strings.ToLower(haystack), strings.ToLower(keyword))
+	}
+
+	// Collect search files.
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return command.Result{Text: "(no sessions yet)"}, nil
 		}
-		return command.Result{Text: "sessions: " + err.Error()}, nil
+		return command.Result{Text: "sessions search: " + err.Error()}, nil
 	}
 
-	kwLower := strings.ToLower(keyword)
-	var lines []string
-	total := 0
-	capped := false
+	type searchFile struct {
+		path      string
+		sessionID string // display ID, e.g. "abc123" or "abc123/subagents/sub456"
+	}
+	var files []searchFile
 
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
+		if e.IsDir() {
 			continue
 		}
-		sessionID := strings.TrimSuffix(e.Name(), ".jsonl")
-		shortID := sessionID
-		if len(shortID) > 8 {
-			shortID = shortID[:8]
-		}
-
-		records, err := session.Replay(filepath.Join(dir, e.Name()))
-		if err != nil {
-			lines = append(lines, fmt.Sprintf("[skip %s: %s]", shortID, err.Error()))
+		if !strings.HasSuffix(e.Name(), ".jsonl") {
 			continue
 		}
+		id := strings.TrimSuffix(e.Name(), ".jsonl")
+		files = append(files, searchFile{
+			path:      filepath.Join(dir, e.Name()),
+			sessionID: id,
+		})
+	}
 
-		for _, r := range records {
-			haystack, kindLabel := searchableText(r)
-			if haystack == "" {
+	if recurse {
+		for _, e := range entries {
+			if !e.IsDir() {
 				continue
 			}
-			haystackLower := strings.ToLower(haystack)
-			idx := strings.Index(haystackLower, kwLower)
-			if idx < 0 {
+			subDir := filepath.Join(dir, e.Name(), "subagents")
+			subEntries, err := os.ReadDir(subDir)
+			if err != nil {
 				continue
 			}
-			// Truncate around match: 40 chars before + match + 40 chars after.
-			context := contextAround(haystack, idx, len(keyword), 40)
-			total++
-			if total > searchMaxMatches {
-				capped = true
-				break
+			for _, se := range subEntries {
+				if se.IsDir() || !strings.HasSuffix(se.Name(), ".jsonl") {
+					continue
+				}
+				subID := strings.TrimSuffix(se.Name(), ".jsonl")
+				files = append(files, searchFile{
+					path:      filepath.Join(subDir, se.Name()),
+					sessionID: e.Name() + "/subagents/" + subID,
+				})
 			}
-			lines = append(lines, fmt.Sprintf("%s [%s] %s", shortID, kindLabel, context))
-		}
-		if capped {
-			break
 		}
 	}
 
-	if len(lines) == 0 && !capped {
+	// Search loop with timestamp filter.
+	var results []string
+	overflow := 0
+
+	for _, f := range files {
+		records, err := session.Replay(f.path)
+		if err != nil {
+			continue
+		}
+		for _, r := range records {
+			if !since.IsZero() && r.Timestamp.Before(since) {
+				continue
+			}
+			if !until.IsZero() && r.Timestamp.After(until) {
+				continue
+			}
+			hay, kindLabel := searchableText(r)
+			if hay == "" {
+				continue
+			}
+			if !matcher(hay) {
+				continue
+			}
+			if len(results) >= searchMaxMatches {
+				overflow++
+				continue
+			}
+			results = append(results, fmt.Sprintf("%s [%s] %s", f.sessionID, kindLabel, contextAroundMatch(hay, keyword, re)))
+		}
+	}
+
+	sort.Strings(results)
+	if len(results) == 0 && overflow == 0 {
 		return command.Result{Text: "(no matches)"}, nil
 	}
-
-	if capped {
-		lines = append(lines, fmt.Sprintf("... and %d more", total-searchMaxMatches))
+	var b strings.Builder
+	for _, r := range results {
+		b.WriteString(r)
+		b.WriteByte('\n')
 	}
-
-	// Sort results for determinism (by line content).
-	sort.Strings(lines)
-	return command.Result{Text: strings.Join(lines, "\n")}, nil
+	if overflow > 0 {
+		fmt.Fprintf(&b, "... and %d more (truncated at %d matches)\n", overflow, searchMaxMatches)
+	}
+	return command.Result{Text: strings.TrimRight(b.String(), "\n")}, nil
 }
 
 // searchableText returns the text to search within a record and a kind label.
@@ -822,19 +914,45 @@ func statsSessions(dir, rest string) (command.Result, error) {
 	return command.Result{Text: b.String()}, nil
 }
 
-// contextAround returns up to before chars before the match and after chars after,
-// collapsed to a single line, max ~250 chars total.
-func contextAround(s string, matchIdx, matchLen, window int) string {
-	s = strings.ReplaceAll(s, "\n", " ")
-	runes := []rune(s)
-	start := matchIdx - window
+// contextAroundMatch returns a snippet of hay centered on the match of keyword or re,
+// 40 chars before and after, collapsed to a single line.
+func contextAroundMatch(hay, keyword string, re *regexp.Regexp) string {
+	if hay == "" {
+		return ""
+	}
+	var idx, mlen int
+	if re != nil {
+		loc := re.FindStringIndex(hay)
+		if loc == nil {
+			return truncate(hay, 80)
+		}
+		idx, mlen = loc[0], loc[1]-loc[0]
+	} else {
+		lh := strings.ToLower(hay)
+		lk := strings.ToLower(keyword)
+		idx = strings.Index(lh, lk)
+		if idx < 0 {
+			return truncate(hay, 80)
+		}
+		mlen = len(keyword)
+	}
+	start := idx - 40
 	if start < 0 {
 		start = 0
 	}
-	end := matchIdx + matchLen + window
-	if end > len(runes) {
-		end = len(runes)
+	end := idx + mlen + 40
+	if end > len(hay) {
+		end = len(hay)
 	}
-	snippet := string(runes[start:end])
-	return truncate(snippet, 120)
+	snippet := hay[start:end]
+	snippet = strings.ReplaceAll(snippet, "\n", " ")
+	prefix := ""
+	if start > 0 {
+		prefix = "…"
+	}
+	suffix := ""
+	if end < len(hay) {
+		suffix = "…"
+	}
+	return prefix + snippet + suffix
 }
