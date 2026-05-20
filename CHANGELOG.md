@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.11.2-dev] — 2026-05-21
+
+M11.3 — Plugin remote install.
+
+### Added
+- `/plugin install` now accepts:
+  - **local path** (M4.4) — unchanged
+  - **https URL** → downloads + extracts `.tar.gz`/`.tgz`/`.zip` to a temp dir, locates the directory containing `plugin.yaml`, installs
+  - **git+https://** or **git+ssh://** → clones (depth=1, optional `@branch` suffix), locates plugin.yaml, installs
+- Tarball extraction has zip-slip protection (rejects entries that escape destDir).
+- Plugin.yaml lookup tolerates one level of nesting (tarballs commonly contain a top-level project directory).
+
+### Examples
+
+```
+/plugin install https://example.com/plugins/git-tools.tar.gz
+/plugin install git+https://github.com/foo/anthrogo-plugin-git.git
+/plugin install git+https://github.com/foo/anthrogo-plugin-git.git@v1.0
+```
+
+### Known issues / deferred
+- No signature verification — anyone can MITM HTTP downloads. Always use HTTPS; future would add sigstore or GPG signing.
+- Git clone uses --depth=1; no shallow-fetch tag resolution.
+- No retry / resume on network failures.
+- Archive content is fully trusted; no virus / static-analysis pre-install scan.
+- Memory: full archive loaded into temp file (fine for typical plugins; > 1GB tarballs may strain /tmp).
+
 ## [0.11.1-dev] — 2026-05-21
 
 M11.2 — Background tasks.

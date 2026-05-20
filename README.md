@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M11.2 complete (v0.11.1-dev). Background task tools (BackgroundLaunch/Status/Output/Cancel). See `docs/superpowers/specs/` for design docs.
+> **Status**: M11.3 complete (v0.11.2-dev). Plugin remote install via URL/git. See `docs/superpowers/specs/` for design docs.
 
 ## Input history
 
@@ -55,6 +55,7 @@ update/view loops.
 | M10.13    | TUI mouse support: wheel scroll, left-click URL open                         | shipped  |
 | M11.1     | TUI multi-pane layout: F2 cycles single/split/triple; log pane; status sidebar | shipped  |
 | M11.2     | Background task tools: BackgroundLaunch/Status/Output/Cancel                  | shipped  |
+| M11.3     | Plugin remote install: `/plugin install <url>` and `git+https://` specs        | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout
@@ -640,7 +641,28 @@ mcpServers:
 
 Project-level `<cwd>/.anthrogo/plugins/<name>/` overrides a same-named home plugin.
 
-Manage with `/plugin` (list), `/plugin info <name>`, `/plugin reload`, `/plugin install <local-path>`, `/plugin remove <name>`. After install/remove anthrogo must be restarted for commands / skills / MCP-server / hook contributions to take effect at runtime.
+Manage with `/plugin` (list), `/plugin info <name>`, `/plugin reload`, `/plugin remove <name>`. After install/remove anthrogo must be restarted for commands / skills / MCP-server / hook contributions to take effect at runtime.
+
+### Installing plugins (M4.4 + M11.3)
+
+`/plugin install` accepts three source forms:
+
+```
+# Local path (M4.4)
+/plugin install ~/my-plugins/git-tools
+
+# HTTPS URL pointing to a .tar.gz or .zip archive (M11.3)
+/plugin install https://example.com/plugins/git-tools.tar.gz
+/plugin install https://example.com/plugins/git-tools.zip
+
+# git+https:// or git+ssh:// spec — clones depth=1 (M11.3)
+/plugin install git+https://github.com/foo/anthrogo-plugin-git.git
+/plugin install git+https://github.com/foo/anthrogo-plugin-git.git@v1.0
+```
+
+For URL and git installs the archive/repo may have `plugin.yaml` at the root **or** inside a single top-level directory (the common tarball convention). Zip-slip attacks are rejected during extraction.
+
+Security note: archives are downloaded over the network and extracted before any validation. Always use HTTPS and only install plugins from sources you trust.
 
 **Trust:** Plugins execute shell commands (via hooks), spawn subprocesses (via MCP), and inject text into the model's prompt (via skills + commands). **Installing a plugin = trusting its author.** Every action still flows through anthrogo's existing permission gate, but the model's reasoning is fully influenceable by anything the plugin injects.
 
