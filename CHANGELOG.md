@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.1-dev] — 2026-05-21
+
+M10.2 — Bash sandbox (lightweight).
+
+### Added
+- `Bash.sandbox` field — opt-in lightweight sandbox layer:
+  1. Path validation (heuristic denylist: `../`, `~/.ssh`, `~/.aws`, `/etc/passwd`, `/proc/`, etc.). Command rejected as IsError if any forbidden substring present.
+  2. Restricted PATH (`/usr/bin:/bin:/usr/sbin:/sbin`).
+  3. Env stripping: HOME + SSH_* + AWS_* + GCP_* + GITHUB_* + ANTHROPIC_API_KEY + other secrets dropped from inherited env.
+
+### Known issues / deferred
+- NOT a real sandbox: no chroot, no namespaces, no container. Determined attackers can defeat it (e.g., via shell expansion to bypass substring checks, or via setuid binaries that re-read sensitive paths).
+- Heuristic denylist is incomplete; expect false negatives. For real isolation use M10's Container exec tool (deferred to a later milestone).
+- Sandbox is opt-in per call; the model can omit it. Future: configure default-on via YAML.
+
 ## [0.10.0-dev] — 2026-05-21
 
 M10.1 — Persistent search index (SQLite).

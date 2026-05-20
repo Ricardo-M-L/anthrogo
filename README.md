@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: M9.10 complete (v0.9.9-dev). Input history + `/history` command. See `docs/superpowers/specs/` for design docs.
+> **Status**: M10.2 complete (v0.10.1-dev). Bash sandbox (lightweight). See `docs/superpowers/specs/` for design docs.
 
 ## Input history
 
@@ -628,13 +628,23 @@ Use `/sessions reindex` (alias `search-rebuild-index`) to clear the in-memory LR
 | Edit        | no        | Replace `old_string` with `new_string`; unique match unless `replace_all` |
 | Glob        | yes       | doublestar glob, results sorted newest-first by mtime              |
 | Grep        | yes       | Go regexp recursive search with `output_mode` and glob filter      |
-| Bash        | no        | Run a shell command with `timeout_ms` (default 120000)             |
+| Bash        | no        | Run a shell command with `timeout_ms` (default 120000); set `sandbox:true` for opt-in lightweight sandboxing |
 | TodoWrite   | no        | Maintain a replace-on-write task list                              |
 | Diff        | yes       | `git diff` wrapper; options: `path`, `cached`, `context`, `stat`  |
 | Format      | no        | Format a file: gofmt / prettier / black / ruff / rustfmt          |
 | Git         | yes       | Read-only git subcommands: status, log, branch, show, blame, remote |
 | SymbolSearch | yes      | Find a symbol's definition by name; Go via `go/parser`, others via regex heuristics |
 | References  | yes       | Find all word-boundary usages of a name across the tree           |
+
+### Bash sandbox (M10.2)
+
+Pass `"sandbox": true` in the Bash tool call to enable a lightweight, opt-in sandbox layer:
+
+1. **Path validation** — heuristic denylist rejects commands containing `../`, `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.kube`, `/etc/passwd`, `/etc/shadow`, `/private/etc/`, `/var/log`, `/proc/`, `/sys/`. Violations surface as `is_error` results without executing.
+2. **Restricted PATH** — `PATH` is replaced with `/usr/bin:/bin:/usr/sbin:/sbin`.
+3. **Env stripping** — `HOME`, `SSH_*`, `AWS_*`, `GCP_*`, `AZURE_*`, `GOOGLE_*`, `GITHUB_*`, `GITLAB_*`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and other secret env vars are removed before the child process starts.
+
+> **Limitations**: this is NOT a real sandbox — no chroot, no Linux namespaces, no container. A determined attacker can bypass substring checks via shell expansion or read sensitive paths via setuid binaries. For true isolation, run anthrogo inside a container.
 
 ## Permission model
 

@@ -32,3 +32,57 @@ func TestBash_Timeout(t *testing.T) {
 	require.True(t, elapsed < 2*time.Second, "expected timeout to fire quickly, got %s", elapsed)
 	require.Contains(t, strings.ToLower(res.Text), "timeout")
 }
+
+// --- M10.2 sandbox tests ---
+
+func TestBash_SandboxAllowsBasicEcho(t *testing.T) {
+	res, err := (&Bash{}).Call(context.Background(), map[string]any{
+		"command": "echo sandbox-ok",
+		"sandbox": true,
+	}, &Context{})
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+	require.Contains(t, res.Text, "sandbox-ok")
+}
+
+func TestBash_SandboxRejectsParentDirNav(t *testing.T) {
+	res, err := (&Bash{}).Call(context.Background(), map[string]any{
+		"command": "ls ../../etc",
+		"sandbox": true,
+	}, &Context{})
+	require.NoError(t, err)
+	require.True(t, res.IsError)
+	require.Contains(t, res.Text, "sandbox")
+	require.Contains(t, res.Text, "../")
+}
+
+func TestBash_SandboxRejectsSshAccess(t *testing.T) {
+	res, err := (&Bash{}).Call(context.Background(), map[string]any{
+		"command": "cat ~/.ssh/id_rsa",
+		"sandbox": true,
+	}, &Context{})
+	require.NoError(t, err)
+	require.True(t, res.IsError)
+	require.Contains(t, res.Text, "sandbox")
+}
+
+func TestBash_SandboxStripsSensitiveEnv(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "sentinel-value-should-not-appear")
+	res, err := (&Bash{}).Call(context.Background(), map[string]any{
+		"command": "printenv ANTHROPIC_API_KEY || true",
+		"sandbox": true,
+	}, &Context{})
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+	require.NotContains(t, res.Text, "sentinel-value-should-not-appear")
+}
+
+func TestBash_NonSandboxKeepsEnv(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "sentinel-passthrough")
+	res, err := (&Bash{}).Call(context.Background(), map[string]any{
+		"command": "printenv ANTHROPIC_API_KEY",
+	}, &Context{})
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+	require.Contains(t, res.Text, "sentinel-passthrough")
+}
