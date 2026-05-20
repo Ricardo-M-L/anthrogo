@@ -28,12 +28,13 @@ func (DefaultPermission) Permission(context.Context, map[string]any) permissions
 	return permissions.Decision{Behavior: permissions.BehaviorAsk}
 }
 
-// PromptKind discriminates the two modal variants.
+// PromptKind discriminates the modal variants.
 type PromptKind string
 
 const (
 	PromptToolPermission PromptKind = "tool_permission"
 	PromptQuestion       PromptKind = "question"
+	PromptElicitForm     PromptKind = "elicit_form" // M6.3: MCP elicitation form
 )
 
 // PromptOption is one selectable answer for a PromptQuestion.
@@ -50,6 +51,9 @@ type PromptRequest struct {
 	InputSummary string
 	Question     string
 	Options      []PromptOption
+	// PromptElicitForm fields
+	Message string         // server-supplied prompt text
+	Schema  map[string]any // JSON schema the server provided
 }
 
 // PromptResponse is the user's reply.
@@ -59,6 +63,9 @@ type PromptResponse struct {
 	Reason        string
 	SelectedLabel string // set for PromptQuestion
 	Notes         string // optional free-text from user
+	// PromptElicitForm fields
+	Action   string         // "accept" | "decline" | "cancel"
+	FormData map[string]any // parsed JSON submitted by user (when Action=="accept")
 }
 
 // Context flows through a turn — engine builds it once per turn, hands it to

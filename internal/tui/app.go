@@ -109,14 +109,7 @@ func New(opts Options) *App {
 		Hooks:            opts.Hooks,
 		Session:          opts.Session,
 		SubagentRegistry: opts.Subagents,
-		RequestPrompt: func(_ string, req tool.PromptRequest) (tool.PromptResponse, error) {
-			if opts.Hooks != nil {
-				opts.Hooks.FireNotification(context.Background(), "permission ask: "+req.ToolName, "permission_ask")
-			}
-			reply := make(chan tool.PromptResponse, 1)
-			a.asks <- permissionAsk{req: req, reply: reply}
-			return <-reply, nil
-		},
+		RequestPrompt:    a.RequestPrompt,
 	})
 	if opts.OnEngineReady != nil {
 		opts.OnEngineReady(a.engine)
@@ -313,6 +306,17 @@ func (a *App) View() string {
 		return fmt.Sprintf("%s\n%s\n%s\n%s", a.chat.view(), pal, a.input.view(), status)
 	}
 	return fmt.Sprintf("%s\n%s\n%s", a.chat.view(), a.input.view(), status)
+}
+
+// RequestPrompt routes a prompt request through the TUI permission modal.
+// It is safe to call from any goroutine (e.g. the MCP elicitation handler).
+func (a *App) RequestPrompt(source string, req tool.PromptRequest) (tool.PromptResponse, error) {
+	if a.opts.Hooks != nil && req.Kind == tool.PromptToolPermission {
+		a.opts.Hooks.FireNotification(context.Background(), "permission ask: "+req.ToolName, "permission_ask")
+	}
+	reply := make(chan tool.PromptResponse, 1)
+	a.asks <- permissionAsk{req: req, reply: reply}
+	return <-reply, nil
 }
 
 // command.Host implementation

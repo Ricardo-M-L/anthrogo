@@ -27,6 +27,7 @@ update/view loops.
 | M5.1      | Subagents (Task tool + sub-engine, depth limit, SubagentStop hook)         | shipped  |
 | M5.2      | MCP resources + minimal elicitations (decline handler)                    | shipped  |
 | M5.3      | Concurrent subagents, isolated perms, user-defined YAML types              | shipped  |
+| M6.3      | Real TUI form elicitation handler (JSON-blob form modal)                   | shipped  |
 | M6        | OAuth + Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM   | planned  |
 
 ## Repository layout
@@ -129,7 +130,7 @@ The `MCPResource` tool has a default `alwaysAllow` rule at the CLI level (read-o
 
 ### Elicitations
 
-When an MCP server sends an `elicitation/create` request, anthrogo records it via the log sink and returns `Action: "decline"`. This advertises the elicitation capability so servers know anthrogo is reachable. To opt out entirely (suppress the capability advertisement), set `elicitation_mode: "disabled"` on the server config:
+When an MCP server sends an `elicitation/create` request, TUI users get a form modal displaying the server's message and the requested JSON schema. Type a JSON object that matches the schema and press Enter to submit, or press Esc to decline. Headless mode (`-p`) always declines. To opt out entirely (suppress the capability advertisement), set `elicitation_mode: "disabled"` on the server config:
 
 ```yaml
 mcpServers:
@@ -139,7 +140,7 @@ mcpServers:
     elicitation_mode: "disabled"   # don't advertise elicitation capability
 ```
 
-Full TUI form-input elicitation handling defers to M5.3.
+Multi-field structured input (one widget per schema property) is deferred to a later milestone; currently the form accepts a single typed JSON blob.
 
 WebSocket transport and OAuth 2.1 client flow are deferred to M5.3.
 

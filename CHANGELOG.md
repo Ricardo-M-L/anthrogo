@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.5-dev] — 2026-05-20
+
+M6.3 — Real TUI form elicitation handler.
+
+### Added
+- `tool.PromptKind` gains `PromptElicitForm`; `PromptRequest` gains `Message` + `Schema map[string]any`; `PromptResponse` gains `Action` ("accept"|"decline"|"cancel") + `FormData map[string]any`.
+- TUI permission modal renders an elicitation form with the server's message, the requested JSON schema, and a single-line text buffer. User types a JSON object, presses Enter to submit (accept) or Esc to cancel.
+- `mcp.Manager.SetElicitationHandler(fn)` injection point; `NewServer(...)` signature extended with an `ElicitFn` callback (4th arg, nil-safe).
+- `cmd/anthrogo` wires the manager handler to the TUI's `RequestPrompt` path; headless mode still declines (no TUI to render).
+- `tui.App.RequestPrompt` extracted as a public method; engine wires it directly.
+- Empty buffer + Enter → decline; invalid JSON + Enter → decline with reason.
+
+### Known issues / deferred
+- Form is a single-textarea JSON blob; multi-field structured UI (one input per schema property) is deferred.
+- No schema validation against the user's submitted JSON; server-side rejection is the only validation.
+- No multi-line input (Enter submits; can't type a newline inside the buffer).
+- Headless mode always declines.
+
 ## [0.5.4-dev] — 2026-05-20
 
 M6.2 — Independent JSONL per subagent.

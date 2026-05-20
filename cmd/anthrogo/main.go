@@ -114,6 +114,27 @@ func main() {
 			for name, scfg := range cfg.MCPServers {
 				mcpMgr.AddServer(name, scfg)
 			}
+			// Wire TUI elicitation: when the TUI is running, route elicitation
+			// requests through its permission modal. Headless mode declines.
+			mcpMgr.SetElicitationHandler(func(serverName, message string, schema map[string]any) (string, map[string]any, error) {
+				a := appRef.Load()
+				if a == nil {
+					return "decline", nil, nil
+				}
+				resp, err := a.RequestPrompt(serverName, tool.PromptRequest{
+					Kind:    tool.PromptElicitForm,
+					Message: message,
+					Schema:  schema,
+				})
+				if err != nil {
+					return "decline", nil, err
+				}
+				action := resp.Action
+				if action == "" {
+					action = "decline"
+				}
+				return action, resp.FormData, nil
+			})
 			// Use a signal-aware context so Ctrl-C during slow MCP startup
 			// cancels every in-flight srv.Start instead of waiting 60 s.
 			bootCtx, bootCancel := signal.NotifyContext(context.Background(), os.Interrupt)

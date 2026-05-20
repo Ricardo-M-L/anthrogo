@@ -97,7 +97,7 @@ func TestManager_LogSinkReceivesNotifications(t *testing.T) {
 
 func TestServer_Start_ResetsStateAfterClose(t *testing.T) {
 	bin := buildEchoServer(t)
-	s := NewServer("echo", MCPServerConfig{Command: bin, Timeout: 30 * time.Second}, nil)
+	s := NewServer("echo", MCPServerConfig{Command: bin, Timeout: 30 * time.Second}, nil, nil)
 	require.NoError(t, s.Start(context.Background()))
 	require.Equal(t, StateReady, s.State())
 
@@ -115,7 +115,7 @@ func TestServer_Start_ResetsStateAfterClose(t *testing.T) {
 // that invalid configs fail fast with StateFailed.
 
 func TestServer_Start_RejectsBadType(t *testing.T) {
-	s := NewServer("x", MCPServerConfig{Type: "garbage", Timeout: 2 * time.Second}, nil)
+	s := NewServer("x", MCPServerConfig{Type: "garbage", Timeout: 2 * time.Second}, nil, nil)
 	err := s.Start(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unknown")
@@ -123,14 +123,14 @@ func TestServer_Start_RejectsBadType(t *testing.T) {
 }
 
 func TestServer_Start_StdioRequiresCommand(t *testing.T) {
-	s := NewServer("x", MCPServerConfig{Type: "stdio", Timeout: 2 * time.Second}, nil)
+	s := NewServer("x", MCPServerConfig{Type: "stdio", Timeout: 2 * time.Second}, nil, nil)
 	err := s.Start(context.Background())
 	require.Error(t, err)
 	require.Equal(t, StateFailed, s.State())
 }
 
 func TestServer_Start_SSERequiresEndpoint(t *testing.T) {
-	s := NewServer("x", MCPServerConfig{Type: "sse", Timeout: 2 * time.Second}, nil)
+	s := NewServer("x", MCPServerConfig{Type: "sse", Timeout: 2 * time.Second}, nil, nil)
 	err := s.Start(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "endpoint")
@@ -138,7 +138,7 @@ func TestServer_Start_SSERequiresEndpoint(t *testing.T) {
 }
 
 func TestServer_Start_StreamableRequiresEndpoint(t *testing.T) {
-	s := NewServer("x", MCPServerConfig{Type: "streamable", Timeout: 2 * time.Second}, nil)
+	s := NewServer("x", MCPServerConfig{Type: "streamable", Timeout: 2 * time.Second}, nil, nil)
 	err := s.Start(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "endpoint")

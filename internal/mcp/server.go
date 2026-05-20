@@ -24,6 +24,11 @@ const (
 	StateClosed State = "closed"
 )
 
+// ElicitFn is a callback invoked when an MCP server requests elicitation.
+// Returns action ("accept"|"decline"|"cancel"), optional form data, and error.
+// When nil the server falls back to returning "decline".
+type ElicitFn func(serverName string, message string, schema map[string]any) (action string, formData map[string]any, err error)
+
 // Server wraps one MCP stdio subprocess + its SDK ClientSession.
 type Server struct {
 	mu sync.RWMutex
@@ -39,10 +44,12 @@ type Server struct {
 	err   error
 
 	notifyLog func(serverName, msg string) // nil-safe
+	elicitFn  ElicitFn                     // nil-safe; M6.3 TUI elicitation handler
 }
 
 // NewServer constructs (but does not start) a Server.
-func NewServer(name string, cfg MCPServerConfig, notifyLog func(string, string)) *Server {
+// elicit may be nil; when non-nil it is called instead of auto-declining elicitation requests.
+func NewServer(name string, cfg MCPServerConfig, notifyLog func(string, string), elicit ElicitFn) *Server {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = DefaultInitTimeout
 	}
@@ -51,6 +58,7 @@ func NewServer(name string, cfg MCPServerConfig, notifyLog func(string, string))
 		cfg:       cfg,
 		state:     StateInit,
 		notifyLog: notifyLog,
+		elicitFn:  elicit,
 	}
 }
 
@@ -135,8 +143,24 @@ func (s *Server) Start(parent context.Context) error {
 			if msg == "" {
 				msg = "(no message)"
 			}
+			if srv.elicitFn != nil {
+				var schemaMap map[string]any
+				if req.Params.RequestedSchema != nil {
+					if m, ok := req.Params.RequestedSchema.(map[string]any); ok {
+						schemaMap = m
+					}
+				}
+				action, data, err := srv.elicitFn(srv.Name, msg, schemaMap)
+				if err != nil {
+					if srv.notifyLog != nil {
+						srv.notifyLog(srv.Name, "elicit handler error: "+err.Error())
+					}
+					return &sdk.ElicitResult{Action: "decline"}, nil
+				}
+				return &sdk.ElicitResult{Action: action, Content: data}, nil
+			}
 			if srv.notifyLog != nil {
-				srv.notifyLog(srv.Name, fmt.Sprintf("elicitation requested: %s — declining", msg))
+				srv.notifyLog(srv.Name, fmt.Sprintf("elicitation requested: %s — declining (no handler)", msg))
 			}
 			return &sdk.ElicitResult{Action: "decline"}, nil
 		}

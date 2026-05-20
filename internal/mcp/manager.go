@@ -14,9 +14,10 @@ import (
 // Manager owns N MCP Servers and exposes their tools through tool.Tool
 // adapters. Construct with NewManager; call Start before AllTools.
 type Manager struct {
-	mu      sync.RWMutex
-	servers map[string]*Server
-	logSink LogSink
+	mu       sync.RWMutex
+	servers  map[string]*Server
+	logSink  LogSink
+	elicitFn ElicitFn // M6.3: set via SetElicitationHandler
 }
 
 // NewManager constructs a Manager with an optional LogSink.
@@ -31,7 +32,19 @@ func NewManager(logSink LogSink) *Manager {
 func (m *Manager) AddServer(name string, cfg MCPServerConfig) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.servers[name] = NewServer(name, cfg, m.logSink)
+	m.servers[name] = NewServer(name, cfg, m.logSink, m.elicitFn)
+}
+
+// SetElicitationHandler installs fn as the elicitation callback for all
+// current and future servers. Call before Start for best effect; any already-
+// started servers update their elicitFn immediately (affects next elicitation).
+func (m *Manager) SetElicitationHandler(fn ElicitFn) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.elicitFn = fn
+	for _, s := range m.servers {
+		s.elicitFn = fn
+	}
 }
 
 // Start spawns every server in parallel and waits for all of them to settle

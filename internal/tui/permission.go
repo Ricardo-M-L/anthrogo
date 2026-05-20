@@ -16,9 +16,10 @@ type permissionAsk struct {
 }
 
 type permission struct {
-	theme   Theme
-	visible bool
-	pending permissionAsk
+	theme      Theme
+	visible    bool
+	pending    permissionAsk
+	formBuffer []rune // accumulates user input for PromptElicitForm
 }
 
 func newPermission(theme Theme) permission { return permission{theme: theme} }
@@ -37,6 +38,9 @@ func (p *permission) update(msg tea.Msg) bool {
 	k, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return true
+	}
+	if p.pending.req.Kind == tool.PromptElicitForm {
+		return p.handleElicitForm(k)
 	}
 	if p.pending.req.Kind == tool.PromptQuestion {
 		switch k.String() {
@@ -77,11 +81,70 @@ func (p *permission) update(msg tea.Msg) bool {
 	return true
 }
 
+func (p *permission) handleElicitForm(k tea.KeyMsg) bool {
+	switch k.Type {
+	case tea.KeyEsc:
+		p.pending.reply <- tool.PromptResponse{Action: "cancel"}
+		close(p.pending.reply)
+		p.hide()
+		p.formBuffer = nil
+		return true
+	case tea.KeyEnter:
+		raw := strings.TrimSpace(string(p.formBuffer))
+		if raw == "" {
+			p.pending.reply <- tool.PromptResponse{Action: "decline"}
+			close(p.pending.reply)
+			p.hide()
+			p.formBuffer = nil
+			return true
+		}
+		var data map[string]any
+		if err := json.Unmarshal([]byte(raw), &data); err != nil {
+			p.pending.reply <- tool.PromptResponse{Action: "decline", Reason: "invalid JSON: " + err.Error()}
+			close(p.pending.reply)
+			p.hide()
+			p.formBuffer = nil
+			return true
+		}
+		p.pending.reply <- tool.PromptResponse{Action: "accept", FormData: data}
+		close(p.pending.reply)
+		p.hide()
+		p.formBuffer = nil
+		return true
+	case tea.KeyBackspace, tea.KeyDelete:
+		if len(p.formBuffer) > 0 {
+			p.formBuffer = p.formBuffer[:len(p.formBuffer)-1]
+		}
+		return true
+	case tea.KeyRunes:
+		p.formBuffer = append(p.formBuffer, k.Runes...)
+		return true
+	case tea.KeySpace:
+		p.formBuffer = append(p.formBuffer, ' ')
+		return true
+	}
+	return true
+}
+
 func (p permission) view() string {
 	if !p.visible {
 		return ""
 	}
 	switch p.pending.req.Kind {
+	case tool.PromptElicitForm:
+		var body strings.Builder
+		body.WriteString("MCP elicitation\n\n")
+		if p.pending.req.Message != "" {
+			body.WriteString(p.pending.req.Message + "\n\n")
+		}
+		if p.pending.req.Schema != nil {
+			rawSchema, _ := json.MarshalIndent(p.pending.req.Schema, "", "  ")
+			body.WriteString("Schema:\n" + string(rawSchema) + "\n\n")
+		}
+		body.WriteString("Type a JSON object matching the schema, then press Enter:\n")
+		body.WriteString("> " + string(p.formBuffer) + "\n\n")
+		body.WriteString("[Enter] submit   [Esc] cancel/decline")
+		return p.theme.ModalBorder.Padding(1, 2).Render(body.String())
 	case tool.PromptQuestion:
 		var body strings.Builder
 		body.WriteString("Question: " + p.pending.req.Question + "\n\n")
