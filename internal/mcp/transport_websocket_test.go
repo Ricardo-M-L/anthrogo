@@ -90,6 +90,34 @@ func TestWebSocketTransport_ReadWrite(t *testing.T) {
 	require.Equal(t, string(sentBytes), string(gotBytes))
 }
 
+// TestWebSocketTransport_HTTPHeaderAndSubprotocols verifies that HTTPHeader and
+// Subprotocols are forwarded to the server during the WebSocket handshake.
+func TestWebSocketTransport_HTTPHeaderAndSubprotocols(t *testing.T) {
+	var seenHeader, seenSubproto string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenHeader = r.Header.Get("X-Anthrogo-Test")
+		seenSubproto = r.Header.Get("Sec-WebSocket-Protocol")
+		c, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{"mcp"}})
+		if err != nil {
+			t.Logf("accept error: %v", err)
+			return
+		}
+		defer c.Close(websocket.StatusNormalClosure, "")
+	}))
+	defer srv.Close()
+
+	tp := &WebSocketClientTransport{
+		Endpoint:     httpToWS(srv.URL),
+		HTTPHeader:   http.Header{"X-Anthrogo-Test": []string{"hello"}},
+		Subprotocols: []string{"mcp"},
+	}
+	conn, err := tp.Connect(context.Background())
+	require.NoError(t, err)
+	conn.Close()
+	require.Equal(t, "hello", seenHeader)
+	require.Contains(t, seenSubproto, "mcp")
+}
+
 // TestWebSocketTransport_ServerCloses verifies that a mid-read server close
 // surfaces an error to the caller of Read (not a hang or panic).
 func TestWebSocketTransport_ServerCloses(t *testing.T) {

@@ -232,10 +232,15 @@ func (s *Server) Start(parent context.Context) error {
 			return s.err
 		}
 		sseT := &sdk.SSEClientTransport{Endpoint: s.cfg.Endpoint}
-		if bearer != "" {
-			sseT.HTTPClient = &http.Client{
-				Transport: bearerInjector{base: http.DefaultTransport, token: bearer},
+		if bearer != "" || len(s.cfg.Headers) > 0 {
+			var base http.RoundTripper = http.DefaultTransport
+			if len(s.cfg.Headers) > 0 {
+				base = headerInjector{base: base, headers: s.cfg.Headers}
 			}
+			if bearer != "" {
+				base = bearerInjector{base: base, token: bearer}
+			}
+			sseT.HTTPClient = &http.Client{Transport: base}
 		}
 		transport = sseT
 	case "streamable":
@@ -247,10 +252,15 @@ func (s *Server) Start(parent context.Context) error {
 			Endpoint:   s.cfg.Endpoint,
 			MaxRetries: s.cfg.MaxRetries,
 		}
-		if bearer != "" {
-			stT.HTTPClient = &http.Client{
-				Transport: bearerInjector{base: http.DefaultTransport, token: bearer},
+		if bearer != "" || len(s.cfg.Headers) > 0 {
+			var base http.RoundTripper = http.DefaultTransport
+			if len(s.cfg.Headers) > 0 {
+				base = headerInjector{base: base, headers: s.cfg.Headers}
 			}
+			if bearer != "" {
+				base = bearerInjector{base: base, token: bearer}
+			}
+			stT.HTTPClient = &http.Client{Transport: base}
 		}
 		transport = stT
 	case "websocket":
@@ -258,14 +268,24 @@ func (s *Server) Start(parent context.Context) error {
 			s.fail(fmt.Errorf("websocket MCP server %s requires endpoint", s.Name))
 			return s.err
 		}
-		wsT := &WebSocketClientTransport{Endpoint: s.cfg.Endpoint}
-		if bearer != "" {
-			if wsT.HTTPHeader == nil {
-				wsT.HTTPHeader = make(http.Header)
+		var hdr http.Header
+		if len(s.cfg.Headers) > 0 {
+			hdr = make(http.Header)
+			for k, v := range s.cfg.Headers {
+				hdr.Set(k, v)
 			}
-			wsT.HTTPHeader.Set("Authorization", "Bearer "+bearer)
 		}
-		transport = wsT
+		if bearer != "" {
+			if hdr == nil {
+				hdr = make(http.Header)
+			}
+			hdr.Set("Authorization", "Bearer "+bearer)
+		}
+		transport = &WebSocketClientTransport{
+			Endpoint:     s.cfg.Endpoint,
+			HTTPHeader:   hdr,
+			Subprotocols: s.cfg.Subprotocols,
+		}
 	default:
 		s.fail(fmt.Errorf("unknown MCP server type %q for %s", s.cfg.Type, s.Name))
 		return s.err

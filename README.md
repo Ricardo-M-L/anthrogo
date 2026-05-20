@@ -177,15 +177,26 @@ mcpServers:
     type: streamable
     endpoint: https://example.com/mcp
     max_retries: 3
+    headers:
+      X-Api-Key: my-secret-key
   legacy-sse:
     type: sse
     endpoint: https://legacy.example.com/mcp
+    headers:
+      Authorization: "Bearer static-token"
   ws-server:
     type: websocket
     endpoint: wss://example.com/mcp
+    subprotocols: ["mcp"]
+    headers:
+      X-Tenant-Id: "acme"
 ```
 
 `type` defaults to `stdio`. Other values: `sse` (2024-11-05 SSE), `streamable` (newer streamable HTTP), `websocket` (custom WS implementation; ws:// or wss://).
+
+`headers` injects arbitrary HTTP headers on every outgoing request for `sse`, `streamable`, and `websocket` transports. When `oauth:` is also set, headers are applied first and the OAuth `Authorization: Bearer` header is layered on top.
+
+`subprotocols` (websocket only) advertises the listed subprotocols during the WebSocket handshake (`Sec-WebSocket-Protocol`). The server's chosen subprotocol is echoed back in the response header.
 
 Tools surface as `mcp__<server>__<tool>` (names exceeding 64 chars get a sha-8 suffix). Inspect status with `/mcp`, view one server's last error with `/mcp status <name>`, restart all servers with `/mcp reload` (removes and re-registers all `mcp__*` tools; the model's system prompt is still built at startup, so restart anthrogo to refresh model awareness of newly-added tools). Server log notifications render dim-styled in the TUI; in headless they go to stderr.
 

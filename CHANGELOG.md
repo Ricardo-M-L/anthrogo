@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.7-dev] — 2026-05-20
+
+M8.7 — WebSocket subprotocol + YAML HTTPHeader.
+
+### Added
+- `MCPServerConfig.Subprotocols []string` (YAML `subprotocols`) — passed to `WebSocketClientTransport` and on to `websocket.Dial`'s `DialOptions.Subprotocols`. Server's selected subprotocol returned in `Sec-WebSocket-Protocol` response header.
+- `MCPServerConfig.Headers map[string]string` (YAML `headers`) — applied to ALL HTTP-based transports (websocket via `DialOptions.HTTPHeader`; sse / streamable via a new `headerInjector` RoundTripper on the configured HTTPClient).
+- When both `oauth:` and `headers:` are configured, the `headerInjector` and `bearerInjector` compose so Authorization + custom headers both land on the request.
+- `internal/mcp/transport_auth.go` adds `headerInjector` next to the existing `bearerInjector` (M6.5).
+
+### Known issues / deferred
+- Subprotocol is websocket-only (sse / streamable don't have a subprotocol layer).
+- Headers can't be templated from environment variables in YAML (use literal strings). Future could expand `env:VARNAME` syntax there.
+- No header redaction in `/mcp status <name>` output — Authorization values would leak if printed.
+
 ## [0.8.6-dev] — 2026-05-20
 
 M8.6 — /sessions search enhancements.

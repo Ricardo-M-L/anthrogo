@@ -31,6 +31,16 @@ type MCPServerConfig struct {
 	// Any other value is treated as "decline" with a log warning.
 	ElicitationMode string `yaml:"elicitation_mode,omitempty"`
 
+	// Subprotocols is the list of WebSocket subprotocols to advertise during the
+	// handshake (websocket transport only). The server's selected subprotocol is
+	// returned in the Sec-WebSocket-Protocol response header.
+	Subprotocols []string `yaml:"subprotocols,omitempty"`
+
+	// Headers are additional HTTP headers injected on every outgoing request.
+	// Applies to websocket (via DialOptions.HTTPHeader), sse, and streamable
+	// transports (via a headerInjector RoundTripper). Takes no effect on stdio.
+	Headers map[string]string `yaml:"headers,omitempty"`
+
 	// OAuth, when non-nil, enables the OAuth 2.1 PKCE authorization-code flow for
 	// sse / streamable / websocket transports. The fetched token is injected as
 	// "Authorization: Bearer <token>" on every outgoing HTTP request.

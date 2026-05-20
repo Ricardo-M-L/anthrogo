@@ -18,18 +18,20 @@ import (
 // JSON-RPC message as one text-mode websocket message.
 // Endpoint must use the ws:// or wss:// scheme.
 // HTTPHeader is optional; use it for auth tokens or custom headers.
+// Subprotocols is optional; when non-empty the values are advertised in the
+// Sec-WebSocket-Protocol handshake header.
 type WebSocketClientTransport struct {
-	Endpoint   string
-	HTTPHeader http.Header
+	Endpoint     string
+	HTTPHeader   http.Header
+	Subprotocols []string
 }
 
 // Connect dials the WebSocket endpoint and returns a Connection.
 // Implements sdk.Transport.
 func (t *WebSocketClientTransport) Connect(ctx context.Context) (sdk.Connection, error) {
 	c, _, err := websocket.Dial(ctx, t.Endpoint, &websocket.DialOptions{
-		HTTPHeader: t.HTTPHeader,
-		// Subprotocol negotiation is deferred; many MCP-over-WS servers don't
-		// use a specific subprotocol.
+		HTTPHeader:   t.HTTPHeader,
+		Subprotocols: t.Subprotocols,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("websocket dial %s: %w", t.Endpoint, err)
