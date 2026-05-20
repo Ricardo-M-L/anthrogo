@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.10.7-dev] — 2026-05-21
+
+M10.8 — Pipe-friendly mode.
+
+### Added
+- Stdin merge: when stdin is piped (`os.ModeCharDevice` not set), its content is appended to `-p` or used as the entire prompt if `-p` is empty. Example: `echo "summarize this" | anthrogo -p` works.
+- `--json` flag — headless mode emits line-delimited JSON events to stdout instead of plain text. Useful for piping into other tools or scripting.
+
+### Example
+
+```bash
+git diff | anthrogo -p "summarize this diff"
+cat README.md | anthrogo --json -p "describe in 3 bullets" | jq .text
+```
+
+### Known issues / deferred
+- No interleaved stdin during a turn (stdin is read once at start).
+- JSON mode emits query engine event kinds (`assistant_delta`, `turn_complete`) rather than raw provider event kinds; consumers must use these names.
+- TTY detection via os.ModeCharDevice; if you redirect /dev/null as stdin and pass -p it still reads stdin (empty); benign.
+
 ## [0.10.6-dev] — 2026-05-21
 
 M10.7 — ContainerExec tool.

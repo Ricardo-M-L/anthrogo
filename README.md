@@ -94,6 +94,26 @@ Set `ANTHROPIC_API_KEY` in your environment, then:
 ./bin/anthrogo --cwd /path/to/project
 ```
 
+## Pipe / scripting
+
+When stdin is piped (not a terminal), its content is merged into the prompt:
+
+```bash
+# stdin becomes the entire prompt
+echo "what is 2+2?" | anthrogo -p
+
+# stdin is appended after the -p argument
+git diff | anthrogo -p "summarize this diff"
+
+# --json emits one JSON object per line (line-delimited JSON / ndjson)
+cat README.md | anthrogo --json -p "describe in 3 bullets" | jq -r '.text // empty'
+```
+
+The `--json` flag is useful for scripting: every engine event (text delta, tool
+use, usage, errors) becomes a JSON object with a `kind` field. Recognized kinds:
+`assistant_delta`, `assistant_stop`, `tool_use_request`, `tool_result`,
+`turn_complete`, `usage`, `error`.
+
 ## Configuration
 
 Settings live in `$ANTHROGO_HOME/settings.yaml` (default: `~/.anthrogo/settings.yaml`). Example:

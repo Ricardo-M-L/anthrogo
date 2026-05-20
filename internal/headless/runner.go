@@ -2,6 +2,7 @@ package headless
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -65,6 +66,10 @@ type Options struct {
 
 	// CostLimitUSD, when > 0, enables hard budget enforcement via IsOverBudget().
 	CostLimitUSD float64
+
+	// JSON, when true, writes line-delimited JSON events to Stdout instead of
+	// plain text. Each engine event becomes one JSON object on its own line.
+	JSON bool
 }
 
 // RunExecRequest executes a command.ExecRequest in headless mode: the subprocess
@@ -143,6 +148,41 @@ func Run(ctx context.Context, opts Options) error {
 		blocks = []message.Block{{Type: message.BlockText, Text: prompt}}
 	}
 	ch := e.SubmitMessageBlocks(ctx, blocks)
+
+	if opts.JSON {
+		enc := json.NewEncoder(opts.Stdout)
+		for ev := range ch {
+			out := map[string]any{"kind": string(ev.Kind)}
+			if ev.Text != "" {
+				out["text"] = ev.Text
+			}
+			if ev.ToolUseID != "" {
+				out["tool_use_id"] = ev.ToolUseID
+			}
+			if ev.ToolName != "" {
+				out["tool_name"] = ev.ToolName
+			}
+			if ev.StopReason != "" {
+				out["stop_reason"] = ev.StopReason
+			}
+			if ev.Usage.InputTokens != 0 || ev.Usage.OutputTokens != 0 {
+				out["input"] = ev.Usage.InputTokens
+				out["output"] = ev.Usage.OutputTokens
+			}
+			if ev.Err != nil {
+				out["error"] = ev.Err.Error()
+			}
+			_ = enc.Encode(out)
+			if ev.Kind == query.KindError {
+				return ev.Err
+			}
+			if ev.Kind == query.KindTurnComplete {
+				return nil
+			}
+		}
+		return nil
+	}
+
 	for ev := range ch {
 		switch ev.Kind {
 		case query.KindAssistantDelta:

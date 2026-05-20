@@ -3,17 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
-
-	"strings"
 
 	"github.com/ricardo/anthrogo/internal/config"
 	"github.com/ricardo/anthrogo/internal/headless"
@@ -55,6 +55,7 @@ func main() {
 		providerFlag        string
 		autoCompactFlag     int
 		costLimitFlag       float64
+		jsonFlag            bool
 	)
 
 	root := &cobra.Command{
@@ -550,7 +551,22 @@ func main() {
 			}
 			pricingTable := pricing.NewTable(pricing.MergeWithUserRates(userRates))
 
-			if prompt != "" {
+			if prompt != "" || isStdinPiped() {
+				// Merge piped stdin into the prompt.
+				if isStdinPiped() {
+					stdinBytes, readErr := io.ReadAll(os.Stdin)
+					if readErr == nil && len(stdinBytes) > 0 {
+						stdinText := strings.TrimRight(string(stdinBytes), "\n")
+						if prompt == "" {
+							prompt = stdinText
+						} else {
+							prompt = prompt + "\n\n" + stdinText
+						}
+					}
+				}
+				if prompt == "" {
+					return fmt.Errorf("no prompt: pass -p \"...\" or pipe stdin")
+				}
 				perms.ShouldAvoidPrompts = true
 				return headless.Run(context.Background(), headless.Options{
 					Prompt:                prompt,
@@ -572,6 +588,7 @@ func main() {
 					AutoCompactKeepRecent: cfg.AutoCompactKeepRecent,
 					Pricing:               pricingTable,
 					CostLimitUSD:          cfg.CostLimitUSD,
+					JSON:                  jsonFlag,
 				})
 			}
 
@@ -666,7 +683,8 @@ func main() {
 		},
 	}
 
-	root.Flags().StringVarP(&prompt, "print", "p", "", "Headless mode: run prompt and exit")
+	root.Flags().StringVarP(&prompt, "print", "p", "", "Headless mode: run prompt and exit (also reads piped stdin)")
+	root.Flags().BoolVar(&jsonFlag, "json", false, "Headless mode: emit line-delimited JSON events to stdout instead of plain text")
 	root.Flags().StringVar(&modelFlag, "model", "", "Override model from settings.yaml")
 	root.Flags().StringVar(&modeFlag, "permission-mode", "", "default | plan | acceptEdits | bypassPermissions")
 	root.Flags().StringVar(&cwdFlag, "cwd", "", "Override working directory")
@@ -825,6 +843,16 @@ func buildFromProfile(ctx context.Context, name string, prof config.Profile, def
 	default:
 		return nil, "", fmt.Errorf("unknown profile type %q for provider %q", prof.Type, name)
 	}
+}
+
+// isStdinPiped returns true when os.Stdin is not a character device (i.e. data
+// is being piped in from another process or a file redirect).
+func isStdinPiped() bool {
+	info, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice == 0
 }
 
 // buildProvider selects and constructs the active provider based on config and
