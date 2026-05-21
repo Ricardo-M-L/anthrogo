@@ -43,10 +43,23 @@ func TestRegistry_All_PreservesOrder(t *testing.T) {
 	require.Equal(t, []string{"A", "B", "C"}, names)
 }
 
-func TestRegistry_DuplicatePanics(t *testing.T) {
+func TestRegistry_Register_LogsAndContinuesOnDuplicate(t *testing.T) {
 	r := NewRegistry()
 	r.Register(stubTool{name: "A"})
-	require.Panics(t, func() { r.Register(stubTool{name: "A"}) })
+	// Second registration should NOT panic; original tool should be preserved.
+	require.NotPanics(t, func() { r.Register(stubTool{name: "A"}) })
+	all := r.All()
+	require.Len(t, all, 1, "duplicate should be silently dropped")
+}
+
+func TestRegistry_TryRegister_ReturnsErrorOnDuplicate(t *testing.T) {
+	r := NewRegistry()
+	require.NoError(t, r.TryRegister(stubTool{name: "X"}))
+	err := r.TryRegister(stubTool{name: "X"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already registered")
+	// Registry must still contain exactly one entry.
+	require.Len(t, r.All(), 1)
 }
 
 func TestRegistry_RemoveByPrefix(t *testing.T) {

@@ -88,6 +88,40 @@ func TestCalendar_EndBeforeStart(t *testing.T) {
 	require.Contains(t, res.Text, "end must be after start")
 }
 
+func TestCalendar_RFC5545_LineFolding(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "fold.ics")
+
+	// Build a description that is longer than 75 octets after the property name prefix.
+	longDesc := strings.Repeat("A", 200)
+
+	res, err := CalendarEvent{}.Call(context.Background(), map[string]any{
+		"title":       "Fold Test",
+		"start":       "2026-06-01T10:00:00+00:00",
+		"end":         "2026-06-01T11:00:00+00:00",
+		"description": longDesc,
+		"out_path":    outPath,
+	}, nil)
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+
+	data, err := os.ReadFile(outPath)
+	require.NoError(t, err)
+
+	// Split on CRLF so we can inspect each physical line.
+	lines := strings.Split(string(data), "\r\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		require.LessOrEqual(t, len(line), 75,
+			"RFC 5545: no unfolded line should exceed 75 octets, got %d: %q", len(line), line)
+	}
+
+	// A continuation line must appear (CRLF + space).
+	require.Contains(t, string(data), "\r\n ", "RFC 5545 fold continuation (CRLF+SPACE) must be present")
+}
+
 func TestCalendar_DefaultPath(t *testing.T) {
 	res, err := CalendarEvent{}.Call(context.Background(), map[string]any{
 		"title": "My Event",

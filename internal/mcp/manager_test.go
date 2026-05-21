@@ -74,7 +74,11 @@ func TestManager_FailedServer_RestStillReady(t *testing.T) {
 	m.AddServer("good", MCPServerConfig{Command: bin, Timeout: 30 * time.Second})
 	m.AddServer("bad", MCPServerConfig{Command: "/nonexistent/binary", Timeout: 2 * time.Second})
 
-	require.NoError(t, m.Start(context.Background()))
+	// Start now returns an error for any failed server; callers should log it but continue.
+	err := m.Start(context.Background())
+	require.Error(t, err, "Start should report the failing server")
+	require.Contains(t, err.Error(), "bad")
+
 	require.Equal(t, StateReady, m.State("good"))
 	require.Equal(t, StateFailed, m.State("bad"))
 
@@ -198,6 +202,21 @@ func TestServer_ToolListChanged_TriggersRefresh(t *testing.T) {
 	}
 	notifyMu.Unlock()
 	require.True(t, seen, "expected 'tool list changed' notification; got: %v", notifications)
+}
+
+func TestManager_Start_ReturnsErrorForFailedServers(t *testing.T) {
+	m := NewManager(nil)
+	// /nonexistent/binary will fail immediately; Timeout=1s so the test is fast.
+	m.AddServer("bad1", MCPServerConfig{Command: "/nonexistent/binary", Timeout: 1 * time.Second})
+	m.AddServer("bad2", MCPServerConfig{Command: "/also/nonexistent", Timeout: 1 * time.Second})
+
+	err := m.Start(context.Background())
+	require.Error(t, err, "Start should return an error when servers fail")
+	require.Contains(t, err.Error(), "failed to start")
+
+	// Individual servers should be in StateFailed.
+	require.Equal(t, StateFailed, m.State("bad1"))
+	require.Equal(t, StateFailed, m.State("bad2"))
 }
 
 func TestMain(m *testing.M) {

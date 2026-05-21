@@ -48,8 +48,9 @@ func (m *Manager) SetElicitationHandler(fn ElicitFn) {
 }
 
 // Start spawns every server in parallel and waits for all of them to settle
-// (ready or failed). Returns nil even if some servers failed — inspect with
-// State(name).
+// (ready or failed). Returns a slice of per-server errors (one entry per
+// server that failed to start); returns nil if all servers started cleanly.
+// Callers may also inspect individual server state via State(name) / Err(name).
 func (m *Manager) Start(ctx context.Context) error {
 	m.mu.RLock()
 	servers := make([]*Server, 0, len(m.servers))
@@ -58,15 +59,33 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 	m.mu.RUnlock()
 
+	type result struct {
+		name string
+		err  error
+	}
+	results := make(chan result, len(servers))
+
 	var wg sync.WaitGroup
 	for _, s := range servers {
 		wg.Add(1)
 		go func(srv *Server) {
 			defer wg.Done()
-			_ = srv.Start(ctx)
+			err := srv.Start(ctx)
+			results <- result{name: srv.Name, err: err}
 		}(s)
 	}
 	wg.Wait()
+	close(results)
+
+	var errs []error
+	for r := range results {
+		if r.err != nil {
+			errs = append(errs, fmt.Errorf("mcp server %q: %w", r.name, r.err))
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("mcp: %d server(s) failed to start: %w", len(errs), errs[0])
+	}
 	return nil
 }
 

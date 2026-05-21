@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
@@ -66,7 +67,7 @@ func buildRequest(model string, req provider.Request) chatRequest {
 							})
 						}
 					case message.BlockThinking:
-						// silently drop
+						log.Printf("openai stream: dropping thinking block (not supported by OpenAI)")
 					}
 				}
 				msgs = append(msgs, chatMsg{Role: "user", Content: parts})
@@ -78,7 +79,7 @@ func buildRequest(model string, req provider.Request) chatRequest {
 					case message.BlockText:
 						sb.WriteString(b.Text)
 					case message.BlockThinking:
-						// silently drop
+						log.Printf("openai stream: dropping thinking block (not supported by OpenAI)")
 					}
 				}
 				msgs = append(msgs, chatMsg{Role: "user", Content: sb.String()})
@@ -101,7 +102,7 @@ func buildRequest(model string, req provider.Request) chatRequest {
 						},
 					})
 				case message.BlockThinking, message.BlockImage:
-					// silently drop
+					log.Printf("openai stream: dropping %s block from assistant turn (not supported by OpenAI)", b.Type)
 				}
 			}
 			msg := chatMsg{Role: "assistant", Content: text.String()}

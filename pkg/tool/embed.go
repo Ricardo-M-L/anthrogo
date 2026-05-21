@@ -8,8 +8,25 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 )
+
+// apiKeyPattern matches common API key patterns (e.g. OpenAI sk-... tokens).
+var apiKeyPattern = regexp.MustCompile(`sk-[A-Za-z0-9_\-]{16,}`)
+
+// redactAPIKeys replaces API key patterns in s with a safe placeholder.
+func redactAPIKeys(s string) string {
+	return apiKeyPattern.ReplaceAllString(s, "sk-***REDACTED***")
+}
+
+// safeSnippet truncates s to 512 bytes and redacts API keys.
+func safeSnippet(s string) string {
+	if len(s) > 512 {
+		s = s[:512] + "...[truncated]"
+	}
+	return redactAPIKeys(s)
+}
 
 // Embed converts text to embedding vectors via an OpenAI-compatible embeddings endpoint.
 type Embed struct {
@@ -154,7 +171,7 @@ func (e Embed) Call(ctx context.Context, input map[string]any, _ *Context) (Resu
 		return errResult("embed: read response: " + err.Error()), nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return errResult(fmt.Sprintf("embed: server error %d: %s", resp.StatusCode, string(respBytes))), nil
+		return errResult(fmt.Sprintf("embed: HTTP %d: %s", resp.StatusCode, safeSnippet(string(respBytes)))), nil
 	}
 
 	// Parse OpenAI embeddings response

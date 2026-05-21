@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.13.16-dev] — 2026-05-21
+
+M14.2 — Robustness hardening pack.
+
+### Fixed
+- **C4** — `pkg/tool/registry.go`: `Register` no longer panics on duplicate tool name. New `TryRegister` method returns an error on collision; `Register` logs a warning and silently discards the duplicate (first registration wins), preventing daemon crashes from MCP/builtin tool name collisions.
+- **C5a** — `pkg/query/loop.go`: auto-compact error no longer silently discarded; failure is now logged via `log.Printf` so operators can see when compaction fails.
+- **C5b** — `pkg/provider/openai/stream.go`: three `// silently drop` sites replaced with `log.Printf` calls for thinking/image blocks dropped when translating to OpenAI format.
+- **C5c** — `internal/mcp/manager.go`: `Start` now collects per-server start errors and returns a non-nil error when any server fails. `cmd/anthrogo/main.go` logs the error to stderr via `fmt.Fprintln`.
+- **C6** — `pkg/kairos/client.go`: `postErr` in tool-result POST goroutine is now logged via `log.Printf` instead of silently discarded with `_ = postErr`.
+- **H1a** — `pkg/skill/registry.go`: `installFromURL` now uses `io.LimitReader` capped at 50 MB; returns an error if the limit is hit.
+- **H1b** — `pkg/skill/registry.go`: `copySkillDir` now rejects symlinks with an explicit error instead of replicating them, preventing path-escape attacks via crafted skill archives.
+- **H2** — `pkg/tool/embed.go`, `pkg/tool/imagegen.go`: HTTP error responses are now truncated to 512 bytes and scanned for `sk-[A-Za-z0-9_-]{16,}` patterns, which are replaced with `sk-***REDACTED***` before appearing in error messages.
+- **H3** — `pkg/tool/calendar.go`: added `foldICalLine` helper that folds SUMMARY/DESCRIPTION/LOCATION property lines at 75 octets per RFC 5545 §3.1 using `\r\n ` continuation.
+- **H4** — `pkg/tool/browser.go`: `chromedp.NoSandbox` is now only appended when `os.Getuid() == 0` (running as root/container); normal user accounts retain the default Chrome sandbox.
+
+### Tests added
+- `TestRegistry_TryRegister_ReturnsErrorOnDuplicate` — TryRegister returns error on collision (C4)
+- `TestRegistry_Register_LogsAndContinuesOnDuplicate` — Register does not panic, drops duplicate (C4)
+- `TestManager_Start_ReturnsErrorForFailedServers` — Start returns error for failed MCP servers (C5c)
+- `TestEmbed_ErrorRedactsAPIKey` — API key redacted in embed error message (H2)
+- `TestImageGen_ErrorRedactsAPIKey` — API key redacted in imagegen error message (H2)
+- `TestCalendar_RFC5545_LineFolding` — no physical line exceeds 75 octets, CRLF+SPACE continuations present (H3)
+- `TestRegistry_InstallFromURL_RejectsOversize` — >50 MB download returns error, no skill installed (H1a)
+- `TestRegistry_InstallFromDir_RejectsSymlinks` — skill dir containing symlink is refused (H1b)
+
+---
+
 ## [0.13.15-dev] — 2026-05-21
 
 M14.1 — Security & correctness emergency fixes.

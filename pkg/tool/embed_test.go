@@ -151,3 +151,24 @@ func TestEmbed_ServerError_IsError(t *testing.T) {
 	require.True(t, res.IsError)
 	require.Contains(t, res.Text, "500")
 }
+
+func TestEmbed_ErrorRedactsAPIKey(t *testing.T) {
+	const fakeKey = "sk-abcdef0123456789"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		// Simulate an API that echoes the key back in the error body.
+		fmt.Fprintf(w, `{"error":"invalid key: %s"}`, fakeKey)
+	}))
+	defer srv.Close()
+
+	tool := Embed{httpClient: srv.Client()}
+	res, err := tool.Call(context.Background(), map[string]any{
+		"input":    "test",
+		"base_url": srv.URL,
+		"api_key":  fakeKey,
+	}, nil)
+	require.NoError(t, err)
+	require.True(t, res.IsError)
+	require.Contains(t, res.Text, "sk-***REDACTED***", "API key must be redacted in error message")
+	require.NotContains(t, res.Text, fakeKey, "raw API key must not appear in error message")
+}

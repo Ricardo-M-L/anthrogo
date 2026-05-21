@@ -142,7 +142,7 @@ func (ig ImageGen) Call(ctx context.Context, input map[string]any, _ *Context) (
 		return errResult("imagegen: read response: " + err.Error()), nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return errResult(fmt.Sprintf("imagegen: server error %d: %s", resp.StatusCode, string(respBytes))), nil
+		return errResult(fmt.Sprintf("imagegen: HTTP %d: %s", resp.StatusCode, safeSnippet(string(respBytes)))), nil
 	}
 
 	// Parse response

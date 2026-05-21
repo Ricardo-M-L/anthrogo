@@ -448,7 +448,9 @@ func main() {
 			bootCtx, bootCancel := signal.NotifyContext(context.Background(), os.Interrupt)
 			defer bootCancel()
 			mcpStartCtx, mcpStartCancelTimeout := context.WithTimeout(bootCtx, 60*time.Second)
-			_ = mcpMgr.Start(mcpStartCtx)
+			if mcpStartErr := mcpMgr.Start(mcpStartCtx); mcpStartErr != nil {
+					fmt.Fprintln(os.Stderr, "mcp:", mcpStartErr)
+				}
 			mcpStartCancelTimeout()
 			defer mcpMgr.Close()
 

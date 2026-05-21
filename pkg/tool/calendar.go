@@ -107,12 +107,12 @@ func (CalendarEvent) Call(_ context.Context, input map[string]any, _ *Context) (
 	fmt.Fprintf(&sb, "DTSTAMP:%s\r\n", now.Format("20060102T150405Z"))
 	fmt.Fprintf(&sb, "DTSTART:%s\r\n", startT.UTC().Format("20060102T150405Z"))
 	fmt.Fprintf(&sb, "DTEND:%s\r\n", endT.UTC().Format("20060102T150405Z"))
-	fmt.Fprintf(&sb, "SUMMARY:%s\r\n", icsEscape(title))
+	fmt.Fprintf(&sb, "%s\r\n", foldICalLine("SUMMARY:"+icsEscape(title)))
 	if description != "" {
-		fmt.Fprintf(&sb, "DESCRIPTION:%s\r\n", icsEscape(description))
+		fmt.Fprintf(&sb, "%s\r\n", foldICalLine("DESCRIPTION:"+icsEscape(description)))
 	}
 	if location != "" {
-		fmt.Fprintf(&sb, "LOCATION:%s\r\n", icsEscape(location))
+		fmt.Fprintf(&sb, "%s\r\n", foldICalLine("LOCATION:"+icsEscape(location)))
 	}
 	sb.WriteString("END:VEVENT\r\n")
 	sb.WriteString("END:VCALENDAR\r\n")
@@ -132,6 +132,33 @@ func (CalendarEvent) Call(_ context.Context, input map[string]any, _ *Context) (
 
 	msg := fmt.Sprintf("wrote %s (%d bytes)%s", outPath, len(content), openedNote)
 	return Result{Type: ResultText, Text: msg, ForLLM: msg}, nil
+}
+
+// foldICalLine folds a single iCalendar property line per RFC 5545 §3.1.
+// Each physical line (including the leading SPACE on continuation lines) must
+// not exceed 75 octets. Therefore the first segment is up to 75 chars, and
+// each subsequent segment is up to 74 chars (the SPACE continuation marker
+// accounts for the 75th octet).
+// The returned string does NOT include a trailing CRLF; the caller appends "\r\n".
+func foldICalLine(s string) string {
+	if len(s) <= 75 {
+		return s
+	}
+	var b strings.Builder
+	// First chunk: up to 75 octets.
+	b.WriteString(s[:75])
+	s = s[75:]
+	// Subsequent chunks: CRLF + SPACE (1 octet) + up to 74 octets of content.
+	for len(s) > 0 {
+		b.WriteString("\r\n ")
+		end := 74
+		if end > len(s) {
+			end = len(s)
+		}
+		b.WriteString(s[:end])
+		s = s[end:]
+	}
+	return b.String()
 }
 
 // icsEscape applies iCalendar text escaping.

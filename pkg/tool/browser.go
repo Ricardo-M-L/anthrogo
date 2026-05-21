@@ -218,10 +218,14 @@ func (b *Browser) ensureChrome() (context.Context, error) {
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Headless,
-		chromedp.NoSandbox,
 		chromedp.UserDataDir(userDataDir),
 		chromedp.Flag("disable-gpu", true),
 	)
+	// Only disable the Chrome sandbox when running as root (e.g. inside a container).
+	// On macOS or a normal Linux user account, the sandbox provides meaningful protection.
+	if os.Getuid() == 0 {
+		opts = append(opts, chromedp.NoSandbox)
+	}
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	chromeCtx, chromeCancel := chromedp.NewContext(allocCtx)
 

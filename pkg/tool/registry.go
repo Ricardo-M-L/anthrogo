@@ -2,6 +2,7 @@ package tool
 
 import (
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -16,12 +17,23 @@ func NewRegistry() *Registry {
 	return &Registry{byName: map[string]Tool{}}
 }
 
-func (r *Registry) Register(t Tool) {
+// TryRegister adds t to the registry. Returns an error (without modifying the
+// registry) if a tool with the same name is already registered.
+func (r *Registry) TryRegister(t Tool) error {
 	if _, dup := r.byName[t.Name()]; dup {
-		panic(fmt.Sprintf("tool already registered: %s", t.Name()))
+		return fmt.Errorf("tool already registered: %s", t.Name())
 	}
 	r.byName[t.Name()] = t
 	r.order = append(r.order, t.Name())
+	return nil
+}
+
+// Register adds t to the registry. On duplicate name it logs a warning and
+// silently discards the new tool (the first registration wins).
+func (r *Registry) Register(t Tool) {
+	if err := r.TryRegister(t); err != nil {
+		log.Printf("tool registry: %v", err)
+	}
 }
 
 func (r *Registry) Get(name string) (Tool, bool) {

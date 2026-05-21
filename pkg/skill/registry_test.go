@@ -1,6 +1,9 @@
 package skill
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,6 +93,50 @@ func TestRegistry_InstallFromLocalDir_EmptyName(t *testing.T) {
 	_, _, err := r.Install(src, dest)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "empty skill name")
+}
+
+func TestRegistry_InstallFromURL_RejectsOversize(t *testing.T) {
+	// Serve more than 50 MB of data to trigger the size limit.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		// Write slightly more than maxSkillArchiveBytes bytes.
+		chunk := make([]byte, 1024*1024) // 1 MB
+		for i := 0; i < 52; i++ {       // 52 MB total
+			fmt.Fprintf(w, "%s", chunk)
+		}
+	}))
+	defer srv.Close()
+
+	dest := t.TempDir()
+	r := NewRegistry(nil)
+	_, _, err := r.Install(srv.URL+"/skill.tar.gz", dest)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "50MB limit")
+
+	// No skill should have been installed.
+	require.Len(t, r.List(), 0)
+}
+
+func TestRegistry_InstallFromDir_RejectsSymlinks(t *testing.T) {
+	src := t.TempDir()
+	// Write a valid SKILL.md so the name check passes.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(src, "SKILL.md"),
+		[]byte("---\nname: sym-skill\ndescription: test\n---\nbody\n"),
+		0o644,
+	))
+	// Create a symlink inside the skill directory.
+	require.NoError(t, os.Symlink("/etc/passwd", filepath.Join(src, "evil-link")))
+
+	dest := t.TempDir()
+	r := NewRegistry(nil)
+	_, _, err := r.Install(src, dest)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "symlink")
+
+	// No skill should have been installed.
+	_, ok := r.Get("sym-skill")
+	require.False(t, ok)
 }
 
 func TestRegistry_Reload_ReplacesAtomically(t *testing.T) {

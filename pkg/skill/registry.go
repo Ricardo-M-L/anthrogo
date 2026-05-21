@@ -17,6 +17,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// maxSkillArchiveBytes is the maximum size of a skill archive downloaded via URL.
+const maxSkillArchiveBytes = 50 * 1024 * 1024 // 50 MB
+
 type Registry struct {
 	mu     sync.RWMutex
 	skills map[string]Skill
@@ -150,9 +153,14 @@ func (r *Registry) installFromURL(rawURL, destRoot string) (Skill, []string, err
 		return Skill{}, nil, err
 	}
 	defer os.Remove(tmpFile.Name())
-	if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+	written, err := io.Copy(tmpFile, io.LimitReader(resp.Body, maxSkillArchiveBytes))
+	if err != nil {
 		tmpFile.Close()
 		return Skill{}, nil, err
+	}
+	if written >= maxSkillArchiveBytes {
+		tmpFile.Close()
+		return Skill{}, nil, fmt.Errorf("download: archive exceeds 50MB limit")
 	}
 	tmpFile.Close()
 
@@ -323,7 +331,9 @@ func findSkillRoot(extractDir string) (string, error) {
 	return "", fmt.Errorf("no SKILL.md found in archive")
 }
 
-// copySkillDir copies src to dst recursively, preserving file mode bits and symlinks.
+// copySkillDir copies src to dst recursively, preserving file mode bits.
+// Symlinks are refused for security: a skill archive containing a symlink
+// pointing outside the skill directory could exfiltrate host files.
 func copySkillDir(src, dst string) error {
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -332,11 +342,7 @@ func copySkillDir(src, dst string) error {
 		rel, _ := filepath.Rel(src, path)
 		target := filepath.Join(dst, rel)
 		if info.Mode()&os.ModeSymlink != 0 {
-			link, err := os.Readlink(path)
-			if err != nil {
-				return err
-			}
-			return os.Symlink(link, target)
+			return fmt.Errorf("skill contains symlink: %s — refusing to install for security", rel)
 		}
 		if info.IsDir() {
 			return os.MkdirAll(target, info.Mode())

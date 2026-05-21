@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -166,8 +167,9 @@ func DispatchRemoteWithOptions(ctx context.Context, endpoint string, req RunRequ
 						if jsonErr := json.Unmarshal([]byte(data), &tur); jsonErr == nil {
 							result := dispatchToolLocally(ctx, tur, opts, endpoint, opts.AuthToken, rid)
 							if postErr := postToolResult(ctx, httpClient, endpoint, opts.AuthToken, rid, result); postErr != nil {
-								// Non-fatal; the worker will time out waiting and return an error.
-								_ = postErr
+								// Non-fatal: the worker will time out waiting for the result and
+								// return an error to the user. Log so the operator knows what happened.
+								log.Printf("kairos: failed to POST tool result for run %s tool %s: %v", rid, tur.ToolName, postErr)
 							}
 						}
 					}
