@@ -10,6 +10,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ricardo/anthrogo/pkg/permissions"
+	"github.com/ricardo/anthrogo/pkg/provider"
+	"github.com/ricardo/anthrogo/pkg/provider/fake"
+	"github.com/ricardo/anthrogo/pkg/query"
+	"github.com/ricardo/anthrogo/pkg/subagent"
+	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
 func TestRefactor_NoArgs_ShowsUsage(t *testing.T) {
@@ -123,6 +130,46 @@ func TestRefactor_TotalBytesWarning(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res.AgentTask)
 	assert.Contains(t, res.AgentTask.Prompt, "WARNING")
+}
+
+// TestRefactor_RealEngineDispatch_CallsRunSubagent exercises the eng != nil branch
+// of Refactor.Run. It configures a real query.Engine with a fake provider scripted
+// to return a short response, sets up a subagent registry with type "refactor",
+// and verifies that RunSubagent is triggered (evidenced by the result text).
+func TestRefactor_RealEngineDispatch_CallsRunSubagent(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "alpha.go"), []byte("package main\n"), 0644))
+
+	// Register the "refactor" subagent type so RunSubagent can look it up.
+	reg := subagent.NewRegistry()
+	reg.Register(subagent.Spec{
+		Name:        "refactor",
+		Description: "refactor subagent",
+	})
+
+	// Fake provider: one text delta + stop.
+	fp := fake.New([]provider.Event{
+		{Kind: provider.EventTextDelta, Text: "done"},
+		{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+	})
+
+	eng := query.NewEngine(query.Config{
+		Provider:         fp,
+		Tools:            tool.NewRegistry(),
+		Permissions:      permissions.Empty(),
+		Model:            "test-model",
+		SubagentRegistry: reg,
+	})
+
+	h := newFakeHost()
+	h.cwd = dir
+	h.engine = eng
+
+	res, err := (Refactor{}).Run(context.Background(), "*.go -- rename Foo to FooRenamed", h)
+	require.NoError(t, err)
+	// When engine != nil, Run calls RunSubagent and returns the summary (not AgentTask).
+	assert.Nil(t, res.AgentTask, "AgentTask must be nil when engine dispatches synchronously")
+	assert.Contains(t, res.Text, "refactored")
 }
 
 func TestRefactor_GlobError_ReturnsMessage(t *testing.T) {

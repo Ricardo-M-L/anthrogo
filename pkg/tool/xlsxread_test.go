@@ -80,15 +80,15 @@ func TestXlsxRead_Range(t *testing.T) {
 
 func TestXlsxRead_BadSheet(t *testing.T) {
 	p := makeSampleXlsx(t)
-	// excelize.GetRows on a non-existent sheet returns an empty slice, not an error.
-	// The result should be empty (no rows), not an error result.
+	// excelize.GetRows returns an error for a non-existent sheet name.
+	// XlsxRead should forward that as an IsError result.
 	got, err := XlsxRead{}.Call(context.Background(), map[string]any{
 		"file_path": p,
-		"sheet":     "DoesNotExist",
+		"sheet":     "NoSuchSheet",
 	}, &Context{})
 	require.NoError(t, err)
-	// excelize returns empty rows for missing sheet — not an IsError, just empty.
-	_ = got // result may be empty or an error; either is acceptable behaviour
+	require.True(t, got.IsError, "expected IsError for non-existent sheet; got: %q", got.Text)
+	require.Contains(t, got.Text, "sheet", "error message should mention 'sheet'")
 }
 
 func TestXlsxRead_FileNotFound(t *testing.T) {
@@ -106,6 +106,19 @@ func TestXlsxRead_RelativePath_Rejected(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, got.IsError)
 	require.Contains(t, got.Text, "absolute")
+}
+
+// TestXlsxRead_Range_InvertedFails verifies that an inverted range (end before
+// start) returns IsError rather than panicking or returning empty rows.
+func TestXlsxRead_Range_InvertedFails(t *testing.T) {
+	p := makeSampleXlsx(t)
+	got, err := XlsxRead{}.Call(context.Background(), map[string]any{
+		"file_path": p,
+		"sheet":     "Sheet1",
+		"range":     "B2:A1",
+	}, &Context{})
+	require.NoError(t, err)
+	require.True(t, got.IsError, "expected IsError for inverted range B2:A1; got: %q", got.Text)
 }
 
 func TestXlsxRead_TSVFormat(t *testing.T) {

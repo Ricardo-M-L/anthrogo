@@ -105,6 +105,53 @@ func TestBrowser_Close_RemovesUserDataDir(t *testing.T) {
 	}
 }
 
+// TestBrowser_Close_Idempotent verifies that calling Close twice on a Browser
+// that has a userDataDir does not panic and that the second call is a no-op.
+func TestBrowser_Close_Idempotent(t *testing.T) {
+	dir := t.TempDir()
+	b := &Browser{userDataDir: dir}
+	if err := b.Close(); err != nil {
+		t.Fatalf("first Close returned error: %v", err)
+	}
+	// Second close: userDataDir is now "" so no RemoveAll; should not panic.
+	if err := b.Close(); err != nil {
+		t.Fatalf("second Close returned error: %v", err)
+	}
+}
+
+// TestBrowser_Schema_HasScreenshotMode verifies the schema enum includes "screenshot".
+func TestBrowser_Schema_HasScreenshotMode(t *testing.T) {
+	b := &Browser{}
+	schema := b.Schema()
+
+	props, ok := schema["properties"].(map[string]any)
+	require.True(t, ok, "schema must have properties")
+
+	modeField, ok := props["mode"].(map[string]any)
+	require.True(t, ok, "schema must have mode field")
+
+	enum, ok := modeField["enum"].([]string)
+	require.True(t, ok, "mode must have string enum")
+
+	found := false
+	for _, v := range enum {
+		if v == "screenshot" {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "schema enum must include 'screenshot'")
+}
+
+// TestBrowser_Close_NoUserDataDir_NoOp verifies that Close on a fresh Browser{}
+// with no userDataDir returns nil without calling os.RemoveAll("").
+func TestBrowser_Close_NoUserDataDir_NoOp(t *testing.T) {
+	b := &Browser{} // empty userDataDir
+	if err := b.Close(); err != nil {
+		t.Fatalf("Close on fresh Browser returned error: %v", err)
+	}
+}
+
 // TestBrowser_E2E_GetAboutBlank is an end-to-end smoke test that requires a
 // real Chrome installation. Only runs when ANTHROGO_E2E_BROWSER=1.
 func TestBrowser_E2E_GetAboutBlank(t *testing.T) {

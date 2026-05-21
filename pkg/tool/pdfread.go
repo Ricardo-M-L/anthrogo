@@ -91,16 +91,17 @@ func (PDFRead) Call(ctx context.Context, input map[string]any, _ *Context) (Resu
 		}
 	}
 
-	out := sb.String()
-	truncated := false
-	if len(out) > pdfMaxBytes {
-		out = out[:pdfMaxBytes]
-		truncated = true
-	}
-	if truncated {
-		out += "\n\n[truncated at 200000 bytes]"
-	}
+	out := truncatePDFText(sb.String(), pdfMaxBytes)
 	return Result{Type: ResultText, Text: out, ForLLM: out}, nil
+}
+
+// truncatePDFText caps s at max bytes, appending a truncation marker when cut.
+// Extracted as a testable helper.
+func truncatePDFText(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "\n\n[truncated at 200000 bytes]"
 }
 
 // parsePDFPageRange parses the "pages" input value, returning (start, end) 1-indexed.

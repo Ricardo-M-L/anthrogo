@@ -69,6 +69,19 @@ func min(a, b int) int {
 	return b
 }
 
+// TestWeb_Handler_404_OnMissingPath verifies that GET /nonexistent returns 404.
+// The embedded http.FileServer returns 404 for paths that don't exist in the
+// embedded filesystem.
+func TestWeb_Handler_404_OnMissingPath(t *testing.T) {
+	h := handler(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/nonexistent-path-xyz", nil)
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing path, got %d (body: %s)", w.Code, w.Body.String()[:min(100, w.Body.Len())])
+	}
+}
+
 // TestWeb_StaticContent_NoUnescapedQuoteInEscapeHTML verifies that app.js
 // escapeHTML encodes both double-quote (&quot;) and single-quote (&#39;)
 // to prevent XSS via attribute injection.

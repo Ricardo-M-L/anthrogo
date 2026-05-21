@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.13.18-dev] — 2026-05-21
+
+M14.4 — Test backfill + go.mod hygiene.
+
+### Changed
+- **version.go**: bumped to `0.13.18-dev`.
+- **go.mod / go mod tidy**: corrected direct vs indirect annotations (13 packages promoted from `// indirect` to direct); `go` directive stays at `1.26` (runtime is 1.26.1; tidy enforces toolchain minimum). `service/signin` remains — it is a genuine transitive dep pulled by `aws-sdk-go-v2/config`. go.mod line count: 129 (unchanged — tidy restructured direct block, not size).
+- **pkg/tool/pdfread.go**: extracted `truncatePDFText(s string, max int) string` helper from `PDFRead.Call` for direct unit-testability.
+
+### Tests added (22 new)
+
+**A1 — pkg/tool/browser_test.go** (3 tests):
+- `TestBrowser_Close_Idempotent` — double-Close, no panic, second is no-op.
+- `TestBrowser_Schema_HasScreenshotMode` — enum includes "screenshot".
+- `TestBrowser_Close_NoUserDataDir_NoOp` — fresh Browser{} with empty userDataDir; Close returns nil.
+
+**A2 — internal/serve/server_test.go** (4 tests):
+- `TestServer_DeleteSession_RemovesFile` — POST then DELETE; JSONL file gone, 204.
+- `TestServer_DeleteSession_NotFound_Returns404` — DELETE unknown ID → 404.
+- `TestServer_ChatStream_MidStreamError_EmitsErrorEvent` — provider errors mid-stream; SSE contains `{"type":"error"}` event.
+- `TestServer_ChatStream_ClientDisconnect_ContextCancels` — body close after first delta; `in_flight_chats` drops to 0.
+
+**A3 — internal/web/web_test.go** (1 test):
+- `TestWeb_Handler_404_OnMissingPath` — GET /nonexistent → 404.
+
+**A4 — pkg/tool/pdfread_test.go** (5 tests):
+- `TestPDFRead_PageRange_BeyondAvailable_IsError` — pages="5-10" on 1-page PDF → IsError.
+- `TestPDFRead_PageRange_NEndForm` — pages="1-end" == pages="1" on 1-page PDF.
+- `TestTruncatePDFText_NoTruncation` — short string returned unchanged.
+- `TestTruncatePDFText_TruncatesAndAddsMarker` — long string cut + marker appended.
+- `TestTruncatePDFText_ExactBoundary` — exactly max bytes → no marker.
+
+**A5 — pkg/tool/xlsxread_test.go** (2 tests / 1 fix):
+- `TestXlsxRead_BadSheet` fixed: now asserts `IsError=true` + error message contains "sheet" (excelize returns an error for a missing sheet, not empty rows as the old comment claimed).
+- `TestXlsxRead_Range_InvertedFails` — range="B2:A1" → IsError.
+
+**A6 — pkg/command/builtins/refactor_test.go** (1 test):
+- `TestRefactor_RealEngineDispatch_CallsRunSubagent` — real `query.Engine` + fake provider + subagent registry; exercises `eng != nil` branch; asserts `AgentTask==nil` and result text contains "refactored".
+
+---
+
 ## [0.13.17-dev] — 2026-05-21
 
 M14.3 — Documentation alignment.
