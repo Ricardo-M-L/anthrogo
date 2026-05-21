@@ -863,6 +863,7 @@ func main() {
 	}
 	root.AddCommand(doctorCmd)
 	root.AddCommand(newServeCmd())
+	root.AddCommand(newWebCmd())
 
 	var forceInit bool
 	initCmd := &cobra.Command{

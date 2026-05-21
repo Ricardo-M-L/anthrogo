@@ -51,6 +51,7 @@ type Server struct {
 	inFlight    atomic.Int64
 	startedAt   time.Time
 	mux         *http.ServeMux
+	rootHandler http.Handler // optional handler mounted at "/"
 }
 
 // New constructs a Server from cfg.
@@ -60,6 +61,15 @@ func New(cfg Config) *Server {
 		cache:     newSessionCache(),
 		startedAt: time.Now(),
 	}
+	s.mux = s.buildMux()
+	return s
+}
+
+// WithRoot sets an additional http.Handler that is mounted at "/" for all paths
+// not matched by the /v1/* API routes. This allows embedding a SPA alongside
+// the API without path conflicts. It rebuilds the internal mux.
+func (s *Server) WithRoot(h http.Handler) *Server {
+	s.rootHandler = h
 	s.mux = s.buildMux()
 	return s
 }
@@ -110,6 +120,15 @@ func (s *Server) buildMux() *http.ServeMux {
 	mux.Handle("OPTIONS /", wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
+
+	// Mount optional root handler (e.g. embedded SPA) at "/".
+	// It is registered after the /v1/* routes so the more-specific patterns win.
+	if s.rootHandler != nil {
+		root := s.rootHandler
+		mux.Handle("/", s.withRecovery(s.withLogging(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			root.ServeHTTP(w, r)
+		}))))
+	}
 
 	return mux
 }

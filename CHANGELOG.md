@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.13.14-dev] — 2026-05-21
+
+M13.15 — `anthrogo web` browser UI.
+
+### Added
+- **`anthrogo web`** subcommand (`cmd/anthrogo/web.go`): starts an HTTP server serving an embedded browser SPA at `/` alongside the existing `/v1/*` API. Auto-detects a free port in range 8766–8775 when `--addr` is not set. Opens the user's browser automatically on macOS (`open`), Linux (`xdg-open`), and Windows (`rundll32`). Skip with `--no-browser` for headless/SSH environments.
+- **Embedded SPA** (`internal/web/static/`): single-page app with sessions sidebar, chat panel (SSE streaming + sync), and settings popover (bearer token, base URL, stream toggle) stored in `localStorage`. Hand-rolled vanilla JS with minimal markdown renderer. No npm, no React, no external JS libraries. Total bundle ~17 KB uncompressed.
+- **`internal/web` package** (`web.go`): uses `embed.FS` + `fs.Sub` + `http.FileServer` to serve `static/*` assets. `Handler()` returns an `http.Handler`.
+- **`serve.Server.WithRoot(h http.Handler) *Server`**: new method on the serve package's `Server` that mounts an additional handler at `/` (after `/v1/*` routes) and rebuilds the internal mux. Non-invasive — existing `anthrogo serve` behavior is unchanged.
+- **`docs/web.md`**: UI overview, bearer auth usage, pointing to a remote daemon.
+- 3 tests in `internal/web/web_test.go`: `TestWeb_Handler_ServesIndex`, `TestWeb_Handler_ServesAppJS`, `TestWeb_Handler_ServesCSS`.
+- 3 tests in `cmd/anthrogo/web_test.go`: `TestWebCmd_FlagsParseCleanly`, `TestWebCmd_ResolveWebAddr_UsesFlag`, `TestWebCmd_ResolveWebAddr_AutoDetect`.
+
+---
+
 ## [0.13.13-dev] — 2026-05-21
 
 M13.14 — `anthrogo serve` HTTP daemon.

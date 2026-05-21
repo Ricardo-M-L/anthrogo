@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>anthrogo — web UI</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="layout">
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div id="sidebar-header">
+      <h2>Sessions</h2>
+      <button id="btn-new">+ New</button>
+    </div>
+    <div id="session-list"></div>
+  </aside>
+
+  <!-- Chat panel -->
+  <div id="chat-panel">
+    <div id="topbar">
+      <div style="display:flex;align-items:center;gap:8px">
+        <button id="sidebar-toggle" title="Toggle sidebar">&#9776;</button>
+        <span id="topbar-title">anthrogo</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="btn-theme" title="Toggle theme">&#9728;</button>
+        <button id="btn-settings">Settings</button>
+      </div>
+    </div>
+
+    <div id="messages">
+      <div id="empty-state">
+        <h3>anthrogo web UI</h3>
+        <p>Start a new conversation or select a session on the left.</p>
+      </div>
+    </div>
+
+    <div id="input-area">
+      <textarea id="msg-input" rows="1" placeholder="Type a message… (Enter to send, Shift+Enter for newline)"></textarea>
+      <button id="btn-send">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings popover -->
+<div id="settings-popover">
+  <h3>Settings</h3>
+  <div class="field">
+    <label for="f-token">Bearer Token</label>
+    <input type="password" id="f-token" placeholder="optional auth token">
+  </div>
+  <div class="field">
+    <label for="f-baseurl">Server URL</label>
+    <input type="text" id="f-baseurl" placeholder="http://localhost:8766">
+  </div>
+  <div class="field">
+    <div class="field-row">
+      <input type="checkbox" id="f-stream" checked>
+      <label for="f-stream">Use SSE streaming</label>
+    </div>
+  </div>
+  <button id="btn-settings-close">Save &amp; Close</button>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

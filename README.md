@@ -41,6 +41,7 @@ Use `anthrogo -p "explain main.go"` for headless (non-interactive) mode.
 | **/cost + budget + auto-compact** | Built-in pricing for 20+ models · budget cap · auto-compact threshold — [docs/cost.md](docs/cost.md) · [docs/compaction.md](docs/compaction.md) |
 | **/login OAuth + /telemetry** | OAuth 2.1 PKCE for corporate SSO · opt-in anonymous telemetry — [docs/providers/anthropic.md](docs/providers/anthropic.md) |
 | **HTTP daemon (`serve`)** | `anthrogo serve` exposes the engine as a REST/SSE API: `/v1/chat` (sync + streaming), `/v1/sessions` CRUD, `/v1/tools`, `/v1/health` · Bearer auth · CORS · LRU session cache — [docs/serve.md](docs/serve.md) |
+| **Browser UI (`web`)** | `anthrogo web` embeds a vanilla-JS SPA (no npm/React) served via `embed.FS`; sessions sidebar, SSE streaming chat, settings popover (token/base-URL/stream); auto-opens browser — [docs/web.md](docs/web.md) |
 
 ## Reliability
 
@@ -65,6 +66,7 @@ When the user presses Ctrl-C, anthrogo does not immediately discard in-flight co
 | M12.x | `doctor` · `init-config` · HTTPRequest · SQLQuery · Ollama provider | shipped |
 | **M13.1** | **Documentation restructure (this release)** | **shipped** |
 | **M13.14** | **`anthrogo serve` HTTP daemon** | **shipped** |
+| **M13.15** | **`anthrogo web` browser UI** | **shipped** |
 | M13.x | API godoc auto-gen · migration guide · example projects | planned |
 | M6 (remaining) | Bedrock/Vertex full feature parity | planned |
 
