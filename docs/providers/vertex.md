@@ -1,24 +1,55 @@
 # Google Vertex AI provider
 
-See [README — Providers](https://github.com/Ricardo-M-L/anthrogo#providers).
-
-The Vertex provider calls Claude models hosted on Google Cloud Vertex AI.
+Profile `type: vertex` routes to Claude models hosted on Google Cloud Vertex AI. No `ANTHROPIC_API_KEY` is needed.
 
 ## Configuration
 
+Both `region` and `project_id` are mandatory:
+
 ```yaml
-provider: vertex
-project: my-gcp-project
-location: us-central1
-model: claude-opus-4-5@20240229
+profiles:
+  vertex-sonnet:
+    type: vertex
+    model: claude-sonnet-4-6@20260101
+    region: us-east5
+    project_id: my-gcp-project
 ```
 
-Credentials are resolved via Application Default Credentials:
+Activate:
+
+```yaml
+provider: vertex-sonnet
+```
+
+## Authentication
+
+Uses Google Application Default Credentials — no `api_key` field:
 
 ```bash
+# Local development
 gcloud auth application-default login
-# or
+
+# Service account
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 ```
 
-(Full Vertex provider reference migrating from README — M11.4 follow-up.)
+Workload identity on GKE / Cloud Run works automatically.
+
+## Model IDs
+
+Vertex model IDs follow the Model Garden convention and differ from direct Anthropic API names:
+
+| Anthropic name | Vertex model ID |
+|----------------|----------------|
+| claude-sonnet-4-6 | `claude-sonnet-4-6@20260101` |
+
+## Pricing
+
+Add explicit pricing entries for Vertex model IDs:
+
+```yaml
+pricing:
+  "claude-sonnet-4-6@20260101":
+    input_per_m: 3.0
+    output_per_m: 15.0
+```

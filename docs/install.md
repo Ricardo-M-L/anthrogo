@@ -1,14 +1,11 @@
 # Installation
 
-See [README — Installation](https://github.com/Ricardo-M-L/anthrogo#installation).
+## Requirements
 
-## Quick start
+- Go 1.22+
+- An API key for your chosen provider (Anthropic, DeepSeek, etc.) or local Ollama
 
-```bash
-go install github.com/Ricardo-M-L/anthrogo/cmd/anthrogo@latest
-```
-
-Or build from source:
+## Build from source
 
 ```bash
 git clone https://github.com/Ricardo-M-L/anthrogo.git
@@ -17,9 +14,31 @@ make build
 ./bin/anthrogo --version
 ```
 
-## Requirements
+## go install
 
-- Go 1.22+
-- An Anthropic API key (or compatible provider credentials)
+```bash
+go install github.com/Ricardo-M-L/anthrogo/cmd/anthrogo@latest
+```
 
-(Full install reference migrating from README — M11.4 follow-up.)
+This places `anthrogo` in `$GOPATH/bin` (typically `~/go/bin`). Make sure that directory is on your `PATH`.
+
+## Cross-platform release binaries
+
+`make release` produces version-stamped binaries for all four platforms under `dist/`:
+
+```
+dist/anthrogo-<version>-darwin-amd64
+dist/anthrogo-<version>-darwin-arm64
+dist/anthrogo-<version>-linux-amd64
+dist/anthrogo-<version>-linux-arm64
+```
+
+Pre-built binaries for tagged releases are attached to [GitHub releases](https://github.com/Ricardo-M-L/anthrogo/releases). Download and add to your PATH.
+
+## Homebrew (planned)
+
+A Homebrew tap is planned for a future milestone. For now, use `go install` or build from source.
+
+## Next step
+
+After installation, run [first run](first-run.md) to configure anthrogo and verify your environment.

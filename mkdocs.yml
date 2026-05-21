@@ -49,6 +49,7 @@ nav:
     - OpenAI-compat: providers/openai.md
     - Bedrock: providers/bedrock.md
     - Vertex: providers/vertex.md
+    - Ollama: providers/ollama.md
     - Failover: providers/failover.md
   - Reference:
     - CLI flags: reference/cli.md

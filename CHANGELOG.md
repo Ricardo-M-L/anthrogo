@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.13.0-dev] — 2026-05-21
+
+M13.1 — Documentation restructure.
+
+### Changed
+- README.md slimmed from 1078 → ~280 lines. Now: brief intro + quickstart + highlights table + roadmap. Each highlight links to a dedicated docs/<page>.md.
+- docs/ stub pages (M11.4) replaced with real content extracted from README. Each page is now the canonical source for its topic; README points readers there.
+- mkdocs.yml nav extended with providers/ollama.md.
+
+### Added
+- docs/providers/ollama.md — M12.5 Ollama provider reference.
+
+### Known issues / deferred
+- API reference auto-gen from godoc — separate M13.x.
+- Migration guide v0.3 → v0.13 — separate M13.x.
+- Example projects directory — separate M13.x.
+
+---
+
 ## [0.12.4-dev] — 2026-05-21
 
 M12.5 — Local Ollama provider.
