@@ -376,6 +376,8 @@ func main() {
 				perms.AlwaysAllowRules[permissions.SourceCLI],
 				permissions.Rule{Tool: "Skill", Source: permissions.SourceCLI},
 				permissions.Rule{Tool: "MCPResource", Source: permissions.SourceCLI},
+				permissions.Rule{Tool: "PDFRead", Source: permissions.SourceCLI},
+				permissions.Rule{Tool: "XlsxRead", Source: permissions.SourceCLI},
 			)
 			// Validate hook configuration; print any warnings but don't abort.
 			for _, w := range cfg.Hooks.Validate() {
@@ -914,6 +916,8 @@ func registerTools(cfg config.Config) *tool.Registry {
 	r.Register(&tool.SpeechToText{})
 	r.Register(&tool.TextToSpeech{})
 	r.Register(&tool.SQLQuery{})
+	r.Register(tool.PDFRead{})
+	r.Register(tool.XlsxRead{})
 	return r
 }
 

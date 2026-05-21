@@ -32,6 +32,8 @@ anthrogo ships 30+ built-in tools covering file I/O, shell execution, code intel
 | `MCPResource` | yes | List or read resources from MCP servers; default `alwaysAllow` |
 | `Skill` | yes | Invoke a named skill — loads SKILL.md into the model context |
 | `Task` | no | Spawn a subagent engine; see [Subagents](subagents.md) |
+| `PDFRead` | yes | Extract plain text from a local PDF file; optional page range (`"1-5"`, `"3"`, `"10-end"`); 200 KB cap; default `alwaysAllow` |
+| `XlsxRead` | yes | Read a sheet of a local `.xlsx` file as TSV; optional sheet name and A1 range; 200 KB cap; default `alwaysAllow` |
 
 ## Permission model
 

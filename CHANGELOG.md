@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.13.8-dev] — 2026-05-21
+
+M13.9 — PDF + Excel reader tools.
+
+### Added
+- **`PDFRead` tool** (`pkg/tool/pdfread.go`): pure-Go PDF text extractor using `github.com/ledongthuc/pdf` (BSD-2, no cgo). Supports optional page range (`"1-5"`, `"3"`, `"10-end"`); caps output at 200 KB; rejects relative paths; read-only and concurrency-safe; default `alwaysAllow` at CLI level.
+- **`XlsxRead` tool** (`pkg/tool/xlsxread.go`): reads sheets from `.xlsx` files using `github.com/xuri/excelize/v2`. Returns tab-separated values; supports named sheet, optional A1 range, 200 KB cap; read-only and concurrency-safe; default `alwaysAllow`.
+- Both tools registered in `registerTools` and added to the CLI-level `alwaysAllow` list alongside `Skill` and `MCPResource`.
+- 12 new tests covering AllPages, PageRange, PageN, OutOfBounds, FileNotFound, RelativePath rejection (PDF) and DefaultSheet, NamedSheet, Range, BadSheet, FileNotFound, RelativePath rejection, TSVFormat (xlsx).
+- New dependencies: `github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728`, `github.com/xuri/excelize/v2 v2.10.1`.
+
+---
+
 ## [0.13.7-dev] — 2026-05-21
 
 M13.8 — Stream reconnect + cancel-safe cleanup.
