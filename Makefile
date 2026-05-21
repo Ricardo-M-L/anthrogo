@@ -7,7 +7,7 @@ LDFLAGS := -X github.com/ricardo/anthrogo/internal/version.Version=$(VERSION)
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64
 RELEASE_DIR := dist
 
-.PHONY: build test vet fmt clean install lint race sweep release help
+.PHONY: build test vet fmt clean install lint race sweep release api-docs bench help
 
 help: ## Show this help.
 	@grep -E '^[a-zA-Z_-]+:.*## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -48,6 +48,13 @@ clean: ## Remove build artifacts.
 
 install: ## go install to $GOPATH/bin.
 	go install -ldflags '$(LDFLAGS)' $(PKG)
+
+api-docs: ## Generate API reference docs from godoc into docs/api/.
+	@./scripts/gen-api-docs.sh
+	@echo "Wrote docs/api/ — review with 'mkdocs serve'."
+
+bench: ## Run benchmark suite.
+	go test -bench=. -benchmem -run=^$$ ./pkg/tokens ./pkg/compact ./pkg/bashscan ./internal/session ./pkg/permissions
 
 release: ## Cross-compile release binaries for darwin/linux × amd64/arm64.
 	@mkdir -p $(RELEASE_DIR)

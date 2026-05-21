@@ -57,6 +57,11 @@ nav:
     - Slash commands: reference/commands.md
     - Settings YAML: reference/yaml.md
     - Roadmap: reference/roadmap.md
+  - API reference:
+    - Overview: api/index.md
+    - pkg/command: api/pkg_command.md
+    - pkg/tool: api/pkg_tool.md
+    - pkg/query: api/pkg_query.md
   - Changelog: changelog.md
 
 markdown_extensions:

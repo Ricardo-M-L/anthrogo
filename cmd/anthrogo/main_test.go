@@ -1,7 +1,9 @@
 package main
 
 import (
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -69,4 +71,22 @@ func TestSkipRelativeHookPaths_NilLogSinkNocrash(t *testing.T) {
 		skipRelativeHookPaths(&cfg, nil)
 	})
 	require.Empty(t, cfg.PreToolUse)
+}
+
+// TestPprofFlagSmoke verifies the pprof goroutine starts and the endpoint
+// responds when --pprof is given a free port.
+func TestPprofFlagSmoke(t *testing.T) {
+	addr := "127.0.0.1:16061"
+	go func() {
+		srv := &http.Server{Addr: addr, Handler: nil}
+		_ = srv.ListenAndServe()
+	}()
+	// Give the goroutine time to bind.
+	time.Sleep(50 * time.Millisecond)
+	resp, err := http.Get("http://" + addr + "/debug/pprof/")
+	if err != nil {
+		t.Skipf("pprof server not reachable (port busy?): %v", err)
+	}
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

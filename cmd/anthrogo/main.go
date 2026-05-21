@@ -6,6 +6,8 @@ import (
 	encoding64 "encoding/base64"
 	"fmt"
 	"io"
+	"net/http"
+	_ "net/http/pprof" // registers pprof handlers on the default mux
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -62,6 +64,7 @@ func main() {
 		resumeID            string
 		cont                bool
 		showVer             bool
+		pprofAddr           string
 		kairosServeAddr     string
 		kairosSigningKey    string // path to ed25519 private key for --kairos-serve signing
 		kairosTrustKey      string // base64 or path to ed25519 public key for client verification
@@ -83,6 +86,15 @@ func main() {
 			if showVer {
 				fmt.Println("anthrogo", version.Version)
 				return nil
+			}
+
+			// --pprof: start net/http/pprof server in the background.
+			if pprofAddr != "" {
+				go func() {
+					srv := &http.Server{Addr: pprofAddr, Handler: nil} // nil → default mux; net/http/pprof registered via side-effect import
+					fmt.Fprintf(os.Stderr, "pprof listening on http://%s/debug/pprof/\n", pprofAddr)
+					_ = srv.ListenAndServe()
+				}()
 			}
 
 			// --generate-key: emit a fresh ed25519 keypair to <path>.priv + <path>.pub.
@@ -815,6 +827,7 @@ func main() {
 	root.Flags().StringVarP(&resumeID, "resume", "r", "", "Resume a session by id prefix")
 	root.Flags().BoolVarP(&cont, "continue", "c", false, "Resume the most-recent session for this cwd")
 	root.Flags().BoolVar(&showVer, "version", false, "Print version and exit")
+	root.Flags().StringVar(&pprofAddr, "pprof", "", "Enable net/http/pprof on this addr (e.g. localhost:6060)")
 	root.Flags().StringVar(&kairosServeAddr, "kairos-serve", "", "Serve as a KAIROS worker on this addr (e.g. :9001)")
 	root.Flags().StringVar(&kairosSigningKey, "signing-key", "", "Path to ed25519 private key for KAIROS worker SSE signing (--kairos-serve mode)")
 	root.Flags().StringVar(&kairosTrustKey, "trust-key", "", "Base64 ed25519 public key or path; verify SSE signatures on all KAIROS subagent dispatches")

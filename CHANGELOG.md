@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.13.2-dev] — 2026-05-21
+
+M13.3 — API reference + pprof + benchmark suite.
+
+### Added
+- `scripts/gen-api-docs.sh` + `make api-docs` — runs `go doc -all` over every package in `pkg/` and `internal/` and writes one Markdown page per package under `docs/api/`. mkdocs picks them up under "API reference".
+- `--pprof <addr>` CLI flag — enables `net/http/pprof` on the given address (e.g. `--pprof localhost:6060`). Side-effect import registers default mux handlers.
+- Benchmark suite — 8 benchmarks across `pkg/tokens` (token counting), `pkg/compact` (byte approx), `pkg/bashscan` (AST parse), `internal/session` (cache hit), `pkg/permissions` (Decide).
+- `make bench` — runs the full suite with `-benchmem`.
+
+### Known issues / deferred
+- API docs are raw `go doc` output (Markdown wrapping a code block); not styled. Real godoc-rendered pages live at pkg.go.dev.
+- pprof handler exposes all profiles by default; bind to localhost only or behind a reverse-proxy ACL.
+- No benchstat-driven CI perf regression (M13.x).
+
+---
+
 ## [0.13.1-dev] — 2026-05-21
 
 M13.2 — examples + migration guide.
