@@ -920,6 +920,9 @@ func registerTools(cfg config.Config) (*tool.Registry, *tool.Browser) {
 	r.Register(&tool.SQLQuery{})
 	r.Register(tool.PDFRead{})
 	r.Register(tool.XlsxRead{})
+	// Side-effect tools: NOT in default alwaysAllow — gate should Ask.
+	r.Register(tool.SlackPost{})
+	r.Register(tool.CalendarEvent{})
 	browserTool := &tool.Browser{}
 	r.Register(browserTool)
 	return r, browserTool

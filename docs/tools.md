@@ -35,6 +35,8 @@ anthrogo ships 30+ built-in tools covering file I/O, shell execution, code intel
 | `PDFRead` | yes | Extract plain text from a local PDF file; optional page range (`"1-5"`, `"3"`, `"10-end"`); 200 KB cap; default `alwaysAllow` |
 | `XlsxRead` | yes | Read a sheet of a local `.xlsx` file as TSV; optional sheet name and A1 range; 200 KB cap; default `alwaysAllow` |
 | `BrowserAction` | no | Headless Chrome automation: `get` (navigate), `click` (CSS selector), `text` (extract visible text), `screenshot` (save PNG). Lazy Chrome init; serialised through one shared instance. **Not** in default `alwaysAllow` — goes through permission gate. |
+| `SlackPost` | no | POST a message to a Slack channel via an Incoming Webhook URL. Supports `text`, Block Kit `blocks`, `username`, and `icon_emoji`. Falls back to `SLACK_WEBHOOK_URL` env var. Goes through permission gate (Ask). |
+| `CalendarEvent` | no | Generate an `.ics` file for a calendar event (`title`, `start`/`end` RFC3339, `description`, `location`, `out_path`). On macOS, `add_to_calendar_app: true` opens the file in Calendar.app. Goes through permission gate (Ask). |
 
 ## Permission model
 
@@ -278,6 +280,113 @@ ANTHROGO_E2E_BROWSER=1 go test ./pkg/tool/ -run TestBrowser -v
 ```
 
 CI runs without Chrome; only schema + input-validation tests execute.
+
+## SlackPost
+
+Send a message to a Slack channel via a configured Incoming Webhook URL.
+
+### Schema
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `webhook_url` | string | no* | `https://hooks.slack.com/services/…` URL. Falls back to `SLACK_WEBHOOK_URL` env var. |
+| `text` | string | **yes** | Message text (Slack mrkdwn supported). |
+| `blocks` | string | no | Raw JSON for Slack Block Kit (array of block objects). When set, bypasses plain-text rendering. |
+| `username` | string | no | Override the webhook's default display name. |
+| `icon_emoji` | string | no | Override the default icon, e.g. `":robot_face:"`. |
+
+\* Required unless `SLACK_WEBHOOK_URL` env var is set.
+
+### Usage examples
+
+```yaml
+# Plain text message
+tool: SlackPost
+input:
+  webhook_url: https://hooks.slack.com/services/T000/B000/xxxx
+  text: "Deploy succeeded on `main` at 14:32 UTC"
+
+# Block Kit rich message
+tool: SlackPost
+input:
+  webhook_url: https://hooks.slack.com/services/T000/B000/xxxx
+  text: "Fallback: build failed"
+  blocks: |
+    [
+      {"type":"section","text":{"type":"mrkdwn","text":"*Build failed* on `main`"}},
+      {"type":"divider"},
+      {"type":"section","text":{"type":"mrkdwn","text":"Check <https://ci.example.com|CI dashboard>"}}
+    ]
+  username: "ci-bot"
+  icon_emoji: ":x:"
+
+# Use env var for URL
+tool: SlackPost
+input:
+  text: "Hello from anthrogo"
+  # SLACK_WEBHOOK_URL must be set in the shell environment
+```
+
+### Permissions
+
+`SlackPost` has `IsReadOnly: false` and is **not** in the default `alwaysAllow` list. Every call goes through the permission gate. To auto-allow:
+
+```yaml
+alwaysAllow:
+  - tool: SlackPost
+```
+
+---
+
+## CalendarEvent
+
+Create a calendar event as a standard `.ics` file (iCalendar RFC 5545). On macOS, optionally opens the file in Calendar.app.
+
+### Schema
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | string | **yes** | Event summary. |
+| `start` | string | **yes** | RFC3339 start time, e.g. `2026-05-22T15:00:00+08:00`. |
+| `end` | string | **yes** | RFC3339 end time. Must be after `start`. |
+| `description` | string | no | Event description body. |
+| `location` | string | no | Location string. |
+| `out_path` | string | no | Absolute path for the `.ics` file. Default: `$TMPDIR/<slugified-title>.ics`. |
+| `add_to_calendar_app` | boolean | no | macOS only. If `true`, runs `open <out_path>` to hand off to Calendar.app. |
+
+### Usage examples
+
+```yaml
+# Create a simple event
+tool: CalendarEvent
+input:
+  title: "Weekly sync"
+  start: "2026-05-25T10:00:00+08:00"
+  end:   "2026-05-25T11:00:00+08:00"
+  description: "Team weekly standup"
+  location: "Zoom"
+  out_path: /tmp/weekly-sync.ics
+
+# Create and open in macOS Calendar.app
+tool: CalendarEvent
+input:
+  title: "Deployment window"
+  start: "2026-05-28T02:00:00+00:00"
+  end:   "2026-05-28T04:00:00+00:00"
+  description: "v2.3 rollout\nRollback plan: see runbook"
+  add_to_calendar_app: true
+```
+
+### Permissions
+
+`CalendarEvent` has `IsReadOnly: false` and is **not** in the default `alwaysAllow` list. To auto-allow:
+
+```yaml
+alwaysAllow:
+  - tool: CalendarEvent
+```
+
+---
 
 ## Vision / images
 

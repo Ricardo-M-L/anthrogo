@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.10-dev] — 2026-05-21
+
+M13.11 — Slack webhook + Calendar tools.
+
+### Added
+- **`SlackPost` tool** (`pkg/tool/slack.go`): POST to a Slack Incoming Webhook URL. Accepts `webhook_url` (or `SLACK_WEBHOOK_URL` env var), `text`, optional `blocks` (raw Block Kit JSON), `username`, and `icon_emoji`. Validates URL prefix (`https://hooks.slack.com/services/`); uses a package-level `slackURLAllowed` func var so tests can override the check via a local httptest server. Non-200 Slack responses return `IsError`. 6 new tests (`pkg/tool/slack_test.go`).
+- **`CalendarEvent` tool** (`pkg/tool/calendar.go`): generates an `.ics` (iCalendar) file at a configurable path (default `$TMPDIR/<slug>.ics`). Accepts `title`, `start`/`end` (RFC3339), `description`, `location`, and `add_to_calendar_app`. Validates time parsing and end > start. Applies iCal text escaping (`,` → `\,`, `;` → `\;`, `\` → `\\`, newline → `\n`). On macOS with `add_to_calendar_app: true`, calls `open <path>` to hand off to Calendar.app; no-op on other platforms. 5 new tests (`pkg/tool/calendar_test.go`).
+- Both tools registered in `registerTools` (`cmd/anthrogo/main.go`); intentionally **not** in the default `alwaysAllow` list since they are side-effect tools — the permission gate will Ask.
+- No new external dependencies (stdlib only: `net/http`, `encoding/json`, `os/exec`, `time`; uuid from existing `github.com/google/uuid`).
+
+---
+
 ## [0.13.9-dev] — 2026-05-21
 
 M13.10 — Browser automation tool.
