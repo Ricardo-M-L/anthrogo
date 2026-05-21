@@ -322,9 +322,14 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 	childPrefixChain := make([]string, len(opts.PrefixChain)+1)
 	copy(childPrefixChain, opts.PrefixChain)
 	childPrefixChain[len(opts.PrefixChain)] = opts.Description
+	// Resolve child model: use spec override when set, otherwise inherit parent.
+	childModel := e.cfg.Model
+	if spec.Model != "" {
+		childModel = spec.Model
+	}
 	childCfg := Config{
 		Provider:            e.cfg.Provider,
-		Model:               e.cfg.Model,
+		Model:               childModel,
 		Tools:               childTools,
 		Permissions:         childPerms,
 		SystemPrompt:        e.cfg.SystemPrompt + spec.SystemPromptSuffix,

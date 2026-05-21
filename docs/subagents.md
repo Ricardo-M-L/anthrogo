@@ -66,7 +66,23 @@ Field rules:
 - `description` — required (shown to the model in the Task tool schema)
 - `system_prompt_suffix` — optional extra instruction appended to the system prompt for this subagent
 - `tool_allowlist` — optional; empty = inherit parent's full tool registry
+- `model` — optional model override; empty = inherit parent model (see below)
 - `general-purpose` is reserved and cannot be overridden
+
+## Per-subagent model override
+
+Set `model:` to run a subagent on a different model than the parent session. Useful for cost/speed trade-offs — e.g., a heavy `code-reviewer` on Opus while the parent uses Sonnet, or a `summarizer` on Haiku for speed.
+
+```yaml
+# ~/.anthrogo/subagents/fast-summarizer.yaml
+name: fast-summarizer
+description: Summarise large documents quickly using a lighter model.
+model: claude-haiku-4-5-20251001
+system_prompt_suffix: |
+  You are a concise summariser. Return bullet points only.
+```
+
+If the provider does not support the specified model, the error is returned to the parent as the subagent's tool result. No validation of the model name is performed at load time (it is provider-dependent).
 
 ## Slash commands
 

@@ -59,6 +59,9 @@ func showSubagent(reg *subagent.Registry, name string) command.Result {
 	var b strings.Builder
 	fmt.Fprintf(&b, "name: %s\n", s.Name)
 	fmt.Fprintf(&b, "description: %s\n", s.Description)
+	if s.Model != "" {
+		fmt.Fprintf(&b, "model: %s\n", s.Model)
+	}
 	if len(s.ToolAllowlist) > 0 {
 		fmt.Fprintf(&b, "tool_allowlist: %s\n", strings.Join(s.ToolAllowlist, ", "))
 	} else {

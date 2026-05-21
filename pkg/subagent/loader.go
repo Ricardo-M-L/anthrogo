@@ -18,6 +18,7 @@ type yamlSpec struct {
 	SystemPromptSuffix string      `yaml:"system_prompt_suffix"`
 	ToolAllowlist      []string    `yaml:"tool_allowlist"`
 	Remote             *RemoteSpec `yaml:"remote"`
+	Model              string      `yaml:"model,omitempty"` // optional model override
 }
 
 // LoadAll scans homeRoot and cwdRoot for *.yaml / *.yml files (non-recursive).
@@ -104,6 +105,7 @@ func loadDir(root string) ([]Spec, []string) {
 			SystemPromptSuffix: y.SystemPromptSuffix,
 			ToolAllowlist:      y.ToolAllowlist,
 			Remote:             y.Remote,
+			Model:              y.Model,
 		})
 	}
 	return specs, warnings

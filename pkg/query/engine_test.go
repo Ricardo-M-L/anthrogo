@@ -1166,6 +1166,78 @@ func TestEngine_RunSubagent_FiresSubagentStopOnError(t *testing.T) {
 	require.Equal(t, "error", rec.subagentStopReason)
 }
 
+// TestEngine_RunSubagent_ModelOverride verifies that when a subagent Spec has a
+// non-empty Model field, the child engine issues provider.Stream calls with that
+// model, while the parent engine retains its own model.
+func TestEngine_RunSubagent_ModelOverride(t *testing.T) {
+	fp := fake.New([]provider.Event{
+		{Kind: provider.EventTextDelta, Text: "child answer"},
+		{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+	})
+
+	reg := subagent.NewRegistry()
+	reg.Register(subagent.Spec{
+		Name:        "haiku-agent",
+		Description: "A lightweight subagent that runs on haiku.",
+		Model:       "haiku-test",
+	})
+
+	e := NewEngine(Config{
+		Provider:         fp,
+		Tools:            tool.NewRegistry(),
+		Permissions:      permissions.Empty(),
+		Model:            "parent-model",
+		SubagentRegistry: reg,
+	})
+
+	result, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type:        "haiku-agent",
+		Description: "override test",
+		Prompt:      "summarise this",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "child answer", result)
+
+	// The fake provider records the Model from the most recent Stream() call.
+	// It must be the override, not the parent model.
+	require.Equal(t, "haiku-test", fp.LastModel, "child engine must use spec.Model override")
+
+	// Parent engine model must be unchanged.
+	require.Equal(t, "parent-model", e.Model(), "parent engine model must not change")
+}
+
+// TestEngine_RunSubagent_ModelInheritedWhenEmpty verifies that when Spec.Model is
+// empty, the child engine inherits the parent model.
+func TestEngine_RunSubagent_ModelInheritedWhenEmpty(t *testing.T) {
+	fp := fake.New([]provider.Event{
+		{Kind: provider.EventTextDelta, Text: "ok"},
+		{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+	})
+
+	reg := subagent.NewRegistry()
+	reg.Register(subagent.Spec{
+		Name:        "inherit-agent",
+		Description: "A subagent with no model override.",
+		// Model intentionally empty
+	})
+
+	e := NewEngine(Config{
+		Provider:         fp,
+		Tools:            tool.NewRegistry(),
+		Permissions:      permissions.Empty(),
+		Model:            "parent-model",
+		SubagentRegistry: reg,
+	})
+
+	_, err := e.RunSubagent(context.Background(), SubagentOptions{
+		Type:        "inherit-agent",
+		Description: "inherit test",
+		Prompt:      "go",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "parent-model", fp.LastModel, "child engine must inherit parent model when spec.Model is empty")
+}
+
 // TestEngine_IsOverBudget verifies the budget-cap accessor.
 func TestEngine_IsOverBudget(t *testing.T) {
 	pt := pricing.NewTable(map[string]pricing.Rate{

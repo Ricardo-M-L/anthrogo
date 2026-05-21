@@ -23,6 +23,7 @@ type Spec struct {
 	SystemPromptSuffix string
 	ToolAllowlist      []string    // empty = inherit all
 	Remote             *RemoteSpec // when non-nil, RunSubagent dispatches via HTTP
+	Model              string      // optional model override; empty = inherit parent model
 }
 
 // Registry holds named subagent Specs.

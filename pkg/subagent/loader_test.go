@@ -158,3 +158,34 @@ remote:
 	require.NotNil(t, specs[0].Remote)
 	require.Equal(t, "resolved-from-env", specs[0].Remote.AuthToken)
 }
+
+func TestLoadAll_ParsesModelOverride(t *testing.T) {
+	tmp := t.TempDir()
+	content := `name: fast-summarizer
+description: Summarizes content using a lighter model.
+model: claude-haiku-4-5-20251001
+`
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "fast-summarizer.yaml"), []byte(content), 0o644))
+
+	specs, warnings, err := LoadAll(tmp, "")
+	require.NoError(t, err)
+	require.Empty(t, warnings)
+	require.Len(t, specs, 1)
+	s := specs[0]
+	require.Equal(t, "fast-summarizer", s.Name)
+	require.Equal(t, "claude-haiku-4-5-20251001", s.Model, "Model field must be parsed from YAML")
+}
+
+func TestLoadAll_ModelDefaultsToEmpty(t *testing.T) {
+	tmp := t.TempDir()
+	content := `name: no-model-agent
+description: An agent without an explicit model field.
+`
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "no-model-agent.yaml"), []byte(content), 0o644))
+
+	specs, warnings, err := LoadAll(tmp, "")
+	require.NoError(t, err)
+	require.Empty(t, warnings)
+	require.Len(t, specs, 1)
+	require.Equal(t, "", specs[0].Model, "Model must be empty when not specified in YAML")
+}

@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.13.6-dev] — 2026-05-21
+
+M13.7 — Per-subagent model override.
+
+### Added
+- `subagent.Spec.Model` — optional model override field (empty = inherit parent model).
+- `pkg/subagent/loader.go`: `yamlSpec.model` YAML field parsed into `Spec.Model`. No validation on model name contents (provider-dependent).
+- `pkg/query/engine.go`: `Engine.RunSubagent` resolves child model as `spec.Model` when non-empty, falling back to parent model. Provider error on unsupported model bubbles up as the subagent's tool_result.
+- `pkg/command/builtins/subagents.go`: `/subagents show <name>` prints `model: <name>` line when the spec has a model override.
+- `pkg/provider/fake`: `Provider.LastModel` field records the `Model` from the most recent `Stream()` call, enabling test assertions on child engine model selection.
+
+### Example YAML
+```yaml
+# ~/.anthrogo/subagents/fast-summarizer.yaml
+name: fast-summarizer
+description: Summarise text quickly using a lighter model.
+model: claude-haiku-4-5-20251001
+```
+
+---
+
 ## [0.13.5-dev] — 2026-05-21
 
 M13.6 — `/skills install` + `/hook` builtin.

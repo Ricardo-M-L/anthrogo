@@ -9,17 +9,19 @@ import (
 )
 
 // Provider replays scripted Event sequences, one per Stream() call.
+// LastModel records the Model field of the most recent Stream() call; safe to read after drain.
 type Provider struct {
-	mu      sync.Mutex
-	scripts [][]provider.Event
-	cursor  int
+	mu        sync.Mutex
+	scripts   [][]provider.Event
+	cursor    int
+	LastModel string
 }
 
 func New(scripts ...[]provider.Event) *Provider {
 	return &Provider{scripts: scripts}
 }
 
-func (p *Provider) Stream(ctx context.Context, _ provider.Request) (<-chan provider.Event, error) {
+func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan provider.Event, error) {
 	p.mu.Lock()
 	if p.cursor >= len(p.scripts) {
 		p.mu.Unlock()
@@ -27,6 +29,7 @@ func (p *Provider) Stream(ctx context.Context, _ provider.Request) (<-chan provi
 	}
 	script := p.scripts[p.cursor]
 	p.cursor++
+	p.LastModel = req.Model
 	p.mu.Unlock()
 
 	out := make(chan provider.Event, len(script))
