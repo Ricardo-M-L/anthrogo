@@ -172,6 +172,40 @@ func TestProvider_Stream_ContextCancel(t *testing.T) {
 	}
 }
 
+func TestOllamaProvider_DefaultBaseURL(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "POST", r.Method)
+		require.Equal(t, "/v1/chat/completions", r.URL.Path)
+		// Ollama sentinel key is forwarded as Bearer token.
+		require.Equal(t, "Bearer ollama", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "text/event-stream")
+		f, _ := w.(http.Flusher)
+		fmt.Fprintf(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi from ollama\"},\"finish_reason\":\"stop\"}]}\n\n")
+		f.Flush()
+		fmt.Fprintf(w, "data: [DONE]\n\n")
+		f.Flush()
+	}))
+	defer srv.Close()
+
+	p := openai.New(srv.URL, "ollama")
+	ch, err := p.Stream(context.Background(), provider.Request{
+		Model:        "llama3",
+		SystemPrompt: "test",
+		Messages: []message.Message{
+			{Role: message.RoleUser, Content: []message.Block{{Type: message.BlockText, Text: "hi"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	var sawText bool
+	for ev := range ch {
+		if ev.Kind == provider.EventTextDelta && ev.Text == "hi from ollama" {
+			sawText = true
+		}
+	}
+	require.True(t, sawText, "expected text delta 'hi from ollama' from ollama-like server")
+}
+
 func filterKind(events []provider.Event, kind provider.EventKind) []provider.Event {
 	var out []provider.Event
 	for _, e := range events {

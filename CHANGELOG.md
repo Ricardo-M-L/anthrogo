@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.12.4-dev] — 2026-05-21
+
+M12.5 — Local Ollama provider.
+
+### Added
+- `Profile.Type: "ollama"` — convenience routing to a local Ollama daemon. Default `base_url` is `http://localhost:11434`; default API key sentinel "ollama" (Ollama ignores it).
+- Pricing defaults for common Ollama-hosted models: llama3*, llama-*, qwen2.5-*, qwen3*, mistral*, codellama*, phi*, gemma* — all $0/M (no per-token charges for local inference).
+- Reuses M7.1 OpenAI provider under the hood (Ollama's `/v1/chat/completions` is OpenAI-compatible).
+
+### Example
+
+```yaml
+provider: ollama-llama3
+profiles:
+  ollama-llama3:
+    type: ollama
+    model: llama3
+  ollama-qwen:
+    type: ollama
+    base_url: http://localhost:11434  # explicit
+    model: qwen2.5-coder
+```
+
+### Known issues / deferred
+- Some Ollama models don't support tool/function calling reliably — model-specific. Test with your model before enabling tool-heavy workflows.
+- Ollama's "thinking" content (e.g., qwen3 thinking tags) flow through as regular text (no thinking-block special handling).
+- No native Ollama API (`/api/chat`) support — only the OpenAI-compat shim.
+
 ## [0.12.3-dev] — 2026-05-21
 
 M12.4 — SQLQuery tool.

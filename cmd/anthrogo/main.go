@@ -1053,6 +1053,15 @@ func buildFromProfile(ctx context.Context, name string, prof config.Profile, def
 	switch prof.Type {
 	case "openai":
 		return openaiProvider.New(prof.BaseURL, apiKey), model, nil
+	case "ollama":
+		base := prof.BaseURL
+		if base == "" {
+			base = "http://localhost:11434"
+		}
+		if apiKey == "" {
+			apiKey = "ollama"
+		}
+		return openaiProvider.New(base, apiKey), model, nil
 	case "bedrock":
 		p, err := bedrockProvider.New(ctx, prof.Region, model)
 		if err != nil {

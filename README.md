@@ -5,7 +5,7 @@ source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
 **Documentation:** https://Ricardo-M-L.github.io/anthrogo/
 
-> **Status**: M12.4 complete (v0.12.3-dev). SQLQuery tool. See `docs/superpowers/specs/` for design docs.
+> **Status**: M12.5 complete (v0.12.4-dev). Local Ollama provider. See `docs/superpowers/specs/` for design docs.
 
 ## Quickstart
 
@@ -673,6 +673,29 @@ pricing:
     input_per_m: 3.0
     output_per_m: 15.0
 ```
+
+### Local models (Ollama)
+
+Profile `type: ollama` is a thin convenience wrapper around the OpenAI-compatible endpoint that Ollama exposes at `http://localhost:11434/v1/chat/completions`. No real API key is required — the sentinel value `"ollama"` is used automatically.
+
+```yaml
+provider: ollama-llama3
+profiles:
+  ollama-llama3:
+    type: ollama
+    model: llama3          # any model installed with `ollama pull`
+  ollama-qwen:
+    type: ollama
+    base_url: http://localhost:11434  # explicit; this is also the default
+    model: qwen2.5-coder
+```
+
+Common Ollama-hosted models (llama3*, llama-*, qwen2.5-*, qwen3*, mistral*, codellama*, phi*, gemma*) have $0/M pricing entries built in — no per-token cost tracking for local inference.
+
+Known limitations:
+- Not all models support tool/function calling — test with your model before enabling tool-heavy workflows.
+- Ollama "thinking" output (e.g., qwen3 think tags) flows through as regular text; no special thinking-block treatment.
+- Only the OpenAI-compat shim (`/v1/chat/completions`) is used; the native `/api/chat` endpoint is not supported.
 
 Switch profiles at runtime:
 

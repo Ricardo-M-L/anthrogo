@@ -51,6 +51,15 @@ func DefaultRates() map[string]Rate {
 		// GLM (Zhipu)
 		"glm-4*":    {InputPerM: 0.50, OutputPerM: 1.50},
 		"glm-zero-*": {InputPerM: 1.00, OutputPerM: 3.00},
+		// Ollama local — no per-token charges
+		"llama3*":    {InputPerM: 0.0, OutputPerM: 0.0},
+		"llama-*":    {InputPerM: 0.0, OutputPerM: 0.0},
+		"qwen2.5-*":  {InputPerM: 0.0, OutputPerM: 0.0},
+		"qwen3*":     {InputPerM: 0.0, OutputPerM: 0.0},
+		"mistral*":   {InputPerM: 0.0, OutputPerM: 0.0},
+		"codellama*": {InputPerM: 0.0, OutputPerM: 0.0},
+		"phi*":       {InputPerM: 0.0, OutputPerM: 0.0},
+		"gemma*":     {InputPerM: 0.0, OutputPerM: 0.0},
 	}
 }
 
