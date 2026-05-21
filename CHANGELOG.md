@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.13.17-dev] — 2026-05-21
+
+M14.3 — Documentation alignment.
+
+### Changed
+- **D1** — README status badge updated from `v0.13.0-dev` to `v0.13.16-dev`.
+- **D2** — README repository layout now lists `internal/serve/` (HTTP daemon, M13.14) and `internal/web/` (web UI assets + handler, M13.15).
+- **D3** — `docs/reference/roadmap.md`: shipped milestones table extended through M13.2–M13.15, M14.1, M14.2; obsolete "upcoming" items (API ref auto-gen, migration guide, example projects) replaced with "In progress / next" note.
+- **D4** — `docs/reference/cli.md`: added `--resume/-r`, `--continue/-c`, `--pprof` global flags; added full `anthrogo serve` and `anthrogo web` subcommand sections with flag tables, endpoint tables, and usage examples.
+- **D5** — `docs/reference/commands.md`: added `/skills install`, `/hook list|install|remove`, `/sessions fork <id> at <n>`, and `/refactor <pattern> -- <instruction>` entries.
+- **D6** — `docs/tools.md`: added `NotebookEdit`, `EnterPlanMode`, `ExitPlanMode`, and `AskUserQuestion` tool rows.
+- **D7** — `mkdocs.yml`: added Operations section (serve.md, web.md), Contributing section (development.md), and API reference nav entries for pkg/subagent, pkg/skill, pkg/kairos, all provider packages, and internal/mcp. Added comment noting superpowers/ subtree is intentionally unreferenced.
+
+---
+
 ## [0.13.16-dev] — 2026-05-21
 
 M14.2 — Robustness hardening pack.

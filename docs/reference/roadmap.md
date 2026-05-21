@@ -41,14 +41,23 @@
 | M12.4 | `SQLQuery` tool | shipped |
 | M12.5 | Local Ollama provider (`type: ollama`) | shipped |
 | M13.1 | Documentation restructure (this page) | shipped |
+| M13.2 | Stream retry + cancel-safe tool drain | shipped |
+| M13.3 | API godoc auto-gen (`gen-api-docs.sh`, 31 pages) | shipped |
+| M13.4 | Migration guide v0.3 → v0.13 | shipped |
+| M13.5 | `/sessions fork <id> at <n>` — fork session at user-turn N | shipped |
+| M13.6 | `/skills install` + `/hook` slash commands | shipped |
+| M13.7 | `NotebookEdit` tool | shipped |
+| M13.8 | `EnterPlanMode` / `ExitPlanMode` tools | shipped |
+| M13.9 | `AskUserQuestion` tool (interactive multi-choice prompt) | shipped |
+| M13.10 | Example projects directory | shipped |
+| M13.11 | `--resume` / `--continue` global flags | shipped |
+| M13.12 | `--pprof` debug profiling flag | shipped |
+| M13.13 | `/refactor <pattern> -- <instruction>` multi-file refactor subcommand | shipped |
+| M13.14 | `anthrogo serve` HTTP daemon (REST/SSE API) | shipped |
+| M13.15 | `anthrogo web` browser UI (embedded SPA) | shipped |
+| M14.1 | Security & correctness emergency fixes (XSS, path traversal, TOCTOU, leaks) | shipped |
+| M14.2 | Robustness hardening pack (C4–C6, H1–H4) | shipped |
 
-## Upcoming / deferred
+## In progress / next
 
-- M13.x — API reference auto-gen from godoc
-- M13.x — Migration guide v0.3 → v0.13
-- M13.x — Example projects directory
-- Bedrock / Vertex / OpenAI-compat multi-provider (M6)
-- mkdocs versioning via `mike`
-- Sigstore / GPG plugin signature verification
-- Shallow-fetch tag resolution for git-sourced plugins
-- Partial-stream retry for failover
+Next: see audit followups (M14.3+)

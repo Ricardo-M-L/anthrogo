@@ -23,6 +23,7 @@ Slash commands are typed directly in the TUI prompt. Press Tab to autocomplete.
 | `/sessions export <id> [-o file.md]` | Export session as Markdown |
 | `/sessions stats [--since] [--until]` | Aggregate token and cost metrics |
 | `/sessions diff <id1> <id2>` | LCS diff of two sessions |
+| `/sessions fork <id> at <n>` | Fork a session at user-turn N, creating a new branch from that point (M13.5) |
 | `/sessions reindex` | Clear in-memory LRU search cache |
 | `/audit [list N]` | Scan sessions for tool calls / errors |
 | `/audit by-tool <name>` | Filter audit to a specific tool |
@@ -78,10 +79,20 @@ Slash commands are typed directly in the TUI prompt. Press Tab to autocomplete.
 | `/plugin reload` | Hot-reload plugins |
 | `/skills` | List loaded skills |
 | `/skills show <name>` | Print a skill's SKILL.md |
+| `/skills install <src>` | Install a skill from local dir, HTTPS archive URL, or `git+https://` URL (M13.6) |
 | `/skills reload` | Re-scan skill directories |
+| `/hook list` | List all installed hooks |
+| `/hook install <dir>` | Install hooks from a directory (M13.6) |
+| `/hook remove <name>` | Remove a named hook (M13.6) |
 | `/subagents` | List loaded subagent types |
 | `/subagents show <name>` | Inspect a type definition |
 | `/subagents reload` | Hot-reload subagent YAML files |
+
+## Refactoring
+
+| Command | Description |
+|---------|-------------|
+| `/refactor <pattern> -- <instruction>` | Run a multi-file refactor across all files matching `<pattern>` (glob); dispatches a subagent per file with the given `<instruction>` (M13.13) |
 
 ## Login
 

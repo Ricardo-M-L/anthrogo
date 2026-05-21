@@ -57,11 +57,27 @@ nav:
     - Slash commands: reference/commands.md
     - Settings YAML: reference/yaml.md
     - Roadmap: reference/roadmap.md
+  - Operations:
+    - HTTP daemon (serve): serve.md
+    - Browser UI (web): web.md
   - API reference:
     - Overview: api/index.md
     - pkg/command: api/pkg_command.md
     - pkg/tool: api/pkg_tool.md
     - pkg/query: api/pkg_query.md
+    - pkg/subagent: api/pkg_subagent.md
+    - pkg/skill: api/pkg_skill.md
+    - pkg/kairos: api/pkg_kairos.md
+    - pkg/provider/anthropic: api/pkg_provider_anthropic.md
+    - pkg/provider/openai: api/pkg_provider_openai.md
+    - pkg/provider/bedrock: api/pkg_provider_bedrock.md
+    - pkg/provider/vertex: api/pkg_provider_vertex.md
+    - pkg/provider/failover: api/pkg_provider_failover.md
+    - internal/mcp: api/internal_mcp.md
+  # docs/superpowers/plans/ and docs/superpowers/specs/ are internal planning
+  # artefacts; they remain unreferenced from the nav intentionally.
+  - Contributing:
+    - Development: development.md
   - Changelog: changelog.md
 
 markdown_extensions:

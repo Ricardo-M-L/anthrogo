@@ -3,7 +3,7 @@
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: v0.13.0-dev. Documentation: https://Ricardo-M-L.github.io/anthrogo/
+> **Status**: v0.13.16-dev. Documentation: https://Ricardo-M-L.github.io/anthrogo/
 
 anthrogo re-expresses Claude Code's architecture in Go: preserving the shapes
 of `Tool`, `QueryEngine`, `PermissionContext`, `ToolUseContext`, MCP client,
@@ -97,6 +97,8 @@ anthrogo/
 │   ├── system/          # system prompt + CLAUDE.md walker
 │   ├── session/         # conversation state
 │   ├── mcp/             # MCP client (Manager + Server + LogSink)
+│   ├── serve/           # HTTP daemon (REST/SSE API, M13.14)
+│   ├── web/             # web UI assets + handler (embedded SPA, M13.15)
 │   └── version/         # version string
 ├── pkg/
 │   ├── message/         # ContentBlock types

@@ -18,8 +18,11 @@ anthrogo [flags] [prompt]
 | `--permission-mode <mode>` | `default` | `default` / `acceptEdits` / `bypassPermissions` / `plan` |
 | `--cwd <path>` | current dir | Override working directory |
 | `--session <id>` | — | Resume a specific session by UUID (or unambiguous prefix) |
+| `--resume, -r <id>` | — | Resume the specified session (alias for `--session`) |
+| `--continue, -c` | false | Continue the most recent session for this cwd |
 | `--cost-limit <USD>` | 0 | Hard-cap estimated session cost; 0 = disabled |
 | `--auto-compact <tokens>` | 0 | Auto-compact threshold in tokens; 0 = disabled |
+| `--pprof <addr>` | — | Start pprof server at addr (e.g. `localhost:6060`) for debug profiling |
 | `--debug` | false | Enable debug logging |
 | `--no-color` | false | Disable color output |
 
@@ -42,6 +45,53 @@ anthrogo [flags] [prompt]
 |-----------|-------------|
 | `anthrogo init-config` | Interactive wizard to create `~/.anthrogo/settings.yaml` |
 | `anthrogo doctor` | Environment self-check (~20 checks; PASS/WARN/FAIL report) |
+| `anthrogo serve` | Start the HTTP API daemon (REST/SSE) — see below |
+| `anthrogo web` | Start the embedded browser UI — see below |
+
+### anthrogo serve
+
+Start a long-lived HTTP server that exposes the engine as a REST/SSE API.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--addr` | `127.0.0.1:8765` | Listen address for the HTTP server |
+| `--token` | — | Bearer auth token; all routes require `Authorization: Bearer <token>` if set |
+| `--cors-origin` | — | `Access-Control-Allow-Origin` header value (e.g. `https://myapp.com`) |
+| `--sessions-dir` | `~/.anthrogo` | Override session storage directory |
+| `--model` | settings.yaml | Model alias override |
+| `--provider` | settings.yaml | Provider profile name override |
+
+**Endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/chat` | Send a message; `stream: true` enables SSE streaming |
+| `GET` | `/v1/sessions` | List recent sessions (up to 100) |
+| `GET` | `/v1/sessions/{id}` | Fetch full JSONL records for a session |
+| `DELETE` | `/v1/sessions/{id}` | Delete a session file |
+| `GET` | `/v1/tools` | List registered tools |
+| `GET` | `/v1/health` | Server health and uptime |
+
+**Quick check:**
+
+```bash
+anthrogo serve &
+curl http://127.0.0.1:8765/v1/health
+```
+
+### anthrogo web
+
+Start the embedded browser UI (vanilla JS SPA served via `embed.FS`). Automatically opens the browser unless `--no-browser` is set. Supports the same `/v1/*` API endpoints as `serve`, plus the SPA at `/`.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--addr` | auto (8766–8775) | Listen address; auto-detects a free port in range 8766–8775 if not set |
+| `--token` | — | Bearer auth token |
+| `--cors-origin` | — | `Access-Control-Allow-Origin` header value |
+| `--sessions-dir` | `~/.anthrogo` | Override session storage directory |
+| `--model` | settings.yaml | Model alias override |
+| `--provider` | settings.yaml | Provider profile name override |
+| `--no-browser` | false | Do not open the browser automatically |
 
 ## Examples
 
