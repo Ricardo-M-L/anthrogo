@@ -955,6 +955,7 @@ func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOv
 	reg.Register(builtins.Version{})
 	reg.Register(builtins.Telemetry{Reporter: tel})
 	reg.Register(builtins.Hook{HomeRoot: hooksHome})
+	reg.Register(builtins.Refactor{})
 	return reg
 }
 

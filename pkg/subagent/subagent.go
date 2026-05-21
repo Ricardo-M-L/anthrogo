@@ -64,13 +64,19 @@ func (r *Registry) Replace(other *Registry) {
 }
 
 // DefaultRegistry returns a Registry pre-populated with the built-in
-// "general-purpose" subagent type.
+// "general-purpose" and "refactor" subagent types.
 func DefaultRegistry() *Registry {
 	r := NewRegistry()
 	r.Register(Spec{
 		Name:        "general-purpose",
 		Description: "General-purpose subagent for complex multi-step research, code search, or independent task execution. Brief it with a self-contained prompt — it has no memory of the parent conversation.",
 		SystemPromptSuffix: "\n\n# You are a subagent\n\nYou were spawned by a parent agent to do a focused task. You have no memory of the parent's conversation. Use the tools you have access to, gather what you need, and return a concise final answer.\n",
+	})
+	r.Register(Spec{
+		Name:          "refactor",
+		Description:   "Apply a focused multi-file refactor using Read/Edit/Write tools only. Spawned by the /refactor slash command.",
+		ToolAllowlist: []string{"Read", "Edit", "Write", "Glob", "Grep"},
+		SystemPromptSuffix: "\n\n# You are a refactor subagent\n\nYou were spawned by the /refactor command to apply a focused code transformation across a set of files. Read each in-scope file with the Read tool, apply the requested change with Edit (preferred) or Write (full rewrite only when necessary). Verify each edit by re-reading. Do not deviate from the instruction. At the end, summarize what changed per file.\n",
 	})
 	return r
 }

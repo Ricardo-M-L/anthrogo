@@ -94,6 +94,29 @@ If the provider does not support the specified model, the error is returned to t
 
 Note: the system prompt is built at startup; newly added types won't be advertised to the model until restart.
 
+## /refactor — multi-file refactor via subagent
+
+```
+/refactor <glob-pattern> -- <natural-language instruction>
+```
+
+Resolves the glob under the current working directory (supports `**` via `doublestar`), then spawns a `refactor` subagent with a restricted tool allowlist (`Read`, `Edit`, `Write`, `Glob`, `Grep`) to apply the instruction across all matched files.
+
+Limits:
+- Maximum **50 matched files** per invocation (narrow the pattern if exceeded).
+- Per-file read cap advisory: **50 KB** (larger files are listed with a note to use `Read` with `offset`/`limit`).
+- Total in-scope advisory: **500 KB** (a warning is included in the subagent prompt).
+
+Examples:
+
+```
+/refactor pkg/tool/**/*.go -- add a doc-comment to every exported function that is missing one
+/refactor internal/**/*.go -- replace all uses of fmt.Sprintf("%v", err) with err.Error()
+/refactor cmd/**/*.go -- rename the variable cfg to config throughout
+```
+
+The subagent's final per-file summary is returned as the command output.
+
 ## Remote subagents (KAIROS)
 
 Add `remote:` to a subagent YAML to dispatch to a KAIROS worker:

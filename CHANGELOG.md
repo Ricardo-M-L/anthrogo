@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.13.12-dev] — 2026-05-21
+
+M13.13 — `/refactor` multi-file builtin slash command.
+
+### Added
+- **`/refactor <pattern> -- <instruction>`** (`pkg/command/builtins/refactor.go`): resolves a doublestar glob under the current working directory, lists matched files (cap: 50 files, 50 KB/file, 500 KB total), and dispatches a `"refactor"` subagent via `engine.RunSubagent`. When no engine is available (unit tests, headless-less surfaces), returns an `AgentTask` descriptor so the caller can inspect the dispatch intent.
+- **`refactor` built-in subagent spec** registered in `subagent.DefaultRegistry()`: restricted tool allowlist (`Read`, `Edit`, `Write`, `Glob`, `Grep`); custom system-prompt suffix instructs the subagent to verify every edit and summarize changes per file.
+- **`command.AgentTask` struct** added to `pkg/command/command.go` as an optional field on `command.Result`. Surfaces that obtain an engine can use it for deferred or out-of-band subagent dispatch.
+- Command registered in `registerCommands` (`cmd/anthrogo/main.go`).
+- 7 new tests (`pkg/command/builtins/refactor_test.go`): `NoArgs_ShowsUsage`, `NoSeparator_ShowsUsage`, `EmptyPattern_ShowsUsage`, `EmptyInstruction_ShowsUsage`, `NoMatches_ReturnsCleanMessage`, `TooManyMatches_BlocksWithGuidance`, `HappyPath_BuildsPromptAndAgentTask`, `TotalBytesWarning`, `GlobError_ReturnsMessage`.
+- No new external dependencies (`github.com/bmatcuk/doublestar/v4` was already in go.mod).
+
+---
+
 ## [0.13.11-dev] — 2026-05-21
 
 M13.12 — Embeddings + Image generation tools.

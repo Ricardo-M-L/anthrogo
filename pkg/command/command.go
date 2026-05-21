@@ -60,6 +60,23 @@ type ExecRequest struct {
 	OnComplete func(err error) string // returns a chat-appendable status message
 }
 
+// AgentTask describes a subagent dispatch that a builtin command wants the
+// engine to perform on its behalf. The surface (TUI or headless) detects a
+// non-nil AgentTask in the Result and calls engine.RunSubagent with the
+// provided parameters before rendering the final text.
+type AgentTask struct {
+	// Description is a short human-readable label shown in the TUI prefix.
+	Description string
+	// Prompt is the full self-contained prompt for the subagent.
+	Prompt string
+	// SubagentType references a registered subagent.Spec by name.
+	SubagentType string
+	// ToolAllowlist, when non-empty, overrides the spec's tool_allowlist for
+	// this particular invocation. If the named spec already has an allowlist,
+	// the per-call list wins.
+	ToolAllowlist []string
+}
+
 type Result struct {
 	Text       string
 	SubmitText string
@@ -67,4 +84,8 @@ type Result struct {
 	// bubbletea's tea.ExecProcess wrapper. Headless surfaces run the *exec.Cmd
 	// directly with inherited stdio. Both surfaces call OnComplete after exit.
 	ExecCmd *ExecRequest
+	// AgentTask, when non-nil, instructs the surface to dispatch a subagent
+	// via engine.RunSubagent after the command returns. The subagent's final
+	// text replaces Result.Text in the rendered output.
+	AgentTask *AgentTask
 }
