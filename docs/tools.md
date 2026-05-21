@@ -37,6 +37,8 @@ anthrogo ships 30+ built-in tools covering file I/O, shell execution, code intel
 | `BrowserAction` | no | Headless Chrome automation: `get` (navigate), `click` (CSS selector), `text` (extract visible text), `screenshot` (save PNG). Lazy Chrome init; serialised through one shared instance. **Not** in default `alwaysAllow` — goes through permission gate. |
 | `SlackPost` | no | POST a message to a Slack channel via an Incoming Webhook URL. Supports `text`, Block Kit `blocks`, `username`, and `icon_emoji`. Falls back to `SLACK_WEBHOOK_URL` env var. Goes through permission gate (Ask). |
 | `CalendarEvent` | no | Generate an `.ics` file for a calendar event (`title`, `start`/`end` RFC3339, `description`, `location`, `out_path`). On macOS, `add_to_calendar_app: true` opens the file in Calendar.app. Goes through permission gate (Ask). |
+| `Embed` | yes | Convert text to embedding vectors via an OpenAI-compatible `/embeddings` endpoint. Accepts `input` (single) or `input_list` (batch). Resolves credentials from `ANTHROGO_EMBED_API_KEY` / `OPENAI_API_KEY`. `out_format`: `summary` (default) or `json`. |
+| `ImageGen` | no | Generate an image from a text prompt via an OpenAI-compatible `/images/generations` endpoint. Saves the result as a PNG at `out_path` (default `$TMPDIR/anthrogo-imagegen-<ts>.png`). Resolves credentials from `ANTHROGO_IMAGE_API_KEY` / `OPENAI_API_KEY`. Goes through permission gate (Ask). |
 
 ## Permission model
 

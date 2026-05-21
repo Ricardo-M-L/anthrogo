@@ -923,6 +923,8 @@ func registerTools(cfg config.Config) (*tool.Registry, *tool.Browser) {
 	// Side-effect tools: NOT in default alwaysAllow — gate should Ask.
 	r.Register(tool.SlackPost{})
 	r.Register(tool.CalendarEvent{})
+	r.Register(tool.Embed{})
+	r.Register(tool.ImageGen{})
 	browserTool := &tool.Browser{}
 	r.Register(browserTool)
 	return r, browserTool

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.11-dev] — 2026-05-21
+
+M13.12 — Embeddings + Image generation tools.
+
+### Added
+- **`Embed` tool** (`pkg/tool/embed.go`): POST to `${ANTHROGO_EMBED_BASE_URL}/embeddings` (or OpenAI default). Accepts `input` (single string) or `input_list` (batch). Resolves credentials from arg > `ANTHROGO_EMBED_API_KEY` > `OPENAI_API_KEY`. Default model `text-embedding-3-small`. `out_format=summary` (default) returns dimension + first 8 floats per vector; `out_format=json` returns full vectors as `{vectors, model, dim}`. 6 new tests (`pkg/tool/embed_test.go`): `SingleInput_Summary`, `BatchInputList`, `JSONOutput`, `MissingKey_IsError`, `NoInput_IsError`, `ServerError_IsError`.
+- **`ImageGen` tool** (`pkg/tool/imagegen.go`): POST to `${ANTHROGO_IMAGE_BASE_URL}/images/generations` (OpenAI compat) with `response_format: b64_json`. Accepts `prompt` (required), `model` (default `dall-e-3`), `size` (default `1024x1024`), `out_path` (default `$TMPDIR/anthrogo-imagegen-<ts>.png`). Resolves credentials from arg > `ANTHROGO_IMAGE_API_KEY` > `OPENAI_API_KEY`. base64-decodes first data item and writes PNG. 5 new tests (`pkg/tool/imagegen_test.go`): `HappyPath`, `MissingPrompt_IsError`, `MissingKey_IsError`, `ServerError_IsError`, `CustomOutPath`.
+- Both tools registered in `registerTools` (`cmd/anthrogo/main.go`); intentionally **not** in the default `alwaysAllow` list.
+- No new external dependencies (stdlib only: `net/http`, `encoding/json`, `encoding/base64`, `os`, `path/filepath`, `time`).
+
+---
+
 ## [0.13.10-dev] — 2026-05-21
 
 M13.11 — Slack webhook + Calendar tools.
