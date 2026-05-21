@@ -61,6 +61,7 @@ func New(opts NewOptions) (*Store, error) {
 			PermissionMode:  opts.PermissionMode,
 			AnthrogoVersion: version.Version,
 			CreatedAt:       s.startedAt,
+			SchemaVersion:   CurrentSchemaVersion,
 		},
 	}
 	if err := s.Append(meta); err != nil {
@@ -162,6 +163,9 @@ func (s *Store) Close() error {
 }
 
 // Replay reads a session file and returns its records in file order.
+// If the first record is a KindSessionMeta with a schema_version greater than
+// CurrentSchemaVersion, a warning is printed to stderr but replay continues
+// best-effort. Missing or zero schema_version is treated as v1 (legacy).
 func Replay(path string) ([]Record, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -180,6 +184,15 @@ func Replay(path string) ([]Record, error) {
 	}
 	if err := sc.Err(); err != nil && err != io.EOF {
 		return out, err
+	}
+	if len(out) > 0 && out[0].Kind == KindSessionMeta && out[0].SessionMeta != nil {
+		v := out[0].SessionMeta.SchemaVersion
+		if v == 0 {
+			v = 1
+		}
+		if v > CurrentSchemaVersion {
+			fmt.Fprintf(os.Stderr, "[session] %s: schema_version=%d unknown (anthrogo supports %d); replaying anyway\n", path, v, CurrentSchemaVersion)
+		}
 	}
 	return out, nil
 }

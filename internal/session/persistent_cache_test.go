@@ -2,12 +2,15 @@ package session
 
 import (
 	"bytes"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	_ "modernc.org/sqlite"
 
 	"github.com/ricardo/anthrogo/pkg/message"
 )
@@ -179,5 +182,83 @@ func TestPersistentCache_NoDBFallback(t *testing.T) {
 	require.Len(t, recs, 1)
 	require.Equal(t, "fallback", recs[0].UserMessage.Content[0].Text)
 	require.Equal(t, 0, c.SizeOnDisk())
+	require.NoError(t, c.Close())
+}
+
+func TestPersistentCache_FreshDB_SetsUserVersion(t *testing.T) {
+	tmp := t.TempDir()
+	dbPath := filepath.Join(tmp, "cache.db")
+	c := NewPersistentCache(dbPath, 4)
+	require.NotNil(t, c.db)
+	var v int
+	require.NoError(t, c.db.QueryRow("PRAGMA user_version").Scan(&v))
+	require.Equal(t, cacheSchemaVersion, v)
+	require.NoError(t, c.Close())
+}
+
+func TestPersistentCache_MigrateV1ToV2(t *testing.T) {
+	tmp := t.TempDir()
+	dbPath := filepath.Join(tmp, "cache.db")
+
+	// Create a v1 DB manually (no anthrogo_version column).
+	db, err := sql.Open("sqlite", dbPath)
+	require.NoError(t, err)
+	_, err = db.Exec(`CREATE TABLE replay_cache (
+		path TEXT PRIMARY KEY,
+		modtime INTEGER NOT NULL,
+		records_json BLOB NOT NULL,
+		cached_at INTEGER NOT NULL
+	)`)
+	require.NoError(t, err)
+	_, err = db.Exec("PRAGMA user_version = 1")
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	// Open via PersistentCache — should migrate to v2.
+	c := NewPersistentCache(dbPath, 4)
+	require.NotNil(t, c.db)
+	var v int
+	require.NoError(t, c.db.QueryRow("PRAGMA user_version").Scan(&v))
+	require.Equal(t, 2, v)
+
+	// Verify anthrogo_version column was added.
+	rows, err := c.db.Query("PRAGMA table_info(replay_cache)")
+	require.NoError(t, err)
+	defer rows.Close()
+	found := false
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, typ string
+		var dflt any
+		require.NoError(t, rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk))
+		if name == "anthrogo_version" {
+			found = true
+		}
+	}
+	require.True(t, found, "anthrogo_version column should exist after migration")
+	require.NoError(t, c.Close())
+}
+
+func TestPersistentCache_GetWritesAnthrogoVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "cache.db")
+
+	jsonlPath := writeJSONL(t, tmpDir, []Record{
+		{Kind: KindUserMessage, Timestamp: time.Now(), UserMessage: &UserMessage{
+			Content: []message.Block{{Type: message.BlockText, Text: "hello"}},
+		}},
+	})
+
+	c := NewPersistentCache(dbPath, 4)
+	require.NotNil(t, c.db)
+
+	_, err := c.Get(jsonlPath)
+	require.NoError(t, err)
+
+	// Verify anthrogo_version was written.
+	var av sql.NullString
+	require.NoError(t, c.db.QueryRow("SELECT anthrogo_version FROM replay_cache WHERE path = ?", jsonlPath).Scan(&av))
+	require.True(t, av.Valid, "anthrogo_version should be set")
+	require.NotEmpty(t, av.String)
 	require.NoError(t, c.Close())
 }

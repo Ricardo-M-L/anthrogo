@@ -64,6 +64,10 @@ type CompactRecord struct {
 	Trigger       string `json:"trigger"`
 }
 
+// CurrentSchemaVersion is the JSONL schema version written by this build.
+// v1 = original (no schema_version field). v2 = M13.4 (schema_version added).
+const CurrentSchemaVersion = 2
+
 type SessionMeta struct {
 	SessionID       string    `json:"session_id"`
 	Cwd             string    `json:"cwd"`
@@ -71,6 +75,7 @@ type SessionMeta struct {
 	PermissionMode  string    `json:"permission_mode"`
 	AnthrogoVersion string    `json:"anthrogo_version"`
 	CreatedAt       time.Time `json:"created_at"`
+	SchemaVersion   int       `json:"schema_version,omitempty"`
 }
 
 type UserMessage struct {

@@ -10,7 +10,13 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/ricardo/anthrogo/internal/version"
 )
+
+// cacheSchemaVersion is the SQLite user_version this build manages.
+// v0 = fresh DB, v1 = pre-M13.4, v2 = M13.4 (anthrogo_version column added).
+const cacheSchemaVersion = 2
 
 // PersistentCache is a SQLite-backed cache of parsed []Record keyed by
 // (path, modtime). On miss or stale modtime, it falls through to Replay
@@ -19,6 +25,46 @@ type PersistentCache struct {
 	mu  sync.Mutex
 	db  *sql.DB
 	mem *ReplayCache // L1 cache; PersistentCache is L2
+}
+
+// openAndMigrate checks PRAGMA user_version and applies schema migrations:
+//   - v0 (fresh): create table with anthrogo_version column, set user_version=2
+//   - v1 (pre-M13.4): ALTER TABLE to add anthrogo_version column, set user_version=2
+//   - v2: no-op
+//   - v>2: warn to stderr, proceed (forward-compatible best-effort)
+func openAndMigrate(db *sql.DB) error {
+	var v int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&v); err != nil {
+		return err
+	}
+
+	switch {
+	case v == 0:
+		// Fresh DB: create table with anthrogo_version column.
+		if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS replay_cache (
+			path TEXT PRIMARY KEY,
+			modtime INTEGER NOT NULL,
+			records_json BLOB NOT NULL,
+			cached_at INTEGER NOT NULL,
+			anthrogo_version TEXT
+		)`); err != nil {
+			return err
+		}
+		if _, err := db.Exec("PRAGMA user_version = 2"); err != nil {
+			return err
+		}
+	case v == 1:
+		// Migrate v1 → v2: add anthrogo_version column.
+		if _, err := db.Exec(`ALTER TABLE replay_cache ADD COLUMN anthrogo_version TEXT`); err != nil {
+			return err
+		}
+		if _, err := db.Exec("PRAGMA user_version = 2"); err != nil {
+			return err
+		}
+	case v > cacheSchemaVersion:
+		fmt.Fprintf(os.Stderr, "[session-cache] DB user_version=%d unknown (anthrogo supports %d); using read-only access where possible\n", v, cacheSchemaVersion)
+	}
+	return nil
 }
 
 // NewPersistentCache opens (or creates) a SQLite DB at dbPath. memCap is the
@@ -35,15 +81,7 @@ func NewPersistentCache(dbPath string, memCap int) *PersistentCache {
 		fmt.Fprintf(os.Stderr, "session cache: open %s: %v\n", dbPath, err)
 		return &PersistentCache{mem: mem}
 	}
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS replay_cache (
-			path TEXT PRIMARY KEY,
-			modtime INTEGER NOT NULL,
-			records_json BLOB NOT NULL,
-			cached_at INTEGER NOT NULL
-		);
-	`)
-	if err != nil {
+	if err := openAndMigrate(db); err != nil {
 		fmt.Fprintf(os.Stderr, "session cache: schema: %v\n", err)
 		_ = db.Close()
 		return &PersistentCache{mem: mem}
@@ -95,8 +133,14 @@ func (c *PersistentCache) Get(path string) ([]Record, error) {
 		blob, _ := json.Marshal(records)
 		c.mu.Lock()
 		_, _ = c.db.Exec(
-			"INSERT INTO replay_cache (path, modtime, records_json, cached_at) VALUES (?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET modtime=excluded.modtime, records_json=excluded.records_json, cached_at=excluded.cached_at",
-			path, modtimeUnix, blob, time.Now().Unix(),
+			`INSERT INTO replay_cache (path, modtime, records_json, cached_at, anthrogo_version)
+			 VALUES (?, ?, ?, ?, ?)
+			 ON CONFLICT(path) DO UPDATE SET
+			    modtime=excluded.modtime,
+			    records_json=excluded.records_json,
+			    cached_at=excluded.cached_at,
+			    anthrogo_version=excluded.anthrogo_version`,
+			path, modtimeUnix, blob, time.Now().Unix(), version.Version,
 		)
 		c.mu.Unlock()
 	}

@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.13.3-dev] — 2026-05-21
+
+M13.4 — Schema versioning (JSONL + SQLite).
+
+### Added
+- `session.SessionMeta.SchemaVersion` field. New sessions write `CurrentSchemaVersion = 2`. Replay treats missing/zero as v1. Future version > current logs a warning + still replays.
+- SQLite cache schema migration via `PRAGMA user_version`:
+  - v0 (fresh) → v2: create with anthrogo_version column
+  - v1 (pre-M13.4 caches) → v2: ALTER TABLE ADD COLUMN anthrogo_version TEXT
+  - v > 2 → warn + read-only access
+- `PersistentCache.Get` now writes the active anthrogo version into the new column for debugging stale entries.
+
+### Known issues / deferred
+- No downgrade path (running an older anthrogo against a newer DB version will see the warning but reads should still work).
+- No JSONL forward-migration tool (no breaking changes between v1 and v2 — only a new optional field).
+- No periodic GC of orphaned cache entries by old versions.
+
+---
+
 ## [0.13.2-dev] — 2026-05-21
 
 M13.3 — API reference + pprof + benchmark suite.
