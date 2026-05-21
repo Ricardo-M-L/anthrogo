@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"log"
 	"sync"
+	"time"
 
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/message"
@@ -95,7 +99,62 @@ func (e *Engine) SubmitMessageBlocks(ctx context.Context, blocks []message.Block
 	return out
 }
 
+// isTransientStreamError reports whether err warrants a stream retry.
+// It returns false for io.EOF (clean end), context cancellation/deadline, and nil.
+func isTransientStreamError(err error) bool {
+	if err == nil || errors.Is(err, io.EOF) {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	return true
+}
+
+// streamRetryDelays returns the backoff delays for successive retry attempts.
+var streamRetryDelays = []time.Duration{200 * time.Millisecond, 600 * time.Millisecond, 2 * time.Second}
+
 func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReason string, err error) {
+	maxRetries := e.cfg.MaxStreamRetries
+	if maxRetries <= 0 {
+		maxRetries = 3
+	}
+
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		stopReason, lastErr = e.runOneAPITurnAttempt(ctx, out)
+		if lastErr == nil {
+			return stopReason, nil
+		}
+		// Do not retry context cancellation / EOF.
+		if !isTransientStreamError(lastErr) {
+			return "", lastErr
+		}
+		// Exhausted retries.
+		if attempt >= maxRetries {
+			break
+		}
+		// Emit a retry event and wait.
+		delay := streamRetryDelays[attempt]
+		if attempt >= len(streamRetryDelays) {
+			delay = streamRetryDelays[len(streamRetryDelays)-1]
+		}
+		out <- Event{
+			Kind:         KindStreamRetry,
+			RetryAttempt: attempt + 1,
+			RetryDelayMs: int(delay.Milliseconds()),
+			Err:          lastErr,
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+	return "", fmt.Errorf("stream retry exhausted: %w", lastErr)
+}
+
+func (e *Engine) runOneAPITurnAttempt(ctx context.Context, out chan<- Event) (stopReason string, err error) {
 	e.mu.Lock()
 	msgsCopy := append([]message.Message(nil), e.messages...)
 	e.mu.Unlock()
@@ -118,6 +177,7 @@ func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReaso
 		textBuf       bytes.Buffer
 		pendingTool   *message.Block
 		toolInputJSON bytes.Buffer
+		sawStop       bool
 	)
 	flushText := func() {
 		if textBuf.Len() > 0 {
@@ -178,7 +238,13 @@ func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReaso
 			if ev.StopReason != "" {
 				stopReason = ev.StopReason
 			}
+			sawStop = true
 		case provider.EventError:
+			if !sawStop && isTransientStreamError(ev.Err) {
+				// Transient mid-stream error before MessageStop — signal for retry.
+				// Discard partial assistant content; the retry will regenerate.
+				return "", ev.Err
+			}
 			return "", ev.Err
 		}
 	}
@@ -216,8 +282,9 @@ func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReaso
 
 		results := make([]message.Block, len(toolBlocks))
 		if allSafe && len(toolBlocks) > 1 {
-			// Parallel dispatch: goroutines write into fixed result slots so
-			// the tool_result order matches the tool_use order.
+			// Parallel dispatch with cancel-safe drain.
+			// Goroutines write into fixed result slots so tool_result order
+			// matches the tool_use order.
 			var wg sync.WaitGroup
 			// out channel is buffered (64); concurrent writes are safe.
 			for i, b := range toolBlocks {
@@ -227,7 +294,48 @@ func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReaso
 					results[idx] = e.executeTool(ctx, blk, out)
 				}(i, b)
 			}
-			wg.Wait()
+
+			// Cancel-safe drain: if ctx fires before tools complete, wait up to
+			// MaxToolDrainTimeout before giving up, emitting periodic drain events.
+			done := make(chan struct{})
+			go func() {
+				wg.Wait()
+				close(done)
+			}()
+
+			drainTimeout := e.cfg.MaxToolDrainTimeout
+			if drainTimeout <= 0 {
+				drainTimeout = 5 * time.Second
+			}
+
+			select {
+			case <-done:
+				// All tools finished cleanly.
+			case <-ctx.Done():
+				// Context cancelled; give in-flight tools a bounded drain window.
+				deadline := time.Now().Add(drainTimeout)
+				ticker := time.NewTicker(100 * time.Millisecond)
+				defer ticker.Stop()
+			drainLoop:
+				for {
+					select {
+					case <-done:
+						break drainLoop
+					case <-ticker.C:
+						remaining := time.Until(deadline)
+						if remaining <= 0 {
+							log.Printf("anthrogo: cancel drain timeout (%s) exceeded; %d tool goroutine(s) may still be running",
+								drainTimeout, len(toolBlocks))
+							break drainLoop
+						}
+						out <- Event{
+							Kind:          KindCancelDraining,
+							InFlightCount: len(toolBlocks),
+							RemainingMs:   int(remaining.Milliseconds()),
+						}
+					}
+				}
+			}
 		} else {
 			for i, b := range toolBlocks {
 				results[i] = e.executeTool(ctx, b, out)

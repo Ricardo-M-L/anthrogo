@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.13.7-dev] — 2026-05-21
+
+M13.8 — Stream reconnect + cancel-safe cleanup.
+
+### Added
+- **Stream-level retry** (`pkg/query/loop.go`): `runOneAPITurn` wraps the stream in a retry loop (Strategy A — fresh stream, full re-prompt). Transient errors (not `io.EOF`, not context cancellation) trigger exponential backoff of 200ms / 600ms / 2s before each retry. After `MaxStreamRetries` (default 3) attempts, returns the original error wrapped with `"stream retry exhausted: …"`.
+- **`Config.MaxStreamRetries int`** (`pkg/query/engine.go`): cap on stream retry attempts. 0 → default 3.
+- **`Config.MaxToolDrainTimeout time.Duration`** (`pkg/query/engine.go`): maximum time to wait for in-flight concurrent tool goroutines after `ctx` is cancelled. 0 → default 5s.
+- **Cancel-safe tool drain** (`pkg/query/loop.go`): concurrent tool goroutines are tracked with a `sync.WaitGroup`. When `ctx.Done()` fires, the engine waits up to `MaxToolDrainTimeout` for goroutines to finish before returning, emitting `KindCancelDraining` events during the window. After timeout, a `log.Printf` warning is emitted and the function returns.
+- **`KindStreamRetry` event** (`pkg/query/event.go`): carries `RetryAttempt`, `RetryDelayMs`, and `Err` so the TUI can show `[reconnecting attempt 2/3, last error: …]`.
+- **`KindCancelDraining` event** (`pkg/query/event.go`): carries `InFlightCount` and `RemainingMs` so the TUI can show a drain status.
+- **`fake.Provider.StreamErrors []error`** (`pkg/provider/fake/fake.go`): per-call injected error list; index _i_ injects an `EventError` for the _i_-th `Stream()` call. Enables scripted transient-error scenarios in tests.
+- **4 new tests** (`pkg/query/engine_test.go`):
+  - `TestEngine_SubmitMessage_StreamRetry_RecoversAfterTransientError`
+  - `TestEngine_SubmitMessage_StreamRetry_ExhaustsAfter3`
+  - `TestEngine_SubmitMessage_CancelWaitsForInFlightTools`
+  - `TestEngine_SubmitMessage_CancelDrainTimeoutCapped`
+
+### Strategy note
+Strategy B (prefill assistant partial text) was not implemented: it is only safe when no `tool_use` block is partially emitted, and detecting that boundary reliably requires more state tracking. Strategy A (discard partial, re-prompt from scratch) is used for all retries; it is simpler and correct.
+
+---
+
 ## [0.13.6-dev] — 2026-05-21
 
 M13.7 — Per-subagent model override.

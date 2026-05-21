@@ -41,6 +41,16 @@ Use `anthrogo -p "explain main.go"` for headless (non-interactive) mode.
 | **/cost + budget + auto-compact** | Built-in pricing for 20+ models · budget cap · auto-compact threshold — [docs/cost.md](docs/cost.md) · [docs/compaction.md](docs/compaction.md) |
 | **/login OAuth + /telemetry** | OAuth 2.1 PKCE for corporate SSO · opt-in anonymous telemetry — [docs/providers/anthropic.md](docs/providers/anthropic.md) |
 
+## Reliability
+
+### Stream retry
+
+If the provider's HTTP/SSE stream is cut mid-response (network blip, proxy timeout), anthrogo automatically retries with exponential backoff (200 ms → 600 ms → 2 s, up to 3 attempts by default). Each retry emits a `KindStreamRetry` event so the TUI can show a `[reconnecting attempt N/3]` status. After exhausting all retries the original error is returned wrapped with `"stream retry exhausted"`. The retry cap is configurable via `Config.MaxStreamRetries`.
+
+### Cancel-safe tool drain
+
+When the user presses Ctrl-C, anthrogo does not immediately discard in-flight concurrent tool goroutines. Instead it waits up to `Config.MaxToolDrainTimeout` (default 5 s) for any running goroutines to finish before closing the event channel. During the drain window `KindCancelDraining` events are emitted so the TUI can show a `[draining N tools …]` indicator. If the timeout is exceeded a warning is logged and the function returns; goroutines that ignored their context may still be running (documented).
+
 ## Roadmap
 
 | Milestone | Scope | Status |

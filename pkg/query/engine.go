@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -102,6 +103,15 @@ type Config struct {
 	// verify SSE signatures for ALL remote KAIROS subagent dispatches. A per-spec
 	// trust_key in the subagent YAML takes precedence over this global setting.
 	KairosTrustKey ed25519.PublicKey
+
+	// MaxStreamRetries is the number of times runOneAPITurn will retry a
+	// transient stream error (not io.EOF, not context cancellation) before
+	// returning the error wrapped with "stream retry exhausted". 0 → default 3.
+	MaxStreamRetries int
+
+	// MaxToolDrainTimeout is the maximum time to wait for in-flight concurrent
+	// tool goroutines to finish after ctx is cancelled. 0 → default 5s.
+	MaxToolDrainTimeout time.Duration
 }
 
 // Engine owns one conversation. Each SubmitMessage starts a new turn within

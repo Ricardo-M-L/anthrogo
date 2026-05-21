@@ -1448,3 +1448,225 @@ func (c *chainCaptureTool) Call(_ context.Context, _ map[string]any, tcx *tool.C
 	}
 	return tool.Result{Text: "ok"}, nil
 }
+
+// --- Stream retry tests ---
+
+// TestEngine_SubmitMessage_StreamRetry_RecoversAfterTransientError: fake provider
+// errors on first attempt, succeeds on second. Asserts final text is correct and
+// at least one KindStreamRetry event was emitted.
+func TestEngine_SubmitMessage_StreamRetry_RecoversAfterTransientError(t *testing.T) {
+	transient := errors.New("transient network blip")
+
+	// Script 0: injected error (via StreamErrors[0]). Script 1: success.
+	fp := fake.New(
+		// script 0 — will be replaced by injected error, so body doesn't matter
+		// but must exist as a slot. We use an end_turn that will never be reached.
+		[]provider.Event{
+			{Kind: provider.EventTextDelta, Text: "should-not-appear"},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+		// script 1 — success after retry
+		[]provider.Event{
+			{Kind: provider.EventTextDelta, Text: "recovered text"},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+	fp.StreamErrors = []error{transient, nil}
+
+	e := NewEngine(Config{
+		Provider:         fp,
+		Tools:            tool.NewRegistry(),
+		Permissions:      permissions.Empty(),
+		Model:            "x",
+		MaxStreamRetries: 3,
+	})
+
+	ch := e.SubmitMessage(context.Background(), "hello")
+	var assistantText strings.Builder
+	var retryEvents []Event
+	for ev := range ch {
+		switch ev.Kind {
+		case KindAssistantDelta:
+			assistantText.WriteString(ev.Text)
+		case KindStreamRetry:
+			retryEvents = append(retryEvents, ev)
+		}
+	}
+	require.Equal(t, "recovered text", assistantText.String())
+	require.GreaterOrEqual(t, len(retryEvents), 1, "expected at least one KindStreamRetry event")
+	require.Equal(t, 1, retryEvents[0].RetryAttempt)
+	require.ErrorIs(t, retryEvents[0].Err, transient)
+}
+
+// TestEngine_SubmitMessage_StreamRetry_ExhaustsAfter3: fake provider errors all 3
+// retry slots. Asserts error wraps original and 3 KindStreamRetry events are emitted.
+func TestEngine_SubmitMessage_StreamRetry_ExhaustsAfter3(t *testing.T) {
+	transient := errors.New("persistent error")
+
+	// 4 scripts (1 original + 3 retries), all injected with errors.
+	fp := fake.New(
+		[]provider.Event{{Kind: provider.EventMessageStop, StopReason: "end_turn"}},
+		[]provider.Event{{Kind: provider.EventMessageStop, StopReason: "end_turn"}},
+		[]provider.Event{{Kind: provider.EventMessageStop, StopReason: "end_turn"}},
+		[]provider.Event{{Kind: provider.EventMessageStop, StopReason: "end_turn"}},
+	)
+	fp.StreamErrors = []error{transient, transient, transient, transient}
+
+	e := NewEngine(Config{
+		Provider:         fp,
+		Tools:            tool.NewRegistry(),
+		Permissions:      permissions.Empty(),
+		Model:            "x",
+		MaxStreamRetries: 3,
+	})
+
+	ch := e.SubmitMessage(context.Background(), "hello")
+	var finalErr error
+	var retryCount int
+	for ev := range ch {
+		switch ev.Kind {
+		case KindStreamRetry:
+			retryCount++
+		case KindError:
+			finalErr = ev.Err
+		}
+	}
+	require.Equal(t, 3, retryCount, "expected exactly 3 KindStreamRetry events")
+	require.Error(t, finalErr)
+	require.ErrorIs(t, finalErr, transient, "final error must wrap original transient error")
+	require.Contains(t, finalErr.Error(), "stream retry exhausted")
+}
+
+// sleepTool is a test-only tool that sleeps for a configurable duration.
+// IsConcurrencySafe returns true so the engine dispatches it concurrently.
+// ignoreCtx controls whether the tool ignores context cancellation (useful for
+// testing that the drain window actually waits for non-cooperative tools).
+type sleepTool struct {
+	tool.DefaultPermission
+	sleep     time.Duration
+	ignoreCtx bool
+}
+
+func (s sleepTool) Name() string                         { return "SleepTool" }
+func (s sleepTool) Description(context.Context) string   { return "sleeps for a configured duration" }
+func (s sleepTool) UserFacingName(map[string]any) string { return "SleepTool" }
+func (s sleepTool) Schema() map[string]any               { return map[string]any{"type": "object"} }
+func (s sleepTool) IsReadOnly() bool                     { return true }
+func (s sleepTool) IsConcurrencySafe() bool              { return true }
+func (s sleepTool) Call(ctx context.Context, _ map[string]any, _ *tool.Context) (tool.Result, error) {
+	if s.ignoreCtx {
+		time.Sleep(s.sleep)
+	} else {
+		select {
+		case <-time.After(s.sleep):
+		case <-ctx.Done():
+		}
+	}
+	return tool.Result{Text: "slept"}, nil
+}
+
+// TestEngine_SubmitMessage_CancelWaitsForInFlightTools: tool sleeps 200ms and
+// ignores ctx; ctx is cancelled mid-tool. SubmitMessage must return AFTER the
+// tool finishes (between 150ms and 600ms), proving it waited for the drain.
+func TestEngine_SubmitMessage_CancelWaitsForInFlightTools(t *testing.T) {
+	reg := tool.NewRegistry()
+	reg.Register(sleepTool{sleep: 200 * time.Millisecond, ignoreCtx: true})
+	perms := permissions.Empty()
+	perms.AlwaysAllowRules[permissions.SourceCLI] = []permissions.Rule{{Tool: "SleepTool"}}
+
+	// Turn 1: emit two concurrent tool_use blocks (both SleepTool, parallel).
+	// Turn 2: end_turn.
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventToolUseStart, ToolUseID: "s1", ToolName: "SleepTool"},
+			{Kind: provider.EventToolInputDelta, PartialJSON: `{}`},
+			{Kind: provider.EventBlockStop},
+			{Kind: provider.EventToolUseStart, ToolUseID: "s2", ToolName: "SleepTool"},
+			{Kind: provider.EventToolInputDelta, PartialJSON: `{}`},
+			{Kind: provider.EventBlockStop},
+			{Kind: provider.EventMessageStop, StopReason: "tool_use"},
+		},
+		[]provider.Event{
+			{Kind: provider.EventTextDelta, Text: "done"},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	e := NewEngine(Config{
+		Provider:            fp,
+		Tools:               reg,
+		Permissions:         perms,
+		Model:               "x",
+		MaxToolDrainTimeout: 5 * time.Second,
+	})
+
+	start := time.Now()
+	// Cancel context 50ms in — tools will still be sleeping (200ms total).
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	for range e.SubmitMessage(ctx, "sleep") {
+	}
+	elapsed := time.Since(start)
+
+	// The drain should have waited for the 200ms tool.
+	// Lower bound: 150ms (tools started a bit before cancel fired).
+	// Upper bound: 600ms (generous; drain timeout is 5s but tools finish in 200ms).
+	require.GreaterOrEqual(t, elapsed, 150*time.Millisecond,
+		"SubmitMessage must wait for in-flight tools (elapsed=%s)", elapsed)
+	require.Less(t, elapsed, 600*time.Millisecond,
+		"SubmitMessage must not wait longer than necessary (elapsed=%s)", elapsed)
+}
+
+// TestEngine_SubmitMessage_CancelDrainTimeoutCapped: tool sleeps 10s and ignores
+// ctx; drain timeout is 200ms; cancel ctx; assert SubmitMessage returns in ~200ms
+// (not 10s).
+func TestEngine_SubmitMessage_CancelDrainTimeoutCapped(t *testing.T) {
+	reg := tool.NewRegistry()
+	reg.Register(sleepTool{sleep: 10 * time.Second, ignoreCtx: true})
+	perms := permissions.Empty()
+	perms.AlwaysAllowRules[permissions.SourceCLI] = []permissions.Rule{{Tool: "SleepTool"}}
+
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventToolUseStart, ToolUseID: "s1", ToolName: "SleepTool"},
+			{Kind: provider.EventToolInputDelta, PartialJSON: `{}`},
+			{Kind: provider.EventBlockStop},
+			{Kind: provider.EventToolUseStart, ToolUseID: "s2", ToolName: "SleepTool"},
+			{Kind: provider.EventToolInputDelta, PartialJSON: `{}`},
+			{Kind: provider.EventBlockStop},
+			{Kind: provider.EventMessageStop, StopReason: "tool_use"},
+		},
+		// second turn won't be reached since ctx is cancelled
+		[]provider.Event{
+			{Kind: provider.EventTextDelta, Text: "never"},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	e := NewEngine(Config{
+		Provider:            fp,
+		Tools:               reg,
+		Permissions:         perms,
+		Model:               "x",
+		MaxToolDrainTimeout: 200 * time.Millisecond,
+	})
+
+	start := time.Now()
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	for range e.SubmitMessage(ctx, "slow sleep") {
+	}
+	elapsed := time.Since(start)
+
+	// Should return well before the 10s tool finishes; max ~350ms (50ms cancel + 200ms drain + buffer).
+	require.Less(t, elapsed, 800*time.Millisecond,
+		"SubmitMessage must return when drain timeout is capped (elapsed=%s)", elapsed)
+}
