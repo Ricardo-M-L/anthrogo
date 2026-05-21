@@ -1,0 +1,15 @@
+# examples/01-basic-chat/settings.yaml
+# Minimal config for a first anthrogo session.
+
+# Which provider to use. "anthropic" routes to the official Anthropic API.
+provider: anthropic
+
+# The model to send requests to.
+model: claude-sonnet-4-6
+
+# Conversation mode. "default" is standard interactive chat.
+mode: default
+
+# API key. The "env:" prefix means anthrogo reads the value from the named
+# environment variable rather than storing the key in plain text.
+apiKey: env:ANTHROPIC_API_KEY

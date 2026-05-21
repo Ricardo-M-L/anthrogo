@@ -1,0 +1,23 @@
+# commands/greet.yaml — defines the /greet slash command.
+
+# The slash command name (without the leading "/").
+name: greet
+
+# Short description shown in /help.
+description: "Print a personalised greeting from the sample plugin."
+
+# Usage line shown in /help greet.
+usage: "/greet [name]"
+
+# The prompt template executed when the user runs /greet.
+# {{args}} is replaced with everything the user typed after /greet.
+prompt: |
+  The user has run the /greet command with arguments: "{{args}}".
+
+  If arguments were provided, greet the person by name warmly and mention
+  that they are using the sample-plugin for anthrogo.
+
+  If no arguments were provided, greet the user generically and invite them
+  to run `/greet <your name>` to get a personalised greeting.
+
+  Keep the response to 2-3 sentences.

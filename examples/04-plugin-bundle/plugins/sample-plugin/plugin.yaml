@@ -1,0 +1,29 @@
+# plugin.yaml — manifest for the sample-plugin plugin.
+
+# Unique identifier for this plugin (no spaces).
+name: sample-plugin
+
+# Human-readable name shown in /plugin list.
+displayName: "Sample Plugin"
+
+# Short description of what the plugin provides.
+description: >
+  A demonstration plugin showing the full bundle layout: a slash command,
+  a skill, and a post-message hook.
+
+# Semver version of the plugin.
+version: "1.0.0"
+
+# Author information (optional).
+author: "anthrogo examples"
+
+# Relative paths to command definitions, skills, and hooks within this
+# plugin directory. anthrogo merges these with any global config.
+commands:
+  - commands/greet.yaml
+
+skills:
+  - skills/welcome/SKILL.md
+
+hooks:
+  - hooks/log.sh

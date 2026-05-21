@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.13.1-dev] — 2026-05-21
+
+M13.2 — examples + migration guide.
+
+### Added
+- `examples/` directory with 5 self-contained demos:
+  - 01-basic-chat (first-run flow, /usage, /cost)
+  - 02-with-mcp (MCP filesystem server integration)
+  - 03-custom-skill (SKILL.md authoring, Task tool invocation)
+  - 04-plugin-bundle (plugin manifest + commands + skills + hooks)
+  - 05-kairos-worker (worker + client setup, remote subagent dispatch)
+  Each example sets `ANTHROGO_HOME` to its own directory; runnable in isolation.
+- `examples/README.md` — index table with one-line descriptions and quick-start snippet.
+- `docs/migration.md` — v0.3 → v0.13 upgrade guide; per-milestone breaking-change
+  summaries with before/after YAML snippets; YAML upgrade strategy section with
+  compatibility table.
+- `mkdocs.yml` nav extended with migration guide under "Getting started".
+
+### Known issues / deferred
+- Examples don't ship pre-recorded outputs — user runs them live.
+- Migration guide manually written; no automated yaml diff/upgrade tool yet.
+
+---
+
 ## [0.13.0-dev] — 2026-05-21
 
 M13.1 — Documentation restructure.

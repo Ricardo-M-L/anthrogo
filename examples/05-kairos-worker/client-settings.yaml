@@ -1,0 +1,37 @@
+# examples/05-kairos-worker/client-settings.yaml
+# Config for the KAIROS client process.
+#
+# The client is your interactive anthrogo session. When the model dispatches
+# a subagent task with type "remote", KAIROS forwards it to the worker.
+# Start it with:
+#
+#   ANTHROGO_HOME=$(pwd) anthrogo --config client-settings.yaml
+
+provider: anthropic
+model: claude-sonnet-4-6
+mode: default
+apiKey: env:ANTHROPIC_API_KEY
+
+# KAIROS client configuration.
+kairos:
+  # role identifies this process as the client (orchestrator) side.
+  role: client
+
+  # remote defines one or more worker endpoints the client can dispatch to.
+  remote:
+    - # name is used in Task tool calls: subagent_type: "remote:worker-local"
+      name: worker-local
+
+      # address of the running worker (started with worker-settings.yaml).
+      address: "localhost:9001"
+
+      # authToken must match the worker's kairos.authToken.
+      authToken: env:KAIROS_AUTH_TOKEN
+
+      # model can override the model used on the worker side.
+      # Omit to inherit the worker's default model.
+      # model: claude-haiku-4-5
+
+      # maxHops limits recursive KAIROS dispatch (multi-hop subagents).
+      # 1 means the worker cannot itself dispatch further remote subagents.
+      maxHops: 1

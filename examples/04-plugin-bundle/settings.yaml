@@ -1,0 +1,12 @@
+# examples/04-plugin-bundle/settings.yaml
+# Demonstrates a local plugin with commands, a skill, and a hook.
+
+provider: anthropic
+model: claude-sonnet-4-6
+mode: default
+apiKey: env:ANTHROPIC_API_KEY
+
+# pluginsDir tells anthrogo where to look for plugin directories.
+# Each subdirectory that contains a plugin.yaml becomes an available plugin.
+# Relative paths are resolved from ANTHROGO_HOME.
+pluginsDir: plugins

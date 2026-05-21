@@ -1,0 +1,12 @@
+# examples/03-custom-skill/settings.yaml
+# Demonstrates skill discovery from a local skills/ directory.
+
+provider: anthropic
+model: claude-sonnet-4-6
+mode: default
+apiKey: env:ANTHROPIC_API_KEY
+
+# skillsDir tells anthrogo where to look for SKILL.md files.
+# Each subdirectory that contains a SKILL.md becomes an available skill.
+# Relative paths are resolved from ANTHROGO_HOME.
+skillsDir: skills

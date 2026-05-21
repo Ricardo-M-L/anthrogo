@@ -1,0 +1,22 @@
+# examples/02-with-mcp/settings.yaml
+# Demonstrates MCP server registration.
+
+provider: anthropic
+model: claude-sonnet-4-6
+mode: default
+apiKey: env:ANTHROPIC_API_KEY
+
+# mcpServers registers Model Context Protocol servers.
+# anthrogo auto-starts each server and exposes its tools to the model.
+mcpServers:
+  # "filesystem" is an official Anthropic MCP server that gives the model
+  # read/write access to the paths listed under "args".
+  filesystem:
+    command: npx
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-filesystem"
+      - "/tmp"           # Only expose /tmp for this demo — change as needed.
+    # Optional: environment variables forwarded to the server process.
+    # env:
+    #   MY_VAR: some_value

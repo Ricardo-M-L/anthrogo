@@ -1,0 +1,30 @@
+# examples/05-kairos-worker/worker-settings.yaml
+# Config for the KAIROS worker process.
+#
+# The worker listens for tasks dispatched by a KAIROS client and executes
+# them as subagents. Start it with:
+#
+#   ANTHROGO_HOME=$(pwd) anthrogo --config worker-settings.yaml --kairos-serve :9001
+
+provider: anthropic
+model: claude-sonnet-4-6
+mode: default
+apiKey: env:ANTHROPIC_API_KEY
+
+# KAIROS worker configuration.
+kairos:
+  # Role identifies this process as a worker node.
+  role: worker
+
+  # listen is the address:port the worker binds to.
+  # The client must be able to reach this address.
+  listen: ":9001"
+
+  # maxConcurrent limits how many subagents the worker runs in parallel.
+  # Set to 1 to serialise work; increase for throughput.
+  maxConcurrent: 4
+
+  # authToken is an optional shared secret for simple auth.
+  # Set the same value in the client's remote.authToken.
+  # Omit or leave empty to disable auth (development only).
+  authToken: env:KAIROS_AUTH_TOKEN
