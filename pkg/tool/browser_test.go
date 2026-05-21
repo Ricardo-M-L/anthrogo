@@ -71,6 +71,40 @@ func TestBrowser_Call_ClickWithoutSelector_IsError(t *testing.T) {
 	assert.Contains(t, result.Text, "selector is required")
 }
 
+// TestBrowser_Screenshot_RejectsRelativePath verifies that a relative out_path
+// is rejected before Chrome is started (no Chrome needed).
+func TestBrowser_Screenshot_RejectsRelativePath(t *testing.T) {
+	b := &Browser{}
+	result, err := b.Call(context.Background(), map[string]any{
+		"mode":     "screenshot",
+		"out_path": "relative/path/shot.png",
+	}, nil)
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Text, "out_path must be absolute")
+}
+
+// TestBrowser_Close_RemovesUserDataDir verifies that Close removes the temp
+// userDataDir without requiring a real Chrome instance.
+func TestBrowser_Close_RemovesUserDataDir(t *testing.T) {
+	dir := t.TempDir()
+	b := &Browser{userDataDir: dir}
+	// Confirm the dir exists before closing.
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatalf("temp dir should exist before Close: %v", err)
+	}
+	if err := b.Close(); err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Error("expected userDataDir to be removed after Close")
+	}
+	// Idempotency: second Close should not error.
+	if err := b.Close(); err != nil {
+		t.Fatalf("second Close returned error: %v", err)
+	}
+}
+
 // TestBrowser_E2E_GetAboutBlank is an end-to-end smoke test that requires a
 // real Chrome installation. Only runs when ANTHROGO_E2E_BROWSER=1.
 func TestBrowser_E2E_GetAboutBlank(t *testing.T) {

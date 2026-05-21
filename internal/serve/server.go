@@ -197,52 +197,49 @@ func (sw *statusWriter) WriteHeader(code int) {
 // ---- engine construction ----
 
 // getOrCreateEngine returns a cached engine for sessionID, creating a new one
-// (and a new session file) if none exists.
+// (and a new session file) if none exists. Uses GetOrCreate to prevent TOCTOU
+// race where two concurrent requests for the same session both create engines.
 func (s *Server) getOrCreateEngine(sessionID string) (*query.Engine, error) {
-	if e := s.cache.get(sessionID); e != nil {
-		return e, nil
-	}
-
-	prov, model, err := s.cfg.ProviderFactory()
-	if err != nil {
-		return nil, fmt.Errorf("serve: build provider: %w", err)
-	}
-
-	effectiveModel := s.cfg.Model
-	if model != "" {
-		effectiveModel = model
-	}
-
-	// Determine cwd for session — use server's working directory.
-	cwd := s.cfg.SessionsDir
-	if cwd == "" {
-		cwd = "."
-	}
-
-	perms := s.cfg.Permissions
-	if perms == nil {
-		perms = &permissions.Context{
-			Mode:               permissions.ModeBypassPermissions,
-			ShouldAvoidPrompts: true,
+	return s.cache.GetOrCreate(sessionID, func() (*query.Engine, error) {
+		prov, model, err := s.cfg.ProviderFactory()
+		if err != nil {
+			return nil, fmt.Errorf("serve: build provider: %w", err)
 		}
-	}
 
-	// Build the engine with no record hook (sessions not persisted by the
-	// serve daemon by default — purely in-memory for now).
-	e := query.NewEngine(query.Config{
-		Provider:     prov,
-		Tools:        s.cfg.Tools,
-		Permissions:  perms,
-		Model:        effectiveModel,
-		SystemPrompt: s.cfg.SystemPrompt,
-		Cwd:          cwd,
+		effectiveModel := s.cfg.Model
+		if model != "" {
+			effectiveModel = model
+		}
+
+		// Determine cwd for session — use server's working directory.
+		cwd := s.cfg.SessionsDir
+		if cwd == "" {
+			cwd = "."
+		}
+
+		perms := s.cfg.Permissions
+		if perms == nil {
+			perms = &permissions.Context{
+				Mode:               permissions.ModeBypassPermissions,
+				ShouldAvoidPrompts: true,
+			}
+		}
+
+		// Build the engine with no record hook (sessions not persisted by the
+		// serve daemon by default — purely in-memory for now).
+		e := query.NewEngine(query.Config{
+			Provider:     prov,
+			Tools:        s.cfg.Tools,
+			Permissions:  perms,
+			Model:        effectiveModel,
+			SystemPrompt: s.cfg.SystemPrompt,
+			Cwd:          cwd,
+		})
+
+		// Seed existing messages if the session was previously persisted.
+		// (Future: we could load from JSONL here; skipped for initial version.)
+		return e, nil
 	})
-
-	// Seed existing messages if the session was previously persisted.
-	// (Future: we could load from JSONL here; skipped for initial version.)
-
-	s.cache.put(sessionID, e)
-	return e, nil
 }
 
 // pathSegment extracts the last path segment from r.URL.Path (used for {id}).

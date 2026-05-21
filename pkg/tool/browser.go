@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -27,6 +28,7 @@ type Browser struct {
 	allocCancel  context.CancelFunc
 	chromeCtx    context.Context
 	chromeCancel context.CancelFunc
+	userDataDir  string
 }
 
 func (b *Browser) Name() string { return "BrowserAction" }
@@ -117,6 +119,9 @@ func (b *Browser) Call(parent context.Context, input map[string]any, _ *Context)
 	case "screenshot":
 		if outPath == "" {
 			return errResult("out_path is required for mode=screenshot"), nil
+		}
+		if !filepath.IsAbs(outPath) {
+			return errResult("out_path must be absolute"), nil
 		}
 	default:
 		return errResult(fmt.Sprintf("unknown mode %q; must be get|click|text|screenshot", mode)), nil
@@ -224,6 +229,7 @@ func (b *Browser) ensureChrome() (context.Context, error) {
 	b.allocCancel = allocCancel
 	b.chromeCtx = chromeCtx
 	b.chromeCancel = chromeCancel
+	b.userDataDir = userDataDir
 	return chromeCtx, nil
 }
 
@@ -242,5 +248,9 @@ func (b *Browser) Close() error {
 	}
 	b.chromeCtx = nil
 	b.allocCtx = nil
+	if b.userDataDir != "" {
+		_ = os.RemoveAll(b.userDataDir)
+		b.userDataDir = ""
+	}
 	return nil
 }

@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.13.15-dev] — 2026-05-21
+
+M14.1 — Security & correctness emergency fixes.
+
+### Fixed
+- **S1 (XSS)** — `escapeHTML` in `internal/web/static/app.js` now encodes `"` (`&quot;`) and `'` (`&#39;`) in addition to `&`, `<`, `>`, preventing attribute-injection XSS via LLM-controlled URLs in link rendering.
+- **S2 (path traversal)** — `internal/serve/handlers.go`: added `validSessionID` (regexp `^[a-zA-Z0-9_-]{1,128}$`); `findSessionFile` rejects invalid IDs with `os.ErrNotExist` (→ 404); `handleChat` also validates `session_id` before engine lookup.
+- **S3 (TOCTOU)** — `internal/serve/session_cache.go`: new `GetOrCreate` method holds the write lock across get→build→put, preventing duplicate Engine construction for concurrent requests on the same session ID. `server.go` updated to use it.
+- **S4 (path validation)** — `pkg/tool/browser.go`: screenshot `out_path` is now rejected with an error if not absolute, before Chrome is started.
+- **C1 (resource leak)** — `cmd/anthrogo/serve.go`: `registerTools` second return value (`*Browser`) is now captured and `Close()` deferred on serve command exit.
+- **C2 (temp dir leak)** — `pkg/tool/browser.go`: `Browser` struct tracks `userDataDir`; `Close()` now calls `os.RemoveAll(userDataDir)` and is idempotent.
+- **C3 (missing agentic tools)** — `cmd/anthrogo/serve.go`: `Skill`, `Task`, and `MCPResource` tools are now registered in the serve path with empty registries (matching TUI path behaviour).
+
+### Tests added
+- `TestWeb_StaticContent_NoUnescapedQuoteInEscapeHTML` — asserts `&quot;` and `&#39;` in app.js (S1)
+- `TestServer_SessionID_RejectsTraversal`, `TestServer_SessionID_RejectsSlash`, `TestServer_SessionID_AcceptsUUID` — session ID validation (S2)
+- `TestSessionCache_GetOrCreate_NoDuplicate` — 8-goroutine race, builder called exactly once (S3)
+- `TestServer_Tools_ListsTaskAndSkill` — Task/Skill appear in /v1/tools (C3)
+- `TestBrowser_Screenshot_RejectsRelativePath` — relative out_path rejected without Chrome (S4)
+- `TestBrowser_Close_RemovesUserDataDir` — userDataDir cleaned up; Close is idempotent (C2)
+
+---
+
 ## [0.13.14-dev] — 2026-05-21
 
 M13.15 — `anthrogo web` browser UI.

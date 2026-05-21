@@ -55,6 +55,28 @@ func (c *sessionCache) put(sessionID string, engine *query.Engine) {
 	c.entries[sessionID] = &cacheEntry{engine: engine, lastAccess: time.Now()}
 }
 
+// GetOrCreate returns the cached Engine for sessionID, or calls builder to
+// construct one. The entire get→build→put sequence is performed under the
+// write lock so that concurrent calls for the same ID always produce exactly
+// one Engine (no duplicate construction).
+func (c *sessionCache) GetOrCreate(sessionID string, builder func() (*query.Engine, error)) (*query.Engine, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e, ok := c.entries[sessionID]; ok {
+		e.lastAccess = time.Now()
+		return e.engine, nil
+	}
+	eng, err := builder()
+	if err != nil {
+		return nil, err
+	}
+	if len(c.entries) >= maxCachedSessions {
+		c.evictOldestLocked()
+	}
+	c.entries[sessionID] = &cacheEntry{engine: eng, lastAccess: time.Now()}
+	return eng, nil
+}
+
 // delete removes sessionID from the cache if present.
 func (c *sessionCache) delete(sessionID string) {
 	c.mu.Lock()

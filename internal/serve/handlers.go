@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -16,6 +17,14 @@ import (
 	"github.com/ricardo/anthrogo/internal/version"
 	"github.com/ricardo/anthrogo/pkg/query"
 )
+
+// sessionIDRe matches safe session IDs: alphanumeric, dash, underscore, 1-128 chars.
+var sessionIDRe = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,128}$`)
+
+// validSessionID returns true if id is safe to use as a filesystem path component.
+func validSessionID(id string) bool {
+	return sessionIDRe.MatchString(id)
+}
 
 // ---- /v1/health ----
 
@@ -200,6 +209,10 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "session_id is required")
 		return
 	}
+	if !validSessionID(req.SessionID) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("session %s not found", req.SessionID))
+		return
+	}
 	if req.Prompt == "" {
 		writeError(w, http.StatusBadRequest, "prompt is required")
 		return
@@ -289,6 +302,9 @@ func writeError(w http.ResponseWriter, code int, msg string) {
 // findSessionFile searches all project subdirectories under ~/.anthrogo/projects
 // for a JSONL file whose base name (without .jsonl) equals id.
 func findSessionFile(id string) (string, error) {
+	if !validSessionID(id) {
+		return "", os.ErrNotExist
+	}
 	home, err := config.Home()
 	if err != nil {
 		return "", err

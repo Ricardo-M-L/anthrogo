@@ -68,3 +68,23 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// TestWeb_StaticContent_NoUnescapedQuoteInEscapeHTML verifies that app.js
+// escapeHTML encodes both double-quote (&quot;) and single-quote (&#39;)
+// to prevent XSS via attribute injection.
+func TestWeb_StaticContent_NoUnescapedQuoteInEscapeHTML(t *testing.T) {
+	h := handler(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/app.js", nil)
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for /app.js, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "&quot;") {
+		t.Error("escapeHTML in app.js must encode double-quote as &quot;")
+	}
+	if !strings.Contains(body, "&#39;") {
+		t.Error("escapeHTML in app.js must encode single-quote as &#39;")
+	}
+}

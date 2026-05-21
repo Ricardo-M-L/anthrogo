@@ -13,6 +13,9 @@ import (
 	"github.com/ricardo/anthrogo/internal/serve"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
+	"github.com/ricardo/anthrogo/pkg/skill"
+	"github.com/ricardo/anthrogo/pkg/subagent"
+	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
 // newServeCmd constructs the `anthrogo serve` subcommand.
@@ -57,7 +60,21 @@ Endpoints:
 			}
 
 			// Build the tool registry.
-			tools, _ := registerTools(cfg)
+			tools, browserTool := registerTools(cfg)
+			if browserTool != nil {
+				defer browserTool.Close()
+			}
+
+			// Register agentic tools: Skill, Task, MCPResource.
+			// serve uses empty registries (no MCP servers loaded in daemon mode).
+			skillReg := skill.NewRegistry(nil)
+			subagentReg := subagent.NewRegistry()
+			taskTool := tool.NewTask(subagentReg, func(ctx context.Context, opts tool.TaskOptions) (string, error) {
+				return "", fmt.Errorf("Task subagents not available in serve mode")
+			})
+			tools.Register(tool.NewSkill(skillReg))
+			tools.Register(taskTool)
+			tools.Register(tool.NewMCPResource(nil))
 
 			// Permissions: bypass for daemon mode (no interactive user present).
 			perms := &permissions.Context{

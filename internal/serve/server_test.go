@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +19,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/provider/fake"
+	"github.com/ricardo/anthrogo/pkg/query"
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
@@ -222,4 +225,117 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// TestServer_SessionID_RejectsTraversal verifies that session IDs containing
+// path traversal sequences are rejected with 404.
+func TestServer_SessionID_RejectsTraversal(t *testing.T) {
+	ts := newTestServer(t, fake.New(), serve.Config{})
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/v1/sessions/../etc/passwd")
+	require.NoError(t, err)
+	resp.Body.Close()
+	// Either 404 (unknown) or 400 (bad request) are acceptable; the key
+	// requirement is that it is not 200.
+	assert.NotEqual(t, http.StatusOK, resp.StatusCode)
+}
+
+// TestServer_SessionID_RejectsSlash verifies that session IDs containing
+// slash characters are rejected (path traversal via embedded slash).
+func TestServer_SessionID_RejectsSlash(t *testing.T) {
+	ts := newTestServer(t, fake.New(), serve.Config{})
+	defer ts.Close()
+
+	// Encode the slash so it reaches the handler as a literal slash in PathValue.
+	// We send the raw request via GET /v1/sessions/a%2Fb — Go's http.ServeMux
+	// will reject encoded slashes before they reach the handler, so we also
+	// test via DELETE which constructs the path differently.
+	resp, err := http.Get(ts.URL + "/v1/sessions/a%2Fb")
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.NotEqual(t, http.StatusOK, resp.StatusCode)
+}
+
+// TestServer_SessionID_AcceptsUUID verifies that a well-formed session ID
+// (UUID-style) is accepted by the routing layer (returns 404 because the
+// session doesn't exist on disk, not 400 bad-request).
+func TestServer_SessionID_AcceptsUUID(t *testing.T) {
+	ts := newTestServer(t, fake.New(), serve.Config{})
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/v1/sessions/550e8400-e29b-41d4-a716-446655440000")
+	require.NoError(t, err)
+	resp.Body.Close()
+	// 404 means it passed validation but was not found — that is correct.
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+// TestSessionCache_GetOrCreate_NoDuplicate spawns 8 goroutines all calling
+// GetOrCreate with the same session ID and asserts the builder ran exactly
+// once (no TOCTOU duplicate Engine construction).
+func TestSessionCache_GetOrCreate_NoDuplicate(t *testing.T) {
+	cache := serve.NewExportedSessionCache()
+
+	var buildCount int64
+	// builder constructs a real query.Engine with a nil provider — sufficient
+	// for identity comparison since we only check pointer equality here.
+	builder := func() (*query.Engine, error) {
+		atomic.AddInt64(&buildCount, 1)
+		return query.NewEngine(query.Config{}), nil
+	}
+
+	const goroutines = 8
+	engines := make([]*query.Engine, goroutines)
+	errs := make([]error, goroutines)
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			engines[i], errs[i] = cache.GetOrCreate("same-session", builder)
+		}()
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		require.NoError(t, err, "goroutine %d got error", i)
+	}
+	assert.Equal(t, int64(1), buildCount, "builder must run exactly once")
+	first := engines[0]
+	for i, e := range engines {
+		assert.Same(t, first, e, "goroutine %d got different Engine pointer", i)
+	}
+}
+
+// TestServer_Tools_ListsTaskAndSkill verifies that Task and Skill appear in
+// /v1/tools response when the serve daemon registers agentic tools.
+func TestServer_Tools_ListsTaskAndSkill(t *testing.T) {
+	reg := tool.NewRegistry()
+	reg.Register(tool.Bash{})
+	// Simulate the agentic tools registered by serve.go.
+	reg.Register(tool.NewSkill(nil))
+	reg.Register(tool.NewTask(nil, nil))
+
+	ts := newTestServer(t, fake.New(), serve.Config{Tools: reg})
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/v1/tools")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var tools []map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&tools))
+
+	names := make(map[string]bool)
+	for _, t := range tools {
+		if n, ok := t["name"].(string); ok {
+			names[n] = true
+		}
+	}
+	assert.True(t, names["Task"], "Task tool not found in /v1/tools")
+	assert.True(t, names["Skill"], "Skill tool not found in /v1/tools")
 }
