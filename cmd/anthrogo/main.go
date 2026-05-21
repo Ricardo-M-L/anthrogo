@@ -21,6 +21,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 
 	"github.com/ricardo/anthrogo/internal/config"
+	"github.com/ricardo/anthrogo/internal/doctor"
 	"github.com/ricardo/anthrogo/internal/headless"
 	"github.com/ricardo/anthrogo/internal/hooks"
 	"github.com/ricardo/anthrogo/internal/mcp"
@@ -824,6 +825,23 @@ func main() {
 	root.Flags().StringVar(&tlsKey, "tls-key", "", "Path to TLS key (PEM) for --kairos-serve")
 	root.Flags().BoolVar(&tlsAuto, "tls-auto", false, "Auto-provision Let's Encrypt cert (requires --tls-domain + port 443)")
 	root.Flags().StringVar(&tlsDomain, "tls-domain", "", "Domain(s) for --tls-auto (comma-separated)")
+
+	doctorCmd := &cobra.Command{
+		Use:   "doctor",
+		Short: "Check environment health",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, _ := config.Load()
+			checks := doctor.RunAll(context.Background(), cfg)
+			fmt.Print(doctor.Format(checks))
+			for _, c := range checks {
+				if c.Severity == doctor.SeverityFail {
+					os.Exit(1)
+				}
+			}
+			return nil
+		},
+	}
+	root.AddCommand(doctorCmd)
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

@@ -174,6 +174,30 @@ Synthesizes speech from text using the platform's built-in synthesizer.
 | `output`  | (play live) | Optional output file path (AIFF on macOS, WAV on Linux) |
 | `voice`   | system default | Voice name (system-specific) |
 
+## Diagnostics
+
+Run `anthrogo doctor` to check your environment before your first use or when something seems off.
+It performs ~20 checks and prints a structured PASS / WARN / FAIL report:
+
+```
+$ anthrogo doctor
+[✓] Go runtime                    running on go1.25.0 (darwin/arm64)
+[✓] Settings file                 found at /Users/you/.anthrogo/settings.yaml
+[✓] API key: ANTHROPIC_API_KEY    set (anthropic)
+[✓] Anthrogo home                 /Users/you/.anthrogo ok
+[✓] Binary: sh                    /bin/sh
+[!] Binary: docker                not on PATH (ContainerExec tool)
+[!] Binary: whisper               not on PATH (SpeechToText tool)
+[✓] Anthropic API                 HTTP 200
+[✓] GitHub API                    HTTP 200
+[✓] anthrogo version              0.12.0-dev
+
+Summary: 7 PASS, 3 WARN, 0 FAIL
+```
+
+Exit code is `1` when any check is FAIL, `0` when all checks are PASS or WARN.
+WARN means an optional feature is unavailable, not that the core CLI is broken.
+
 ## Update check
 
 Run `/version` inside the TUI to see the current version and check GitHub for a

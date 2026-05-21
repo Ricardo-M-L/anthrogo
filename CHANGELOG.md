@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.12.0-dev] — 2026-05-21
+
+M12.1 — anthrogo doctor self-check subcommand.
+
+### Added
+- `anthrogo doctor` subcommand — runs ~20 health checks and prints a PASS / WARN / FAIL report:
+  - Go runtime version
+  - Settings YAML present + parseable
+  - At least one provider API key in env
+  - ~/.anthrogo/ directory accessible
+  - Optional binaries (git/docker/podman/whisper/say/espeak/gofmt/prettier/black/rustfmt) on PATH
+  - Network reachability to api.anthropic.com + api.github.com (5s timeout each via curl)
+  - Current anthrogo version
+- Exit code 1 when any check is FAIL; 0 otherwise (WARN doesn't fail).
+- `internal/doctor/` package — `RunAll(ctx, cfg)` runs all checks; `Format(checks)` renders the report.
+
+### Known issues / deferred
+- Network checks use curl (requires curl on PATH); falls back to WARN if missing.
+- No SMTP / Slack reachability checks (M12.x deferred).
+- No port-forward / firewall diagnostics for KAIROS workers.
+
 ## [0.11.9-dev] — 2026-05-21
 
 M11.10 — TLS for KAIROS.
