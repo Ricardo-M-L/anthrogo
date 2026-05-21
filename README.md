@@ -40,6 +40,7 @@ Use `anthrogo -p "explain main.go"` for headless (non-interactive) mode.
 | **TUI multi-pane + mouse** | F2 cycles single/split/triple · wheel scroll · left-click URL open · custom themes |
 | **/cost + budget + auto-compact** | Built-in pricing for 20+ models · budget cap · auto-compact threshold — [docs/cost.md](docs/cost.md) · [docs/compaction.md](docs/compaction.md) |
 | **/login OAuth + /telemetry** | OAuth 2.1 PKCE for corporate SSO · opt-in anonymous telemetry — [docs/providers/anthropic.md](docs/providers/anthropic.md) |
+| **HTTP daemon (`serve`)** | `anthrogo serve` exposes the engine as a REST/SSE API: `/v1/chat` (sync + streaming), `/v1/sessions` CRUD, `/v1/tools`, `/v1/health` · Bearer auth · CORS · LRU session cache — [docs/serve.md](docs/serve.md) |
 
 ## Reliability
 
@@ -63,6 +64,7 @@ When the user presses Ctrl-C, anthrogo does not immediately discard in-flight co
 | M11.x | Multi-pane TUI · Background tasks · plugin remote install · /login · Speech I/O · KAIROS signing + TLS | shipped |
 | M12.x | `doctor` · `init-config` · HTTPRequest · SQLQuery · Ollama provider | shipped |
 | **M13.1** | **Documentation restructure (this release)** | **shipped** |
+| **M13.14** | **`anthrogo serve` HTTP daemon** | **shipped** |
 | M13.x | API godoc auto-gen · migration guide · example projects | planned |
 | M6 (remaining) | Bedrock/Vertex full feature parity | planned |
 

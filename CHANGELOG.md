@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.13.13-dev] — 2026-05-21
+
+M13.14 — `anthrogo serve` HTTP daemon.
+
+### Added
+- **`anthrogo serve`** subcommand (`cmd/anthrogo/serve.go`): starts a long-lived HTTP API server backed by the engine. Flags: `--addr` (default `127.0.0.1:8765`), `--token` (optional Bearer auth), `--cors-origin`, `--sessions-dir`, `--model`, `--provider`.
+- **`internal/serve` package** — stdlib `net/http` server with four middleware layers (Bearer auth, CORS, panic recovery, request logging) and six endpoints:
+  - `POST /v1/chat` — sync JSON or SSE streaming (delta/tool_use/tool_result/done/error events)
+  - `GET /v1/sessions` — list up to 100 sessions by mtime desc
+  - `GET /v1/sessions/{id}` — return full JSONL records
+  - `DELETE /v1/sessions/{id}` — delete JSONL, evict from cache, 204
+  - `GET /v1/tools` — list registered tool names, descriptions, and JSON schemas
+  - `GET /v1/health` — `{ok, version, uptime_seconds, in_flight_chats}`
+- **Session engine cache** (`internal/serve/session_cache.go`): per-session `*query.Engine` lazily constructed and cached in a `map` guarded by `sync.RWMutex`; capped at 32 entries with LRU eviction (oldest `lastAccess` time evicted when at capacity).
+- **SSE helper** (`internal/serve/sse.go`): `sseWriter` wraps `http.ResponseWriter` + `http.Flusher` to emit `data: <json>\n\n` frames.
+- 8 new tests (`internal/serve/server_test.go`): `TestServer_Health`, `TestServer_AuthRequired`, `TestServer_AuthBypassed`, `TestServer_CORS_HeadersEmitted`, `TestServer_ChatSync_HappyPath`, `TestServer_ChatStream_EmitsDeltaThenDone`, `TestServer_Sessions_ListAndGet`, `TestServer_Tools_ListsRegistered`. All pass under `-race -count=2`.
+- **`docs/serve.md`** — full API reference with curl examples.
+- No new external dependencies (stdlib `net/http` only; existing packages reused).
+
+---
+
 ## [0.13.12-dev] — 2026-05-21
 
 M13.13 — `/refactor` multi-file builtin slash command.
