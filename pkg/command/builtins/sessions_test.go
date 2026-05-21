@@ -3,6 +3,7 @@ package builtins
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -998,4 +999,131 @@ func TestSessions_SearchRecursesMultiLevel(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, res.Text, keyword, "expected keyword to be found at nested depth")
 	require.Contains(t, res.Text, "sub2", "expected sub2 session ID in results")
+}
+
+// ---------------------------------------------------------------------------
+// /sessions fork tests (M13.5)
+// ---------------------------------------------------------------------------
+
+// makeForkRecords returns a session with a meta record and 3 user turns,
+// each followed by a tool round-trip and a turn-complete.
+func makeForkRecords() []session.Record {
+	ts := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	recs := []session.Record{
+		{
+			Kind:      session.KindSessionMeta,
+			Timestamp: ts,
+			SessionMeta: &session.SessionMeta{
+				SessionID:     "source-session",
+				Model:         "claude-test",
+				CreatedAt:     ts,
+				SchemaVersion: session.CurrentSchemaVersion,
+			},
+		},
+	}
+	for i := 0; i < 3; i++ {
+		recs = append(recs, session.Record{
+			Kind:      session.KindUserMessage,
+			Timestamp: ts,
+			UserMessage: &session.UserMessage{
+				Content: []message.Block{{Type: message.BlockText, Text: fmt.Sprintf("user-turn-%d", i)}},
+			},
+		})
+		recs = append(recs, session.Record{
+			Kind:      session.KindAssistantMessage,
+			Timestamp: ts,
+			AssistantMessage: &session.AssistantMessage{
+				Content:    []message.Block{{Type: message.BlockText, Text: fmt.Sprintf("assistant-turn-%d", i)}},
+				StopReason: "end_turn",
+			},
+		})
+		recs = append(recs, session.Record{
+			Kind:         session.KindTurnComplete,
+			Timestamp:    ts,
+			TurnComplete: &session.TurnComplete{StopReason: "end_turn"},
+		})
+	}
+	return recs
+}
+
+// TestSessions_Fork_BasicFlow — fork at turn 1 produces a file with records
+// up to and including user-turn-1 (the second user message).
+func TestSessions_Fork_BasicFlow(t *testing.T) {
+	dir := t.TempDir()
+	records := makeForkRecords()
+	writeJSONL(t, dir, "source-session", records)
+
+	res, err := (Sessions{}).forkSession(dir, "source-session at 1")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "forked")
+	require.Contains(t, res.Text, "anthrogo --resume")
+
+	// Parse the new session ID from the output line "into <uuid>".
+	var newID string
+	for _, line := range strings.Split(res.Text, "\n") {
+		if strings.HasPrefix(line, "forked") {
+			// "forked N records from ... into <uuid>"
+			parts := strings.Fields(line)
+			newID = parts[len(parts)-1]
+		}
+	}
+	require.NotEmpty(t, newID)
+
+	// Read the forked file.
+	forkedPath := filepath.Join(dir, newID+".jsonl")
+	forkedRecords, err := session.Replay(forkedPath)
+	require.NoError(t, err)
+
+	// Count user messages — should be exactly 2 (turn 0 and turn 1).
+	userCount := 0
+	for _, r := range forkedRecords {
+		if r.Kind == session.KindUserMessage {
+			userCount++
+		}
+	}
+	require.Equal(t, 2, userCount, "fork at turn 1 should include exactly 2 user messages")
+
+	// First record must have updated SessionID.
+	require.Equal(t, session.KindSessionMeta, forkedRecords[0].Kind)
+	require.Equal(t, newID, forkedRecords[0].SessionMeta.SessionID)
+
+	// turn-2 user message must NOT be present.
+	for _, r := range forkedRecords {
+		if r.Kind == session.KindUserMessage {
+			text := r.UserMessage.Content[0].Text
+			require.NotEqual(t, "user-turn-2", text, "turn 2 should not appear in fork at turn 1")
+		}
+	}
+}
+
+// TestSessions_Fork_BeyondAvailable — fork at turn 99 in a 3-turn session → error.
+func TestSessions_Fork_BeyondAvailable(t *testing.T) {
+	dir := t.TempDir()
+	records := makeForkRecords()
+	writeJSONL(t, dir, "source-session", records)
+
+	res, err := (Sessions{}).forkSession(dir, "source-session at 99")
+	require.NoError(t, err)
+	require.Contains(t, res.Text, "fork:")
+	require.Contains(t, res.Text, "turn")
+}
+
+// TestSessions_Fork_BadArgs — malformed args return usage message.
+func TestSessions_Fork_BadArgs(t *testing.T) {
+	dir := t.TempDir()
+
+	cases := []string{
+		"",
+		"only-id",
+		"id-prefix without-at 1",
+		"id-prefix at notanumber",
+		"id-prefix at -1",
+	}
+	for _, c := range cases {
+		res, err := (Sessions{}).forkSession(dir, c)
+		require.NoError(t, err, "args=%q", c)
+		require.True(t,
+			strings.Contains(res.Text, "usage") || strings.Contains(res.Text, "fork:"),
+			"expected usage or error for args=%q, got: %q", c, res.Text)
+	}
 }

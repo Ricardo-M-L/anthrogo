@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/command"
 	"github.com/ricardo/anthrogo/pkg/message"
@@ -42,7 +43,7 @@ func (s Sessions) getRecords(path string) ([]session.Record, error) {
 func (Sessions) Name() string        { return "/sessions" }
 func (Sessions) Aliases() []string   { return nil }
 func (Sessions) Description() string {
-	return "List session JSONLs for the current cwd (subcommands: show <id-prefix>, replay <id-prefix>, search <keyword>, export <id-prefix> [-o file.md], stats [--since YYYY-MM-DD] [--until YYYY-MM-DD], reindex)"
+	return "List session JSONLs for the current cwd (subcommands: show <id-prefix>, replay <id-prefix>, search <keyword>, export <id-prefix> [-o file.md], stats [--since YYYY-MM-DD] [--until YYYY-MM-DD], fork <id-prefix> at <turn-n>, reindex)"
 }
 func (Sessions) Type() command.Type  { return command.TypeLocal }
 
@@ -85,8 +86,10 @@ func (s Sessions) Run(ctx context.Context, args string, host command.Host) (comm
 			return command.Result{Text: "usage: /sessions diff <id1-prefix> <id2-prefix>"}, nil
 		}
 		return s.diffSessions(dir, parts[0], parts[1])
+	case strings.HasPrefix(args, "fork "):
+		return s.forkSession(dir, strings.TrimSpace(strings.TrimPrefix(args, "fork ")))
 	default:
-		return command.Result{Text: "usage: /sessions [list | show <id> | replay <id> | search <kw> | delete <id> [--yes] | stats [--since] [--until] | export <id> [-o file] | diff <id1> <id2> | reindex]"}, nil
+		return command.Result{Text: "usage: /sessions [list | show <id> | replay <id> | search <kw> | delete <id> [--yes] | stats [--since] [--until] | export <id> [-o file] | diff <id1> <id2> | fork <id-prefix> at <turn-n> | reindex]"}, nil
 	}
 }
 
@@ -998,6 +1001,95 @@ func contextAroundMatch(hay, keyword string, re *regexp.Regexp) string {
 		suffix = "…"
 	}
 	return prefix + snippet + suffix
+}
+
+// ---------------------------------------------------------------------------
+// /sessions fork (M13.5)
+// ---------------------------------------------------------------------------
+
+// forkSession copies records 0..n (n = zero-based user-turn index) from a
+// source session into a new JSONL with a fresh UUID. The new ID is printed so
+// the caller can resume with: anthrogo --resume <new-id>.
+func (s Sessions) forkSession(dir, rest string) (command.Result, error) {
+	// Parse: "<id-prefix> at <N>"
+	parts := strings.Fields(rest)
+	if len(parts) != 3 || parts[1] != "at" {
+		return command.Result{Text: "usage: /sessions fork <id-prefix> at <turn-n>"}, nil
+	}
+	prefix := parts[0]
+	n, err := strconv.Atoi(parts[2])
+	if err != nil || n < 0 {
+		return command.Result{Text: "fork: turn-n must be a non-negative integer"}, nil
+	}
+
+	matched, matchErr := matchPrefix(dir, prefix)
+	if matchErr != nil {
+		return command.Result{Text: "fork: " + matchErr.Error()}, nil
+	}
+	if len(matched) == 0 {
+		return command.Result{Text: "fork: no match for " + prefix}, nil
+	}
+	if len(matched) > 1 {
+		return command.Result{Text: "fork: ambiguous prefix " + prefix + " (matches: " + strings.Join(matched, ", ") + ")"}, nil
+	}
+
+	records, err := s.getRecords(filepath.Join(dir, matched[0]))
+	if err != nil {
+		return command.Result{Text: "fork: " + err.Error()}, nil
+	}
+
+	// Walk records, count user messages, take records up through the n-th user message inclusive.
+	var slice []session.Record
+	userCount := -1
+	for _, r := range records {
+		if r.Kind == session.KindUserMessage {
+			userCount++
+		}
+		slice = append(slice, r)
+		if userCount == n && r.Kind == session.KindUserMessage {
+			break
+		}
+	}
+	if userCount < n {
+		return command.Result{Text: fmt.Sprintf("fork: source only has %d user turn(s) (asked for turn %d)", userCount+1, n)}, nil
+	}
+
+	// Mint new session ID, write file.
+	newID := uuid.New().String()
+	newPath := filepath.Join(dir, newID+".jsonl")
+	f, createErr := os.OpenFile(newPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if createErr != nil {
+		return command.Result{Text: "fork: " + createErr.Error()}, nil
+	}
+	defer f.Close()
+
+	// First record must be SessionMeta — clone the original's then update identifiers.
+	if len(slice) > 0 && slice[0].Kind == session.KindSessionMeta && slice[0].SessionMeta != nil {
+		meta := *slice[0].SessionMeta
+		meta.SessionID = newID
+		meta.CreatedAt = time.Now()
+		meta.SchemaVersion = session.CurrentSchemaVersion
+		slice[0].SessionMeta = &meta
+	}
+
+	for _, r := range slice {
+		line, marshalErr := r.MarshalJSONLine()
+		if marshalErr != nil {
+			return command.Result{Text: "fork: marshal: " + marshalErr.Error()}, nil
+		}
+		if _, writeErr := f.Write(line); writeErr != nil {
+			return command.Result{Text: "fork: write: " + writeErr.Error()}, nil
+		}
+	}
+
+	shortNew := newID
+	if len(shortNew) > 8 {
+		shortNew = shortNew[:8]
+	}
+	sourceName := strings.TrimSuffix(matched[0], ".jsonl")
+	msg := fmt.Sprintf("forked %d records from %s at turn %d into %s\n(resume with: anthrogo --resume %s)",
+		len(slice), sourceName, n, newID, shortNew)
+	return command.Result{Text: msg}, nil
 }
 
 // ---------------------------------------------------------------------------

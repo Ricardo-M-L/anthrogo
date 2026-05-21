@@ -126,6 +126,15 @@ func (p promptInput) update(msg tea.Msg) (promptInput, tea.Cmd) {
 			}
 			return p, nil
 		}
+		if m.Type == tea.KeyCtrlE {
+			if len(p.history) == 0 {
+				return p, nil
+			}
+			// Populate the input with the last submitted prompt for editing + re-submission.
+			p.ti.SetValue(p.history[len(p.history)-1])
+			p.historyIdx = -1
+			return p, nil
+		}
 	}
 	var cmd tea.Cmd
 	p.ti, cmd = p.ti.Update(msg)
@@ -133,5 +142,9 @@ func (p promptInput) update(msg tea.Msg) (promptInput, tea.Cmd) {
 }
 
 func (p promptInput) view() string {
-	return p.theme.Border.Render(p.ti.View())
+	hint := ""
+	if p.ti.Value() == "" && len(p.history) > 0 {
+		hint = "  [Ctrl+E: edit last]"
+	}
+	return p.theme.Border.Render(p.ti.View() + hint)
 }

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.13.4-dev] — 2026-05-21
+
+M13.5 — Per-cwd hooks + /sessions fork + inline edit.
+
+### Added
+- `<cwd>/.anthrogo/hooks.yaml` — project-level hooks overlay (mirrors M4.4's plugin overlay). Loaded after the home `hooks:` block; entries APPEND (not replace), preserving home-level hooks.
+- `/sessions fork <id-prefix> at <turn-n>` — copies records 0..n (n = user-turn index) from a source session into a new JSONL with a fresh UUID. Resume via `anthrogo --resume <new-id>`.
+- Ctrl+E key in the TUI input — fills the prompt with the last submitted user message for editing + re-submission. Status line shows `[Ctrl+E: edit last]` when input is empty.
+
+### Known issues / deferred
+- No way to fork at an assistant turn (only counts user messages). Future could accept `at user 3` / `at asst 5`.
+- Forked session inherits the source's session_id-aware tool_use_id references; replay against the forked branch should still work but tool_use_id collisions across forks are theoretically possible.
+- Ctrl+E only restores the latest entry; for older entries, use arrow-up.
+
+---
+
 ## [0.13.3-dev] — 2026-05-21
 
 M13.4 — Schema versioning (JSONL + SQLite).
