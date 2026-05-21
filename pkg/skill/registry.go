@@ -1,8 +1,20 @@
 package skill
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"compress/gzip"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Registry struct {
@@ -61,4 +73,285 @@ func (r *Registry) Reload(homeRoot, cwdRoot string) ([]string, error) {
 	}
 	r.mu.Unlock()
 	return warnings, nil
+}
+
+// Install fetches a skill from a local dir, https URL, or git+ spec
+// and copies it into destRoot/<skill-name>/.
+func (r *Registry) Install(src, destRoot string) (Skill, []string, error) {
+	src = strings.TrimSpace(src)
+	switch {
+	case strings.HasPrefix(src, "git+"):
+		return r.installFromGit(src, destRoot)
+	case strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://"):
+		return r.installFromURL(src, destRoot)
+	default:
+		return r.installFromDir(src, destRoot)
+	}
+}
+
+// installFromDir copies srcDir into destRoot/<skill-name>/ after reading SKILL.md frontmatter.
+func (r *Registry) installFromDir(srcDir, destRoot string) (Skill, []string, error) {
+	skillMD := filepath.Join(srcDir, "SKILL.md")
+	raw, err := os.ReadFile(skillMD)
+	if err != nil {
+		return Skill{}, nil, fmt.Errorf("install: no SKILL.md in %s", srcDir)
+	}
+	fm, _, ok := SplitFrontmatter(raw)
+	if !ok {
+		return Skill{}, nil, fmt.Errorf("install: missing or malformed frontmatter")
+	}
+	var meta struct {
+		Name        string `yaml:"name"`
+		Description string `yaml:"description"`
+	}
+	if err := yaml.Unmarshal(fm, &meta); err != nil {
+		return Skill{}, nil, fmt.Errorf("install: bad YAML: %w", err)
+	}
+	if meta.Name == "" {
+		return Skill{}, nil, fmt.Errorf("install: empty skill name")
+	}
+	dest := filepath.Join(destRoot, meta.Name)
+	if _, err := os.Stat(dest); err == nil {
+		return Skill{}, nil, fmt.Errorf("install: skill %q already exists at %s", meta.Name, dest)
+	}
+	if err := os.MkdirAll(destRoot, 0o755); err != nil {
+		return Skill{}, nil, err
+	}
+	if err := copySkillDir(srcDir, dest); err != nil {
+		return Skill{}, nil, err
+	}
+	skills, warnings, _ := LoadAll(destRoot, "")
+	var got Skill
+	for _, s := range skills {
+		if s.Name == meta.Name {
+			got = s
+			break
+		}
+	}
+	r.mu.Lock()
+	r.skills[got.Name] = got
+	r.mu.Unlock()
+	return got, warnings, nil
+}
+
+// installFromURL downloads an archive, extracts it, and delegates to installFromDir.
+func (r *Registry) installFromURL(rawURL, destRoot string) (Skill, []string, error) {
+	resp, err := http.Get(rawURL) //nolint:gosec // user-supplied URL is intentional
+	if err != nil {
+		return Skill{}, nil, fmt.Errorf("download: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return Skill{}, nil, fmt.Errorf("download: HTTP %d", resp.StatusCode)
+	}
+
+	tmpFile, err := os.CreateTemp("", "anthrogo-skill-*.archive")
+	if err != nil {
+		return Skill{}, nil, err
+	}
+	defer os.Remove(tmpFile.Name())
+	if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+		tmpFile.Close()
+		return Skill{}, nil, err
+	}
+	tmpFile.Close()
+
+	extractDir, err := os.MkdirTemp("", "anthrogo-skill-extract-*")
+	if err != nil {
+		return Skill{}, nil, err
+	}
+	defer os.RemoveAll(extractDir)
+
+	if strings.HasSuffix(rawURL, ".zip") {
+		if err := extractSkillZip(tmpFile.Name(), extractDir); err != nil {
+			return Skill{}, nil, fmt.Errorf("unzip: %w", err)
+		}
+	} else {
+		if err := extractSkillTarGz(tmpFile.Name(), extractDir); err != nil {
+			return Skill{}, nil, fmt.Errorf("untar: %w", err)
+		}
+	}
+
+	skillDir, err := findSkillRoot(extractDir)
+	if err != nil {
+		return Skill{}, nil, err
+	}
+	return r.installFromDir(skillDir, destRoot)
+}
+
+// installFromGit clones a git repository (depth=1) and delegates to installFromDir.
+func (r *Registry) installFromGit(spec, destRoot string) (Skill, []string, error) {
+	cloneURL := strings.TrimPrefix(spec, "git+")
+	ref := ""
+	if at := strings.LastIndex(cloneURL, "@"); at > 0 {
+		schemeEnd := strings.Index(cloneURL, "://")
+		if schemeEnd >= 0 && at > schemeEnd+3 {
+			ref = cloneURL[at+1:]
+			cloneURL = cloneURL[:at]
+		}
+	}
+	if _, err := exec.LookPath("git"); err != nil {
+		return Skill{}, nil, fmt.Errorf("install: git not on PATH: %w", err)
+	}
+	tmp, err := os.MkdirTemp("", "anthrogo-skill-git-*")
+	if err != nil {
+		return Skill{}, nil, err
+	}
+	defer os.RemoveAll(tmp)
+	args := []string{"clone", "--depth=1"}
+	if ref != "" {
+		args = append(args, "--branch", ref)
+	}
+	args = append(args, cloneURL, tmp)
+	cmd := exec.Command("git", args...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return Skill{}, nil, fmt.Errorf("git clone failed: %s", string(out))
+	}
+	skillDir, err := findSkillRoot(tmp)
+	if err != nil {
+		return Skill{}, nil, err
+	}
+	return r.installFromDir(skillDir, destRoot)
+}
+
+// extractSkillTarGz extracts a gzipped tar archive to destDir with zip-slip protection.
+func extractSkillTarGz(archivePath, destDir string) error {
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(destDir, filepath.Clean(hdr.Name))
+		if !strings.HasPrefix(target, destDir+string(os.PathSeparator)) && target != destDir {
+			return fmt.Errorf("zip-slip rejected: %s", hdr.Name)
+		}
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(hdr.Mode))
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(out, tr); err != nil {
+				out.Close()
+				return err
+			}
+			out.Close()
+		}
+	}
+	return nil
+}
+
+// extractSkillZip extracts a ZIP archive to destDir with zip-slip protection.
+func extractSkillZip(archivePath, destDir string) error {
+	rz, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return err
+	}
+	defer rz.Close()
+	for _, file := range rz.File {
+		target := filepath.Join(destDir, filepath.Clean(file.Name))
+		if !strings.HasPrefix(target, destDir+string(os.PathSeparator)) && target != destDir {
+			return fmt.Errorf("zip-slip rejected: %s", file.Name)
+		}
+		if file.FileInfo().IsDir() {
+			if err := os.MkdirAll(target, file.Mode()); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
+		if err != nil {
+			return err
+		}
+		rc, err := file.Open()
+		if err != nil {
+			out.Close()
+			return err
+		}
+		_, err = io.Copy(out, rc)
+		rc.Close()
+		out.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// findSkillRoot returns the directory containing SKILL.md (root or 1-level nested).
+func findSkillRoot(extractDir string) (string, error) {
+	if _, err := os.Stat(filepath.Join(extractDir, "SKILL.md")); err == nil {
+		return extractDir, nil
+	}
+	entries, err := os.ReadDir(extractDir)
+	if err != nil {
+		return "", err
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		candidate := filepath.Join(extractDir, e.Name())
+		if _, err := os.Stat(filepath.Join(candidate, "SKILL.md")); err == nil {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("no SKILL.md found in archive")
+}
+
+// copySkillDir copies src to dst recursively, preserving file mode bits and symlinks.
+func copySkillDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, path)
+		target := filepath.Join(dst, rel)
+		if info.Mode()&os.ModeSymlink != 0 {
+			link, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(link, target)
+		}
+		if info.IsDir() {
+			return os.MkdirAll(target, info.Mode())
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+		_, err = io.Copy(out, in)
+		return err
+	})
 }

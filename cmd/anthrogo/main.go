@@ -732,12 +732,14 @@ func main() {
 				Scopes:           cfg.Auth.Scopes,
 				RedirectPort:     cfg.Auth.RedirectPort,
 			}
+			homeHooksRoot := filepath.Join(os.Getenv("HOME"), ".anthrogo", "hooks")
 			cmds := registerCommands(homeSkillsRoot, cwdSkillsRoot, homeSubRoot, cwdSubRoot,
 				config.SystemOverlayPath(os.Getenv("HOME")),
 				config.ProjectSystemOverlayPath(cwd),
 				searchCache,
 				loginCfg,
 				tel,
+				homeHooksRoot,
 			)
 			// Register plugin commands; warn on duplicates (last-writer-wins).
 			for _, p := range loadedPlugins {
@@ -915,7 +917,7 @@ func registerTools(cfg config.Config) *tool.Registry {
 	return r
 }
 
-func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOverlayPath, projectOverlayPath string, replayCache builtins.SessionCache, loginCfg oauth.Config, tel *telemetry.Reporter) *command.Registry {
+func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOverlayPath, projectOverlayPath string, replayCache builtins.SessionCache, loginCfg oauth.Config, tel *telemetry.Reporter, hooksHome string) *command.Registry {
 	reg := command.NewRegistry()
 	reg.Register(&builtins.Help{Reg: reg})
 	reg.Register(builtins.Login{Config: loginCfg})
@@ -939,6 +941,7 @@ func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOv
 	reg.Register(builtins.Theme{})
 	reg.Register(builtins.Version{})
 	reg.Register(builtins.Telemetry{Reporter: tel})
+	reg.Register(builtins.Hook{HomeRoot: hooksHome})
 	return reg
 }
 

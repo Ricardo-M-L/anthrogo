@@ -1,6 +1,7 @@
 package skill
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -24,6 +25,71 @@ func TestRegistry_ListSortedByName(t *testing.T) {
 	require.Equal(t, "a-skill", list[0].Name)
 	require.Equal(t, "m-skill", list[1].Name)
 	require.Equal(t, "z-skill", list[2].Name)
+}
+
+func TestRegistry_InstallFromLocalDir(t *testing.T) {
+	src := t.TempDir()
+	err := os.WriteFile(
+		filepath.Join(src, "SKILL.md"),
+		[]byte("---\nname: test-skill\ndescription: A test skill\n---\n\nbody\n"),
+		0o644,
+	)
+	require.NoError(t, err)
+
+	dest := t.TempDir()
+	r := NewRegistry(nil)
+	sk, _, err := r.Install(src, dest)
+	require.NoError(t, err)
+	require.Equal(t, "test-skill", sk.Name)
+
+	_, err = os.Stat(filepath.Join(dest, "test-skill", "SKILL.md"))
+	require.NoError(t, err)
+
+	// Skill is accessible from registry.
+	got, ok := r.Get("test-skill")
+	require.True(t, ok)
+	require.Equal(t, "test-skill", got.Name)
+}
+
+func TestRegistry_InstallFromLocalDir_AlreadyExists(t *testing.T) {
+	src := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(src, "SKILL.md"),
+		[]byte("---\nname: test-skill\ndescription: A test skill\n---\n\nbody\n"),
+		0o644,
+	))
+	dest := t.TempDir()
+	r := NewRegistry(nil)
+	_, _, err := r.Install(src, dest)
+	require.NoError(t, err)
+
+	// Second install should fail.
+	_, _, err = r.Install(src, dest)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already exists")
+}
+
+func TestRegistry_InstallFromLocalDir_NoSkillMD(t *testing.T) {
+	src := t.TempDir()
+	dest := t.TempDir()
+	r := NewRegistry(nil)
+	_, _, err := r.Install(src, dest)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no SKILL.md")
+}
+
+func TestRegistry_InstallFromLocalDir_EmptyName(t *testing.T) {
+	src := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(src, "SKILL.md"),
+		[]byte("---\nname: \ndescription: A test\n---\n\nbody\n"),
+		0o644,
+	))
+	dest := t.TempDir()
+	r := NewRegistry(nil)
+	_, _, err := r.Install(src, dest)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "empty skill name")
 }
 
 func TestRegistry_Reload_ReplacesAtomically(t *testing.T) {

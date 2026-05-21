@@ -16,7 +16,9 @@ type Skills struct {
 
 func (Skills) Name() string        { return "/skills" }
 func (Skills) Aliases() []string   { return nil }
-func (Skills) Description() string { return "List loaded skills (subcommands: show <name>, reload)" }
+func (Skills) Description() string {
+	return "List loaded skills (subcommands: show <name>, reload, install <src>)"
+}
 func (Skills) Type() command.Type  { return command.TypeLocal }
 
 func (s Skills) Run(ctx context.Context, args string, host command.Host) (command.Result, error) {
@@ -42,8 +44,19 @@ func (s Skills) Run(ctx context.Context, args string, host command.Host) (comman
 	case strings.HasPrefix(args, "show "):
 		name := strings.TrimSpace(strings.TrimPrefix(args, "show "))
 		return showSkill(reg, name), nil
+	case strings.HasPrefix(args, "install "):
+		src := strings.TrimSpace(strings.TrimPrefix(args, "install "))
+		sk, warnings, err := reg.Install(src, s.HomeRoot)
+		if err != nil {
+			return command.Result{Text: "install failed: " + err.Error()}, nil
+		}
+		out := fmt.Sprintf("installed skill: %s", sk.Name)
+		if len(warnings) > 0 {
+			out += "\nwarnings:\n  " + strings.Join(warnings, "\n  ")
+		}
+		return command.Result{Text: out}, nil
 	default:
-		return command.Result{Text: "usage: /skills [show <name> | reload]"}, nil
+		return command.Result{Text: "usage: /skills [show <name> | reload | install <src>]"}, nil
 	}
 }
 

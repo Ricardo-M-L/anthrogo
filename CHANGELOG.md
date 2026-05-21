@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.13.5-dev] — 2026-05-21
+
+M13.6 — `/skills install` + `/hook` builtin.
+
+### Added
+- `pkg/skill.Registry.Install` — install a skill from a local directory, HTTPS archive URL (`.tar.gz`/`.zip`), or `git+` spec into `~/.anthrogo/skills/<name>/`. Archive and git paths use the same zip-slip-safe extract helpers mirrored from `pkg/plugin`.
+- `/skills install <src>` subcommand — exposes `Registry.Install` from the TUI/headless command surface. Extends the existing `/skills` usage string.
+- `/hook` builtin (`pkg/command/builtins/hook.go`) — new command for managing hook bundles (directories containing `hook.yaml` + optional `hook.sh`). Subcommands: `list`, `install <local-dir>`, `remove <name>`. URL/git+ install for hooks is documented as deferred.
+
+### Known issues / deferred
+- `/hook install <URL|git+>` is explicitly deferred: the response message guides users to copy the bundle locally first. Full URL/git support will mirror the skill path in a future milestone.
+- Newly installed skills/hooks require an anthrogo restart to be reflected in the model's system prompt (same constraint as plugin installs).
+
+---
+
 ## [0.13.4-dev] — 2026-05-21
 
 M13.5 — Per-cwd hooks + /sessions fork + inline edit.
