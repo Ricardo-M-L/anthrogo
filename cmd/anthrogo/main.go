@@ -136,7 +136,8 @@ func main() {
 				}
 				claudeMd, _ := system.LoadClaudeMd(workerCwd, os.Getenv("HOME"))
 				gitStatus, _ := system.GitStatusSnapshot(workerCwd)
-				workerTools := registerTools(cfg)
+				workerTools, workerBrowserTool := registerTools(cfg)
+				defer workerBrowserTool.Close()
 				workerSystemPrompt := system.BuildSystemPrompt(system.Options{
 					ToolNames:   toolNameList(workerTools),
 					ClaudeMd:    claudeMd,
@@ -531,7 +532,8 @@ func main() {
 				})
 			})
 
-			tools := registerTools(cfg)
+			tools, browserTool := registerTools(cfg)
+			defer browserTool.Close()
 			for _, t := range mcpMgr.AllTools() {
 				tools.Register(t)
 			}
@@ -882,7 +884,7 @@ func main() {
 	}
 }
 
-func registerTools(cfg config.Config) *tool.Registry {
+func registerTools(cfg config.Config) (*tool.Registry, *tool.Browser) {
 	r := tool.NewRegistry()
 	r.Register(tool.Bash{})
 	r.Register(tool.Read{})
@@ -918,7 +920,9 @@ func registerTools(cfg config.Config) *tool.Registry {
 	r.Register(&tool.SQLQuery{})
 	r.Register(tool.PDFRead{})
 	r.Register(tool.XlsxRead{})
-	return r
+	browserTool := &tool.Browser{}
+	r.Register(browserTool)
+	return r, browserTool
 }
 
 func registerCommands(skillsHome, skillsCwd, subagentsHome, subagentsCwd, homeOverlayPath, projectOverlayPath string, replayCache builtins.SessionCache, loginCfg oauth.Config, tel *telemetry.Reporter, hooksHome string) *command.Registry {

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.13.9-dev] — 2026-05-21
+
+M13.10 — Browser automation tool.
+
+### Added
+- **`BrowserAction` tool** (`pkg/tool/browser.go`): headless Chrome automation via `github.com/chromedp/chromedp`. Bundles 4 sub-actions under a single `mode` field: `get` (navigate), `click` (click CSS selector), `text` (extract visible text, 200 KB cap), `screenshot` (save PNG). Lazily initialises a single shared `ExecAllocator` + browser context on first call; reused across successive calls. `Close()` method shuts down Chrome on engine shutdown.
+- `IsConcurrencySafe() false`, `IsReadOnly() false` — not in the default `alwaysAllow` list; goes through the permission gate (Ask by default).
+- 5 new tests (`pkg/tool/browser_test.go`): `Schema_ContainsModeEnum`, `RejectsMissingMode`, `RejectsBadMode`, `GetWithoutURL_IsError`, `ClickWithoutSelector_IsError` — all run without Chrome. One E2E test (`E2E_GetAboutBlank`) requires `ANTHROGO_E2E_BROWSER=1`.
+- `registerTools` in `cmd/anthrogo/main.go` now returns `(*tool.Registry, *tool.Browser)`; both call sites add `defer browserTool.Close()`.
+- New dependencies: `github.com/chromedp/chromedp v0.15.1`, `github.com/chromedp/cdproto`, `github.com/chromedp/sysutil v1.1.0`, `github.com/go-json-experiment/json`, `github.com/gobwas/httphead v0.1.0`, `github.com/gobwas/pool v0.2.1`, `github.com/gobwas/ws v1.4.0`.
+
+---
+
 ## [0.13.8-dev] — 2026-05-21
 
 M13.9 — PDF + Excel reader tools.

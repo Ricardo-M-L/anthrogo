@@ -34,6 +34,7 @@ anthrogo ships 30+ built-in tools covering file I/O, shell execution, code intel
 | `Task` | no | Spawn a subagent engine; see [Subagents](subagents.md) |
 | `PDFRead` | yes | Extract plain text from a local PDF file; optional page range (`"1-5"`, `"3"`, `"10-end"`); 200 KB cap; default `alwaysAllow` |
 | `XlsxRead` | yes | Read a sheet of a local `.xlsx` file as TSV; optional sheet name and A1 range; 200 KB cap; default `alwaysAllow` |
+| `BrowserAction` | no | Headless Chrome automation: `get` (navigate), `click` (CSS selector), `text` (extract visible text), `screenshot` (save PNG). Lazy Chrome init; serialised through one shared instance. **Not** in default `alwaysAllow` — goes through permission gate. |
 
 ## Permission model
 
@@ -209,6 +210,74 @@ input:
   timeout_ms: 30000
   max_bytes: 10485760
 ```
+
+## BrowserAction
+
+Headless Chrome automation powered by `chromedp`. A single Chrome instance is lazily started on first use and reused across calls; it is shut down when the engine exits.
+
+### Schema
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `mode` | string (enum) | yes | `get` / `click` / `text` / `screenshot` |
+| `url` | string | for `get` | URL to navigate to |
+| `selector` | string | for `click`; optional for `text` / `screenshot` | CSS selector |
+| `timeout_ms` | integer | no | Per-call timeout (default 15000 ms) |
+| `out_path` | string | for `screenshot` | Absolute path to write the PNG file |
+
+### Usage examples
+
+```yaml
+# Navigate to a page
+tool: BrowserAction
+input:
+  mode: get
+  url: https://example.com
+
+# Click a button
+tool: BrowserAction
+input:
+  mode: click
+  selector: "button#submit"
+
+# Extract page text (defaults to <body>)
+tool: BrowserAction
+input:
+  mode: text
+  url_already_navigated: true   # (navigate first with get)
+
+# Full-page screenshot
+tool: BrowserAction
+input:
+  mode: screenshot
+  out_path: /tmp/page.png
+
+# Element screenshot
+tool: BrowserAction
+input:
+  mode: screenshot
+  selector: "#chart"
+  out_path: /tmp/chart.png
+```
+
+### Permissions
+
+`BrowserAction` has `IsReadOnly: false` and is **not** in the default `alwaysAllow` list. Every call goes through the permission gate (Ask by default). To auto-allow:
+
+```yaml
+alwaysAllow:
+  - tool: BrowserAction
+```
+
+### E2E tests
+
+Set `ANTHROGO_E2E_BROWSER=1` to opt-in to the live Chrome end-to-end test suite:
+
+```bash
+ANTHROGO_E2E_BROWSER=1 go test ./pkg/tool/ -run TestBrowser -v
+```
+
+CI runs without Chrome; only schema + input-validation tests execute.
 
 ## Vision / images
 
