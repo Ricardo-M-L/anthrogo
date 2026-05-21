@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.12.2-dev] — 2026-05-21
+
+M12.3 — HTTPRequest tool.
+
+### Added
+- `HTTPRequest` tool — general-purpose HTTP client (curl-like). Methods GET/POST/PUT/DELETE/PATCH/HEAD. Headers, raw body, configurable timeout (default 30s) and max response size (default 5MB). Optional `save_to` writes response body to a file instead of returning inline. Status >= 400 sets IsError. Result.Data carries `{status, final_url, content_type, bytes, truncated}`.
+- Rejects non-http(s) schemes (file://, ssh://, etc.) before dispatch.
+- Binary-content detection via Content-Type sniff + null-byte scan; binary responses render as `[binary, N bytes; Content-Type: ...]` placeholder.
+
+### Compared to WebFetch
+- WebFetch (M2): GET only, HTML→markdown, response cached.
+- HTTPRequest (M12.3): full HTTP verbs, raw body in/out, no markdown conversion, no cache.
+
+### Known issues / deferred
+- No retry on transient failures.
+- No streaming response (full body buffered to memory; 5MB cap).
+- No HTTP/2 push, no WebSocket, no SSE (use WebFetch path for SSE / dedicated MCP transports for WS).
+- User-Agent hardcoded to `anthrogo/X.Y.Z HTTPRequest` (overridable via headers map).
+
 ## [0.12.1-dev] — 2026-05-21
 
 M12.2 — anthrogo init-config wizard.

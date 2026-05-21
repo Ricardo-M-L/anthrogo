@@ -875,6 +875,7 @@ func registerTools(cfg config.Config) *tool.Registry {
 	r.Register(tool.Grep{})
 	r.Register(&tool.TodoWrite{})
 	r.Register(tool.NewWebFetch())
+	r.Register(&tool.HTTPRequest{})
 	r.Register(tool.NewWebSearch(tool.WebSearchConfig{
 		Backend:  cfg.WebSearch.Backend,
 		APIKey:   os.ExpandEnv(cfg.WebSearch.APIKey),

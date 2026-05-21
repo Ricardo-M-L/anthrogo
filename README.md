@@ -5,7 +5,7 @@ source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
 **Documentation:** https://Ricardo-M-L.github.io/anthrogo/
 
-> **Status**: M12.2 complete (v0.12.1-dev). init-config wizard. See `docs/superpowers/specs/` for design docs.
+> **Status**: M12.3 complete (v0.12.2-dev). HTTPRequest tool. See `docs/superpowers/specs/` for design docs.
 
 ## Quickstart
 
@@ -76,6 +76,9 @@ update/view loops.
 | M11.4     | mkdocs documentation site                                                      | shipped  |
 | M11.5     | `/login` OAuth 2.1 PKCE flow; Anthropic provider prefers saved token           | shipped  |
 | M11.6     | Speech I/O tools: `SpeechToText` (whisper CLI) + `TextToSpeech` (say/espeak)  | shipped  |
+| M12.1     | `anthrogo doctor` self-check subcommand                                        | shipped  |
+| M12.2     | `anthrogo init-config` interactive wizard                                      | shipped  |
+| M12.3     | `HTTPRequest` tool — general-purpose HTTP client (curl-like)                   | shipped  |
 | M6        | Bedrock/Vertex + OpenAI-compat / DeepSeek / Kimi / MiniMax / GLM           | planned  |
 
 ## Repository layout
@@ -958,6 +961,8 @@ Note: permission decisions (allow/deny/ask) are not currently recorded in the JS
 | SymbolSearch | yes      | Find a symbol's definition by name; Go via `go/parser`, others via regex heuristics |
 | References  | yes       | Find all word-boundary usages of a name across the tree           |
 | WebSearch   | yes       | Search the web; dispatches to brave, google, bing, or tavily      |
+| WebFetch    | yes       | GET-only HTTP fetch; HTML→markdown, 15-min LRU cache              |
+| HTTPRequest | no*       | Full HTTP client: GET/POST/PUT/DELETE/PATCH/HEAD, raw body, headers, `save_to`, size cap. *Read-only for GET/HEAD only |
 
 ### WebSearch backends (M10.3)
 
