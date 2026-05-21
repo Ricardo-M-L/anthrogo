@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.12.3-dev] — 2026-05-21
+
+M12.4 — SQLQuery tool.
+
+### Added
+- `SQLQuery` built-in tool — runs SQL against postgres, mysql, or sqlite via `database/sql`. DSN supports `env:VARNAME` resolution. Positional `?` / `$1` parameters via `params` array. `timeout_ms` (default 30s) and `max_rows` (default 100) caps.
+- Per-call permission gate semantics:
+  - `SELECT` / `EXPLAIN` / `SHOW` / `DESCRIBE` / `WITH` (read-only) → auto-allow
+  - `INSERT` / `UPDATE` / `DELETE` / `CREATE` / `DROP` / `ALTER` / `TRUNCATE` → defer to gate (Ask)
+- Read query rows returned as JSON array of `{column: value}` maps. Mutating queries return `rows_affected=N last_insert_id=M`. Result.Data carries structured counts.
+- New deps: `github.com/lib/pq` (postgres), `github.com/go-sql-driver/mysql` (mysql). sqlite already shipped (M10.1).
+
+### Known issues / deferred
+- WITH that wraps a mutating statement (e.g., `WITH t AS (...) DELETE FROM ...`) is mis-classified as read-only. Permission gate's existing rules still cover this case via tool-level deny.
+- No prepared-statement caching across calls.
+- No transaction control (each call opens + closes connection); for multi-statement transactions, use Bash + `psql` / `mysql` clients.
+- DSN with passwords logged verbatim if /audit ever records ToolInput — sensitive DSN should use `env:` form to avoid the persistence.
+
 ## [0.12.2-dev] — 2026-05-21
 
 M12.3 — HTTPRequest tool.
