@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.12.1-dev] — 2026-05-21
+
+M12.2 — anthrogo init-config wizard.
+
+### Added
+- `anthrogo init-config` interactive subcommand:
+  - Picks provider (anthropic/deepseek/kimi/minimax/glm/openai)
+  - Suggests provider-appropriate default model
+  - 3-way API key choice: env (recommended) / inline / /login deferred
+  - Permission mode (default/acceptEdits/plan)
+  - Optional telemetry enable + endpoint
+  - Auto-compact threshold (input+output tokens)
+  - Writes `~/.anthrogo/settings.yaml` (mode 0600) with header comment
+  - Refuses to overwrite an existing settings file unless `--force`
+- Hand-off to `anthrogo doctor` + `anthrogo` at the end
+
+### Known issues / deferred
+- Doesn't probe ENV for already-set API keys to pre-select #1 choice.
+- No MCP / hooks / plugins setup (manual editing or `/mcp`, `/plugin` later).
+- No reverse — no `anthrogo migrate-config` to upgrade older settings shapes.
+- No validation of model name against provider's published catalog.
+
 ## [0.12.0-dev] — 2026-05-21
 
 M12.1 — anthrogo doctor self-check subcommand.

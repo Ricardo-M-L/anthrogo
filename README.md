@@ -5,7 +5,22 @@ source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
 **Documentation:** https://Ricardo-M-L.github.io/anthrogo/
 
-> **Status**: M11.6 complete (v0.11.5-dev). Speech I/O tools. See `docs/superpowers/specs/` for design docs.
+> **Status**: M12.2 complete (v0.12.1-dev). init-config wizard. See `docs/superpowers/specs/` for design docs.
+
+## Quickstart
+
+```bash
+# 1. Generate your settings file interactively
+anthrogo init-config
+
+# 2. Verify your environment
+anthrogo doctor
+
+# 3. Launch the TUI
+anthrogo
+```
+
+Use `anthrogo init-config --force` to overwrite an existing `~/.anthrogo/settings.yaml`.
 
 ## Input history
 

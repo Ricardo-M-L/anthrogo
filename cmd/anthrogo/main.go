@@ -22,6 +22,7 @@ import (
 
 	"github.com/ricardo/anthrogo/internal/config"
 	"github.com/ricardo/anthrogo/internal/doctor"
+	"github.com/ricardo/anthrogo/internal/initconfig"
 	"github.com/ricardo/anthrogo/internal/headless"
 	"github.com/ricardo/anthrogo/internal/hooks"
 	"github.com/ricardo/anthrogo/internal/mcp"
@@ -842,6 +843,21 @@ func main() {
 		},
 	}
 	root.AddCommand(doctorCmd)
+
+	var forceInit bool
+	initCmd := &cobra.Command{
+		Use:   "init-config",
+		Short: "Interactive wizard to create settings.yaml",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path, err := config.SettingsPath()
+			if err != nil {
+				return err
+			}
+			return initconfig.Run(os.Stdin, os.Stdout, path, forceInit)
+		},
+	}
+	initCmd.Flags().BoolVar(&forceInit, "force", false, "Overwrite existing settings.yaml")
+	root.AddCommand(initCmd)
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
