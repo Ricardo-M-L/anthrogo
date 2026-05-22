@@ -14,7 +14,7 @@ See [Configuration](../configuration.md) for layered config rules, environment v
 | `apiKey` | string | — | Anthropic API key (or `env:VAR`) |
 | `auto_compact_threshold` | int | 0 | Auto-compact at N tokens since last compact; 0 = disabled |
 | `cost_limit_usd` | float | 0 | Budget cap in USD; 0 = disabled |
-| `providers_failover` | []string | — | Ordered list of profile names to try on pre-commit error |
+| `providers_failover` | []string | — | Ordered list of profile names to try if the active provider fails before any event is committed (typically API auth, rate-limit, or network errors during the initial Stream call) |
 
 ## alwaysAllow / alwaysDeny / alwaysAsk
 
