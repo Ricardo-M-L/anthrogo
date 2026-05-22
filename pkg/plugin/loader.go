@@ -14,6 +14,9 @@ import (
 	"github.com/ricardo/anthrogo/pkg/skill"
 )
 
+// maxPluginYAMLBytes caps the size of a plugin manifest we'll load.
+const maxPluginYAMLBytes = 1 << 20 // 1 MiB
+
 var nameRE = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 
 // LoadAll scans homeRoot and cwdRoot for plugin directories. cwd-level plugins
@@ -61,6 +64,10 @@ func loadDir(root, source string) ([]Plugin, []string) {
 		base := filepath.Join(root, dirname)
 		absBase, _ := filepath.Abs(base)
 		manifestPath := filepath.Join(base, "plugin.yaml")
+		if st, statErr := os.Stat(manifestPath); statErr == nil && st.Size() > maxPluginYAMLBytes {
+			warnings = append(warnings, fmt.Sprintf("plugin %q: plugin.yaml is %d bytes (cap %d) — skipped", dirname, st.Size(), maxPluginYAMLBytes))
+			continue
+		}
 		raw, err := os.ReadFile(manifestPath)
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("plugin dir %q: no plugin.yaml", dirname))
@@ -127,6 +134,9 @@ func loadDir(root, source string) ([]Plugin, []string) {
 // Returns false + warning string if SKILL.md is missing or malformed.
 func loadOneSkill(skillDir, source string) (skill.Skill, bool, string) {
 	skillMD := filepath.Join(skillDir, "SKILL.md")
+	if st, err := os.Stat(skillMD); err == nil && st.Size() > maxPluginYAMLBytes {
+		return skill.Skill{}, false, fmt.Sprintf("SKILL.md at %s is %d bytes — refusing to load (cap %d)", skillMD, st.Size(), maxPluginYAMLBytes)
+	}
 	raw, err := os.ReadFile(skillMD)
 	if err != nil {
 		return skill.Skill{}, false, "no SKILL.md at " + skillMD

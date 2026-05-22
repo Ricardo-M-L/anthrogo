@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -10,6 +11,11 @@ import (
 	"github.com/ricardo/anthrogo/internal/mcp"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 )
+
+// maxConfigYAMLBytes caps the settings.yaml file size we'll load. A malicious
+// or accidentally-huge settings file would otherwise be fully read into
+// memory by os.ReadFile + yaml.Unmarshal.
+const maxConfigYAMLBytes = 1 << 20 // 1 MiB
 
 // WebSearchConfig holds backend-specific settings for the WebSearch tool.
 type WebSearchConfig struct {
@@ -127,6 +133,9 @@ func Load() (Config, error) {
 	p, err := SettingsPath()
 	if err != nil {
 		return Config{}, err
+	}
+	if st, err := os.Stat(p); err == nil && st.Size() > maxConfigYAMLBytes {
+		return Config{}, fmt.Errorf("settings.yaml is %d bytes; refusing to load (cap %d)", st.Size(), maxConfigYAMLBytes)
 	}
 	raw, err := os.ReadFile(p)
 	if err != nil {

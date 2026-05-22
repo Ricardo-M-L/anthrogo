@@ -12,6 +12,10 @@ import (
 
 const maxBodyBytes = 1 << 20
 
+// maxSkillFileBytes caps the SKILL.md file size we'll read into memory.
+// Defense against a hostile or accidentally-huge skill manifest.
+const maxSkillFileBytes = 4 << 20 // 4 MiB
+
 var nameRE = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 
 type frontmatter struct {
@@ -67,6 +71,10 @@ func loadDir(root, source string) ([]Skill, []string) {
 		}
 		base := filepath.Join(root, name)
 		path := filepath.Join(base, "SKILL.md")
+		if st, err := os.Stat(path); err == nil && st.Size() > maxSkillFileBytes {
+			warnings = append(warnings, fmt.Sprintf("skill %q: SKILL.md is %d bytes (cap %d) — skipped", name, st.Size(), maxSkillFileBytes))
+			continue
+		}
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("skill %q: no SKILL.md", name))

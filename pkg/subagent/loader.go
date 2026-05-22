@@ -10,6 +10,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// maxSubagentYAMLBytes caps the size of a subagent spec file we'll load.
+const maxSubagentYAMLBytes = 256 << 10 // 256 KiB
+
 var nameRE = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 
 type yamlSpec struct {
@@ -77,7 +80,12 @@ func loadDir(root string) ([]Spec, []string) {
 			warnings = append(warnings, `subagent name "general-purpose" is reserved; skipping`)
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(root, name))
+		full := filepath.Join(root, name)
+		if st, statErr := os.Stat(full); statErr == nil && st.Size() > maxSubagentYAMLBytes {
+			warnings = append(warnings, fmt.Sprintf("subagent %q: yaml is %d bytes (cap %d) — skipped", stem, st.Size(), maxSubagentYAMLBytes))
+			continue
+		}
+		raw, err := os.ReadFile(full)
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("subagent %q: read: %v", stem, err))
 			continue
