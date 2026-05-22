@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Ricardo-M-L/anthrogo/blob/main/SECURITY.md
+    about: For suspected security issues, please use the private reporting flow in SECURITY.md instead of a public issue.
+  - name: Question / discussion
+    url: https://github.com/Ricardo-M-L/anthrogo/discussions
+    about: For general questions, design discussions, or help requests, please use GitHub Discussions.
+  - name: Documentation
+    url: https://ricardo-m-l.github.io/anthrogo/
+    about: The full documentation is published as a static site. Check there first for install, configuration, and command reference.

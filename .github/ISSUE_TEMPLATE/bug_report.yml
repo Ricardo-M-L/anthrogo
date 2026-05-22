@@ -1,0 +1,77 @@
+name: Bug report
+description: Something broke that shouldn't have
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. **For security vulnerabilities, please use
+        the [private report flow in SECURITY.md](https://github.com/Ricardo-M-L/anthrogo/blob/main/SECURITY.md)
+        instead of a public issue.**
+
+  - type: input
+    id: version
+    attributes:
+      label: anthrogo version
+      description: Output of `anthrogo version`
+      placeholder: v0.14.0
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS + arch + Go version (`go version`)
+      placeholder: macOS 14.5 arm64 / go1.26.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider in use
+      options:
+        - Anthropic
+        - OpenAI-compatible (DeepSeek/Kimi/MiniMax/GLM/etc.)
+        - AWS Bedrock
+        - GCP Vertex
+        - Ollama
+        - Failover (multi-provider)
+        - Not applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug. What did you do, what did you see, what did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal commands or config to reproduce. Include relevant snippets from `~/.anthrogo/settings.yaml` with secrets redacted.
+      render: shell
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Stderr, JSONL session excerpt, or anything else anthrogo wrote. Will be auto-rendered as code.
+      render: shell
+
+  - type: checkboxes
+    id: pre-checks
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I have searched [open and closed issues](https://github.com/Ricardo-M-L/anthrogo/issues?q=is%3Aissue) for duplicates
+          required: true
+        - label: I have run `anthrogo doctor` and pasted any failing checks above
+          required: false
+        - label: This is not a security vulnerability (use SECURITY.md instead)
+          required: true

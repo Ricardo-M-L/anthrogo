@@ -1,0 +1,54 @@
+name: Feature request
+description: Suggest a new tool, provider, command, or capability
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: A short description of the real-world scenario, not the proposed solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: How would you like anthrogo to handle this? Sketch the UX (slash command? new tool? config option?).
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you've tried, or other anthrogo features that almost-but-not-quite solve this.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Where does this fit?
+      multiple: true
+      options:
+        - New built-in tool (pkg/tool/)
+        - New provider (pkg/provider/)
+        - New slash command (pkg/command/builtins/)
+        - New hook event (internal/hooks/)
+        - MCP transport / capability
+        - TUI ergonomics
+        - HTTP daemon (`serve`)
+        - Web UI (`web`)
+        - KAIROS / subagent
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Would you be willing to contribute?
+      options:
+        - label: I can submit a PR if the design is approved
+        - label: I can help test a PR from someone else
+        - label: I need someone else to implement this

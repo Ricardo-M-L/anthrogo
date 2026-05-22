@@ -1,0 +1,29 @@
+# anthrogo CODEOWNERS
+#
+# Lines later in the file take precedence. @Ricardo-M-L is the catch-all
+# maintainer until additional reviewers are added.
+
+# Catch-all
+*                                @Ricardo-M-L
+
+# Security-sensitive areas — always require maintainer review
+LICENSE                          @Ricardo-M-L
+SECURITY.md                      @Ricardo-M-L
+/.github/                        @Ricardo-M-L
+/cmd/anthrogo/                   @Ricardo-M-L
+/internal/serve/                 @Ricardo-M-L
+/internal/web/                   @Ricardo-M-L
+/internal/hooks/                 @Ricardo-M-L
+/internal/session/               @Ricardo-M-L
+/pkg/permissions/                @Ricardo-M-L
+/pkg/kairos/                     @Ricardo-M-L
+/pkg/tool/netguard.go            @Ricardo-M-L
+/pkg/tool/browser.go             @Ricardo-M-L
+/pkg/tool/bash.go                @Ricardo-M-L
+/pkg/tool/sqlquery.go            @Ricardo-M-L
+/pkg/tool/httprequest.go         @Ricardo-M-L
+
+# Documentation
+/docs/                           @Ricardo-M-L
+/README.md                       @Ricardo-M-L
+/README.zh.md                    @Ricardo-M-L

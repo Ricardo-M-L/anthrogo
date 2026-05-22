@@ -1,0 +1,46 @@
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - go
+    commit-message:
+      prefix: "deps"
+    groups:
+      anthropic-sdk:
+        patterns:
+          - "github.com/anthropics/*"
+      aws-sdk:
+        patterns:
+          - "github.com/aws/*"
+      gcp-sdk:
+        patterns:
+          - "cloud.google.com/*"
+          - "google.golang.org/*"
+      bubbletea:
+        patterns:
+          - "github.com/charmbracelet/*"
+      chromedp:
+        patterns:
+          - "github.com/chromedp/*"
+      otel:
+        patterns:
+          - "go.opentelemetry.io/*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "ci"
