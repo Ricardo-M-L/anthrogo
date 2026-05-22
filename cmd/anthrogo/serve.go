@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -18,11 +19,35 @@ import (
 	"github.com/ricardo/anthrogo/pkg/tool"
 )
 
+// resolveServeToken picks the bearer token from (in priority order)
+// --token, --token-file, $ANTHROGO_SERVE_TOKEN, and warns the operator
+// when --token is used since the value is visible in `ps`.
+func resolveServeToken(flag, file string) (string, error) {
+	if flag != "" {
+		fmt.Fprintln(os.Stderr,
+			"warning: --token passes the secret on the command line and is visible in `ps`. "+
+				"Prefer --token-file or $ANTHROGO_SERVE_TOKEN.")
+		return flag, nil
+	}
+	if file != "" {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			return "", fmt.Errorf("read --token-file %s: %w", file, err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	if v := os.Getenv("ANTHROGO_SERVE_TOKEN"); v != "" {
+		return strings.TrimSpace(v), nil
+	}
+	return "", nil
+}
+
 // newServeCmd constructs the `anthrogo serve` subcommand.
 func newServeCmd() *cobra.Command {
 	var (
 		addrFlag        string
 		tokenFlag       string
+		tokenFileFlag   string
 		corsOriginFlag  string
 		sessionsDirFlag string
 		modelFlag       string
@@ -89,9 +114,14 @@ Endpoints:
 				return p, model, err
 			}
 
+			token, err := resolveServeToken(tokenFlag, tokenFileFlag)
+			if err != nil {
+				return err
+			}
+
 			srvCfg := serve.Config{
 				Addr:            addrFlag,
-				Token:           tokenFlag,
+				Token:           token,
 				CORSOrigin:      corsOriginFlag,
 				SessionsDir:     sessionsDirFlag,
 				ProviderFactory: providerFactory,
@@ -114,7 +144,8 @@ Endpoints:
 	}
 
 	cmd.Flags().StringVar(&addrFlag, "addr", "127.0.0.1:8765", "Listen address for the HTTP server")
-	cmd.Flags().StringVar(&tokenFlag, "token", "", "Optional Bearer auth token; if set all routes require Authorization: Bearer <token>")
+	cmd.Flags().StringVar(&tokenFlag, "token", "", "Bearer auth token (insecure: visible in `ps`; prefer --token-file or $ANTHROGO_SERVE_TOKEN)")
+	cmd.Flags().StringVar(&tokenFileFlag, "token-file", "", "Path to a file containing the Bearer auth token")
 	cmd.Flags().StringVar(&corsOriginFlag, "cors-origin", "", "Access-Control-Allow-Origin header value (e.g. https://myapp.com)")
 	cmd.Flags().StringVar(&sessionsDirFlag, "sessions-dir", "", "Override session storage directory (default: ~/.anthrogo)")
 	cmd.Flags().StringVar(&modelFlag, "model", "", "Model alias (overrides settings.yaml)")

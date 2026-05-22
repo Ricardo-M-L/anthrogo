@@ -2,6 +2,8 @@ package main
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -89,4 +91,40 @@ func TestPprofFlagSmoke(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestResolveServeToken_FlagTakesPriority(t *testing.T) {
+	t.Setenv("ANTHROGO_SERVE_TOKEN", "from-env")
+	tok, err := resolveServeToken("from-flag", "")
+	require.NoError(t, err)
+	require.Equal(t, "from-flag", tok)
+}
+
+func TestResolveServeToken_FileFallback(t *testing.T) {
+	t.Setenv("ANTHROGO_SERVE_TOKEN", "from-env")
+	dir := t.TempDir()
+	f := filepath.Join(dir, "tok")
+	require.NoError(t, os.WriteFile(f, []byte("from-file\n"), 0o600))
+	tok, err := resolveServeToken("", f)
+	require.NoError(t, err)
+	require.Equal(t, "from-file", tok)
+}
+
+func TestResolveServeToken_EnvFallback(t *testing.T) {
+	t.Setenv("ANTHROGO_SERVE_TOKEN", "from-env")
+	tok, err := resolveServeToken("", "")
+	require.NoError(t, err)
+	require.Equal(t, "from-env", tok)
+}
+
+func TestResolveServeToken_EmptyWhenAllAbsent(t *testing.T) {
+	t.Setenv("ANTHROGO_SERVE_TOKEN", "")
+	tok, err := resolveServeToken("", "")
+	require.NoError(t, err)
+	require.Equal(t, "", tok)
+}
+
+func TestResolveServeToken_FileNotFound_ReturnsError(t *testing.T) {
+	_, err := resolveServeToken("", "/nonexistent/path/token")
+	require.Error(t, err)
 }

@@ -24,6 +24,7 @@ func newWebCmd() *cobra.Command {
 	var (
 		addrFlag        string
 		tokenFlag       string
+		tokenFileFlag   string
 		corsOriginFlag  string
 		sessionsDirFlag string
 		modelFlag       string
@@ -83,9 +84,14 @@ UI:
 				return p, model, err
 			}
 
+			token, err := resolveServeToken(tokenFlag, tokenFileFlag)
+			if err != nil {
+				return err
+			}
+
 			srvCfg := serve.Config{
 				Addr:            addr,
-				Token:           tokenFlag,
+				Token:           token,
 				CORSOrigin:      corsOriginFlag,
 				SessionsDir:     sessionsDirFlag,
 				ProviderFactory: providerFactory,
@@ -122,7 +128,8 @@ UI:
 	}
 
 	cmd.Flags().StringVar(&addrFlag, "addr", "", "Listen address (default: auto-detect 8766–8775)")
-	cmd.Flags().StringVar(&tokenFlag, "token", "", "Optional Bearer auth token")
+	cmd.Flags().StringVar(&tokenFlag, "token", "", "Bearer auth token (insecure: visible in `ps`; prefer --token-file or $ANTHROGO_SERVE_TOKEN)")
+	cmd.Flags().StringVar(&tokenFileFlag, "token-file", "", "Path to a file containing the Bearer auth token")
 	cmd.Flags().StringVar(&corsOriginFlag, "cors-origin", "", "Access-Control-Allow-Origin header value")
 	cmd.Flags().StringVar(&sessionsDirFlag, "sessions-dir", "", "Override session storage directory")
 	cmd.Flags().StringVar(&modelFlag, "model", "", "Model alias (overrides settings.yaml)")
