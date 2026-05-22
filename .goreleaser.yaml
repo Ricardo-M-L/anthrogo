@@ -1,0 +1,111 @@
+version: 2
+
+project_name: anthrogo
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: anthrogo
+    main: ./cmd/anthrogo
+    binary: anthrogo
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/ricardo/anthrogo/internal/version.Version={{.Version}}
+
+archives:
+  - id: anthrogo
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+      - SECURITY.md
+      - CHANGELOG.md
+      - docs/install.md
+      - docs/first-run.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+
+brews:
+  - name: anthrogo
+    repository:
+      owner: Ricardo-M-L
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/Ricardo-M-L/anthrogo
+    description: A Go port of Anthropic's Claude Code CLI — TUI + headless + HTTP + web UI
+    license: AGPL-3.0-or-later
+    test: |
+      assert_match version.to_s, shell_output("#{bin}/anthrogo version")
+    install: |
+      bin.install "anthrogo"
+
+release:
+  github:
+    owner: Ricardo-M-L
+    name: anthrogo
+  draft: false
+  prerelease: auto
+  name_template: "v{{ .Version }}"
+  header: |
+    ## anthrogo v{{ .Version }}
+
+    See [CHANGELOG.md](https://github.com/Ricardo-M-L/anthrogo/blob/main/CHANGELOG.md) for full details.
+  footer: |
+    ## Install
+
+    ### Homebrew (macOS/Linux)
+
+    ```bash
+    brew install Ricardo-M-L/tap/anthrogo
+    ```
+
+    ### Direct download
+
+    Pick the asset matching your platform from the assets list below, extract, and run.
+
+    ### From source
+
+    ```bash
+    go install github.com/Ricardo-M-L/anthrogo/cmd/anthrogo@v{{ .Version }}
+    ```
+
+    Requires Go 1.26+.
+
+    ---
+
+    Full diff: https://github.com/Ricardo-M-L/anthrogo/compare/{{ .PreviousTag }}...{{ .Tag }}
