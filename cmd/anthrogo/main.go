@@ -88,33 +88,12 @@ func main() {
 				return nil
 			}
 
-			// --pprof: start net/http/pprof server in the background.
 			if pprofAddr != "" {
-				go func() {
-					srv := &http.Server{Addr: pprofAddr, Handler: nil} // nil → default mux; net/http/pprof registered via side-effect import
-					fmt.Fprintf(os.Stderr, "pprof listening on http://%s/debug/pprof/\n", pprofAddr)
-					_ = srv.ListenAndServe()
-				}()
+				startPProfServer(pprofAddr)
 			}
 
-			// --generate-key: emit a fresh ed25519 keypair to <path>.priv + <path>.pub.
 			if kairosGenerateKey != "" {
-				priv, pub, err := kairos.GenerateKeyPair()
-				if err != nil {
-					return fmt.Errorf("generate keypair: %w", err)
-				}
-				privPath := kairosGenerateKey + ".priv"
-				pubPath := kairosGenerateKey + ".pub"
-				privB64 := encoding64.StdEncoding.EncodeToString(priv)
-				pubB64 := encoding64.StdEncoding.EncodeToString(pub)
-				if err := os.WriteFile(privPath, []byte(privB64+"\n"), 0600); err != nil {
-					return fmt.Errorf("write private key: %w", err)
-				}
-				if err := os.WriteFile(pubPath, []byte(pubB64+"\n"), 0644); err != nil {
-					return fmt.Errorf("write public key: %w", err)
-				}
-				fmt.Fprintf(os.Stderr, "private key → %s\npublic key  → %s\n", privPath, pubPath)
-				return nil
+				return handleGenerateKairosKey(kairosGenerateKey)
 			}
 
 			// --kairos-serve: run as a KAIROS worker. Build a minimal engine
@@ -1185,4 +1164,36 @@ func buildProvider(cfg config.Config, providerFlagValue string) (provider.Provid
 	}
 
 	return primary, effectiveModel, nil
+}
+
+// startPProfServer launches net/http/pprof on `addr` in a background
+// goroutine. The pprof package registers itself on http.DefaultServeMux via
+// blank import, so passing Handler=nil is correct.
+func startPProfServer(addr string) {
+	go func() {
+		srv := &http.Server{Addr: addr, Handler: nil}
+		fmt.Fprintf(os.Stderr, "pprof listening on http://%s/debug/pprof/\n", addr)
+		_ = srv.ListenAndServe()
+	}()
+}
+
+// handleGenerateKairosKey writes a fresh ed25519 keypair to <path>.priv
+// (0600) and <path>.pub (0644), both base64-encoded with a trailing newline.
+func handleGenerateKairosKey(path string) error {
+	priv, pub, err := kairos.GenerateKeyPair()
+	if err != nil {
+		return fmt.Errorf("generate keypair: %w", err)
+	}
+	privPath := path + ".priv"
+	pubPath := path + ".pub"
+	privB64 := encoding64.StdEncoding.EncodeToString(priv)
+	pubB64 := encoding64.StdEncoding.EncodeToString(pub)
+	if err := os.WriteFile(privPath, []byte(privB64+"\n"), 0600); err != nil {
+		return fmt.Errorf("write private key: %w", err)
+	}
+	if err := os.WriteFile(pubPath, []byte(pubB64+"\n"), 0644); err != nil {
+		return fmt.Errorf("write public key: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "private key → %s\npublic key  → %s\n", privPath, pubPath)
+	return nil
 }
