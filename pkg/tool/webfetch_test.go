@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -69,4 +70,23 @@ func TestWebFetch_SizeLimit(t *testing.T) {
 	res, _ := wf.Call(context.Background(), map[string]any{"url": srv.URL}, &Context{})
 	require.True(t, res.IsError)
 	require.Contains(t, res.Text, "too large")
+}
+
+// TestWebFetch_GetCache_DropsOrderEntryOnTTLExpiry verifies that an expired
+// cache entry is removed from w.order at expiry time, so a subsequent re-fetch
+// doesn't push a duplicate URL into w.order and corrupt the LRU.
+func TestWebFetch_GetCache_DropsOrderEntryOnTTLExpiry(t *testing.T) {
+	w := NewWebFetch()
+	// Manually populate cache with a stale entry (storedAt = past).
+	w.cache["http://x/a"] = cacheEntry{body: "a", storedAt: time.Now().Add(-time.Hour)}
+	w.order = []string{"http://x/a"}
+
+	got := w.getCache("http://x/a")
+	require.Equal(t, "", got, "stale entry should not be returned")
+	require.Empty(t, w.order, "w.order should have the stale entry removed")
+	require.NotContains(t, w.cache, "http://x/a", "w.cache should have the stale entry removed")
+
+	// Re-put the same URL; w.order should hold exactly one entry, not two.
+	w.putCache("http://x/a", "fresh")
+	require.Len(t, w.order, 1, "w.order should have a single entry after re-put")
 }

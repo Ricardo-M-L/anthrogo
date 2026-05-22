@@ -134,6 +134,15 @@ func (w *WebFetch) getCache(url string) string {
 	}
 	if time.Since(e.storedAt) > webFetchTTL {
 		delete(w.cache, url)
+		// Keep w.order consistent: drop the URL so a subsequent
+		// putCache doesn't push a duplicate entry and corrupt LRU
+		// eviction (which trims from w.order[0]).
+		for i, u := range w.order {
+			if u == url {
+				w.order = append(w.order[:i], w.order[i+1:]...)
+				break
+			}
+		}
 		return ""
 	}
 	return e.body
