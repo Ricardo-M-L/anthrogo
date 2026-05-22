@@ -12,15 +12,30 @@ import (
 	"time"
 )
 
-// slackURLAllowed is a package-level variable so tests can override it.
-var slackURLAllowed = func(u string) bool {
+// slackURLAllowedDefault is the production allow-check for Slack webhook URLs.
+func slackURLAllowedDefault(u string) bool {
 	return strings.HasPrefix(u, "https://hooks.slack.com/services/")
 }
+
+// slackURLAllowed remains for backward compatibility with tests that
+// override the package-level check. Prefer SlackPost.urlAllowedFn for
+// new tests so per-instance overrides don't race under t.Parallel().
+var slackURLAllowed = slackURLAllowedDefault
 
 // SlackPost sends a message to a Slack channel via an Incoming Webhook URL.
 type SlackPost struct {
 	DefaultPermission
-	httpClient *http.Client // injectable for testing; nil → DefaultClient with 10s timeout
+	httpClient   *http.Client          // injectable for testing
+	urlAllowedFn func(string) bool     // per-instance override; nil → use slackURLAllowed
+}
+
+// urlAllowed returns the effective URL allow check: per-instance fn if set,
+// else the package-level slackURLAllowed.
+func (s SlackPost) urlAllowed(u string) bool {
+	if s.urlAllowedFn != nil {
+		return s.urlAllowedFn(u)
+	}
+	return slackURLAllowed(u)
 }
 
 func (SlackPost) Name() string { return "SlackPost" }
@@ -78,7 +93,7 @@ func (s SlackPost) Call(ctx context.Context, input map[string]any, _ *Context) (
 	if webhookURL == "" {
 		return errResult("slackpost: no webhook URL"), nil
 	}
-	if !slackURLAllowed(webhookURL) {
+	if !s.urlAllowed(webhookURL) {
 		return errResult("slackpost: url must start with https://hooks.slack.com/services/"), nil
 	}
 
