@@ -1,6 +1,9 @@
 run:
   timeout: 5m
-  go: "1.25"
+  # Don't pin a `go:` version here — golangci-lint v1 binaries are built with
+  # a fixed Go toolchain (v1.64.8 was built with 1.24), and targeting a newer
+  # language version errors out at config load. Let the linter infer from
+  # go.mod and the toolchain on the runner.
 
 linters:
   disable-all: true
