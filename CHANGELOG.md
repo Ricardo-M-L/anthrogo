@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.13.21-dev] — 2026-05-22
+
+M15.3 — P2 robustness. 5 items from the deep audit, one commit
+each.
+
+- **K1** openai Provider caches default *http.Client via sync.
+  Once instead of allocating per Stream call.
+- **K2** WebSearch (Brave / Google / Bing / Tavily) now uses
+  the SSRF-guarded 30s client instead of http.DefaultClient
+  (no timeout). searchBackend signature gains *http.Client.
+- **K3** subagent insecure_skip_verify gated behind
+  ANTHROGO_ALLOW_INSECURE_SUBAGENT=1 env opt-in; otherwise
+  RunSubagent errors out instead of silently disabling TLS.
+- **K4** SlackPost.urlAllowedFn per-instance override field;
+  removes the t.Parallel()-unsafe pkg-level slackURLAllowed
+  swap pattern (kept for backward compat).
+- **K5** Session SQLite cache uses WAL + synchronous=NORMAL.
+  Concurrent TUI + serve readers no longer hit SQLITE_BUSY.
+
+### Tests: 1 new (WAL/synchronous PRAGMA assertion).
+
+---
+
 ## [0.13.20-dev] — 2026-05-22
 
 M15.2 — P1 design defects. 9 items from the deep audit, one
