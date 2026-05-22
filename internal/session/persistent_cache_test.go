@@ -262,3 +262,29 @@ func TestPersistentCache_GetWritesAnthrogoVersion(t *testing.T) {
 	require.NotEmpty(t, av.String)
 	require.NoError(t, c.Close())
 }
+
+func TestPersistentCache_TrimsBeyondCap(t *testing.T) {
+	tmpDir := t.TempDir()
+	c := NewPersistentCache(filepath.Join(tmpDir, "cache.db"), 64)
+	require.NotNil(t, c.db, "db should be open for this test")
+	defer c.Close()
+
+	// Populate the table directly with maxPersistentCacheRows+5 rows.
+	for i := 0; i < maxPersistentCacheRows+5; i++ {
+		_, err := c.db.Exec(
+			`INSERT INTO replay_cache (path, modtime, records_json, cached_at, anthrogo_version)
+			 VALUES (?, ?, ?, ?, ?)`,
+			filepath.Join(tmpDir, "session-"+string(rune('a'+i%26))+"-x"+string(rune('a'+i/26))+".jsonl"),
+			int64(i), []byte("[]"), int64(i), "test",
+		)
+		require.NoError(t, err)
+	}
+	// Insert one more via the public path to trigger trim.
+	// Use a synthetic session file.
+	sessionPath := filepath.Join(tmpDir, "session-fresh.jsonl")
+	require.NoError(t, os.WriteFile(sessionPath, []byte(""), 0o600))
+	_, _ = c.Get(sessionPath)
+
+	require.LessOrEqual(t, c.SizeOnDisk(), maxPersistentCacheRows,
+		"row count must not exceed cap after trim")
+}

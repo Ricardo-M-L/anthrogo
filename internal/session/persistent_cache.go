@@ -18,6 +18,12 @@ import (
 // v0 = fresh DB, v1 = pre-M13.4, v2 = M13.4 (anthrogo_version column added).
 const cacheSchemaVersion = 2
 
+// maxPersistentCacheRows caps the number of rows retained in the replay_cache
+// table. On every Insert we run a trim that keeps the most-recently-cached
+// rows up to this cap. Unbounded growth was a real concern for long-lived
+// installations that accumulate one row per session file ever touched.
+const maxPersistentCacheRows = 2000
+
 // PersistentCache is a SQLite-backed cache of parsed []Record keyed by
 // (path, modtime). On miss or stale modtime, it falls through to Replay
 // + stores. Falls back to a no-op (in-memory only) if the DB can't open.
@@ -141,6 +147,13 @@ func (c *PersistentCache) Get(path string) ([]Record, error) {
 			    cached_at=excluded.cached_at,
 			    anthrogo_version=excluded.anthrogo_version`,
 			path, modtimeUnix, blob, time.Now().Unix(), version.Version,
+		)
+		// Trim oldest rows when over the cap.
+		_, _ = c.db.Exec(
+			`DELETE FROM replay_cache WHERE path IN (
+				SELECT path FROM replay_cache ORDER BY cached_at ASC
+				LIMIT MAX(0, (SELECT COUNT(*) FROM replay_cache) - ?))`,
+			maxPersistentCacheRows,
 		)
 		c.mu.Unlock()
 	}
