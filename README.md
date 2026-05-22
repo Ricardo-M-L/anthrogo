@@ -1,9 +1,15 @@
 # anthrogo
 
+[![CI](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/ci.yml/badge.svg)](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/ci.yml)
+[![Docs](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/docs.yml/badge.svg)](https://ricardo-m-l.github.io/anthrogo/)
+[![Release](https://img.shields.io/github/v/release/Ricardo-M-L/anthrogo)](https://github.com/Ricardo-M-L/anthrogo/releases/latest)
+[![Go Reference](https://pkg.go.dev/badge/github.com/ricardo/anthrogo.svg)](https://pkg.go.dev/github.com/ricardo/anthrogo)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
 A Go port of Anthropic's Claude Code CLI, reconstructed from the
 source-mapped `@anthropic-ai/claude-code@2.1.88` package.
 
-> **Status**: v0.13.16-dev. Documentation: https://Ricardo-M-L.github.io/anthrogo/
+> **Status**: v0.14.0 stable. Documentation: https://Ricardo-M-L.github.io/anthrogo/
 
 anthrogo re-expresses Claude Code's architecture in Go: preserving the shapes
 of `Tool`, `QueryEngine`, `PermissionContext`, `ToolUseContext`, MCP client,
