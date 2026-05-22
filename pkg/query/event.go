@@ -8,6 +8,7 @@ type EventKind string
 
 const (
 	KindAssistantDelta EventKind = "assistant_delta"
+	KindThinkingDelta  EventKind = "thinking_delta"
 	KindAssistantStop  EventKind = "assistant_stop"
 	KindToolUseRequest EventKind = "tool_use_request"
 	KindToolResult     EventKind = "tool_result"

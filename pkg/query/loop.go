@@ -241,6 +241,14 @@ func (e *Engine) runOneAPITurnAttempt(ctx context.Context, out chan<- Event) (st
 		case provider.EventTextDelta:
 			textBuf.WriteString(ev.Text)
 			out <- Event{Kind: KindAssistantDelta, Text: ev.Text}
+		case provider.EventThinkingDelta:
+			// Surface the chain-of-thought stream from R1-class reasoning
+			// models (anthropic native thinking blocks + openai-compat
+			// reasoning_content). Don't accumulate into assistant text —
+			// thinking is a sibling stream the surface can render
+			// separately. Not persisted to session JSONL (low value, high
+			// volume).
+			out <- Event{Kind: KindThinkingDelta, Text: ev.Text}
 		case provider.EventToolUseStart:
 			flushText()
 			pendingTool = &message.Block{

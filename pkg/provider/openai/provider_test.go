@@ -215,3 +215,33 @@ func filterKind(events []provider.Event, kind provider.EventKind) []provider.Eve
 	}
 	return out
 }
+
+// TestProvider_ReasoningContent_EmitsThinkingDelta verifies that a chunk
+// with reasoning_content (DeepSeek-R1 / Qwen-QwQ / GLM-Z1 style) emits an
+// EventThinkingDelta — not silently dropped.
+func TestProvider_ReasoningContent_EmitsThinkingDelta(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprintf(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"thinking step 1\"}}]}\n\n")
+		fmt.Fprintf(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\" step 2\"}}]}\n\n")
+		fmt.Fprintf(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"final answer\"},\"finish_reason\":\"stop\"}]}\n\n")
+		fmt.Fprintf(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	p := openai.New(srv.URL, "test-key")
+	ch, err := p.Stream(context.Background(), provider.Request{Model: "deepseek-r1", Messages: nil})
+	require.NoError(t, err)
+
+	var thinking, text string
+	for ev := range ch {
+		switch ev.Kind {
+		case provider.EventThinkingDelta:
+			thinking += ev.Text
+		case provider.EventTextDelta:
+			text += ev.Text
+		}
+	}
+	require.Equal(t, "thinking step 1 step 2", thinking, "reasoning_content must surface as ThinkingDelta")
+	require.Equal(t, "final answer", text)
+}

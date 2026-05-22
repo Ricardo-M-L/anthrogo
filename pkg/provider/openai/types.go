@@ -72,6 +72,11 @@ type chatDelta struct {
 	Role      string              `json:"role,omitempty"`
 	Content   string              `json:"content,omitempty"`
 	ToolCalls []chatToolCallDelta `json:"tool_calls,omitempty"`
+	// ReasoningContent is the chain-of-thought stream emitted by DeepSeek-R1,
+	// Qwen-QwQ, GLM-Z1, and other "thinking" models via OpenAI-compat. Most
+	// providers put it in this field; some use "reasoning". We read both.
+	ReasoningContent string `json:"reasoning_content,omitempty"`
+	Reasoning        string `json:"reasoning,omitempty"`
 }
 
 type chatToolCallDelta struct {

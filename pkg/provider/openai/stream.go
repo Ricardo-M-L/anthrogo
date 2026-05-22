@@ -211,6 +211,12 @@ func parseSSE(resp *http.Response, out chan<- provider.Event) {
 		if delta.Content != "" {
 			out <- provider.Event{Kind: provider.EventTextDelta, Text: delta.Content}
 		}
+		// Reasoning / thinking stream from R1-class models. Try the two
+		// known field names. If both happen to be set (some proxies do),
+		// concatenate.
+		if rc := delta.ReasoningContent + delta.Reasoning; rc != "" {
+			out <- provider.Event{Kind: provider.EventThinkingDelta, Text: rc}
+		}
 
 		for _, tc := range delta.ToolCalls {
 			sawToolCall = true
