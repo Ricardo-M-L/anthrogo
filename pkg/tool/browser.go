@@ -178,7 +178,7 @@ func (b *Browser) Call(parent context.Context, input map[string]any, _ *Context)
 			truncated = true
 		}
 		if truncated {
-			text += "\n\n[truncated at 200000 bytes]"
+			text += fmt.Sprintf("\n\n[truncated at %d bytes]", browserMaxBytes)
 		}
 		return Result{Type: ResultText, Text: text, ForLLM: text}, nil
 

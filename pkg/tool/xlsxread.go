@@ -103,7 +103,7 @@ func (XlsxRead) Call(ctx context.Context, input map[string]any, _ *Context) (Res
 		truncated = true
 	}
 	if truncated {
-		out += "\n[truncated at 200000 bytes]"
+		out += fmt.Sprintf("\n[truncated at %d bytes]", xlsxMaxBytes)
 	}
 	return Result{Type: ResultText, Text: out, ForLLM: out}, nil
 }

@@ -122,7 +122,7 @@ func TestTruncatePDFText_NoTruncation(t *testing.T) {
 func TestTruncatePDFText_TruncatesAndAddsMarker(t *testing.T) {
 	s := "abcdefghij" // 10 bytes
 	got := truncatePDFText(s, 5)
-	require.Equal(t, "abcde\n\n[truncated at 200000 bytes]", got)
+	require.Equal(t, "abcde\n\n[truncated at 5 bytes]", got)
 	require.True(t, len(got) > 5, "marker appended after cut")
 }
 

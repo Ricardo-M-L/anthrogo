@@ -101,7 +101,7 @@ func truncatePDFText(s string, max int) string {
 	if len(s) <= max {
 		return s
 	}
-	return s[:max] + "\n\n[truncated at 200000 bytes]"
+	return s[:max] + fmt.Sprintf("\n\n[truncated at %d bytes]", max)
 }
 
 // parsePDFPageRange parses the "pages" input value, returning (start, end) 1-indexed.
