@@ -1,47 +1,53 @@
+# golangci-lint v2 config schema. Generated/migrated from the v1 layout in
+# M16.3 (C3). v2's top-level layout is:
+#   version: "2"
+#   linters:
+#     default: none
+#     enable: [...]
+#     settings: { ... }
+#     exclusions: { ... }
+#   formatters: { ... }
+#
+# The v1-era 'run:', 'linters-settings:', and 'issues:' keys are gone.
+
+version: "2"
+
 run:
   timeout: 5m
-  # Don't pin a `go:` version here — golangci-lint v1 binaries are built with
-  # a fixed Go toolchain (v1.64.8 was built with 1.24), and targeting a newer
-  # language version errors out at config load. Let the linter infer from
-  # go.mod and the toolchain on the runner.
 
 linters:
-  disable-all: true
+  default: none
   enable:
     - errcheck
     - govet
     - ineffassign
     - staticcheck
     - unused
+    - misspell
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*bufio.Writer).Flush
+        - (*os.File).Close
+        - fmt.Fprintln
+        - fmt.Fprintf
+        - encoding/json.Encoder.Encode
+    govet:
+      enable:
+        - shadow
+      disable:
+        - fieldalignment   # too noisy for now
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - staticcheck   # tests sometimes use deprecated APIs intentionally
+    # Allow `if err := ...; err != nil { ... }` shadowing.
+    presets:
+      - common-false-positives
+
+formatters:
+  enable:
     - gofmt
     - goimports
-    - misspell
-    - typecheck
-
-linters-settings:
-  errcheck:
-    exclude-functions:
-      - (*bufio.Writer).Flush
-      - (*os.File).Close
-      - fmt.Fprintln
-      - fmt.Fprintf
-      - encoding/json.Encoder.Encode
-
-  govet:
-    enable:
-      - shadow
-    disable:
-      - fieldalignment  # too noisy for now
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - staticcheck  # tests sometimes use deprecated APIs intentionally
-  max-issues-per-linter: 0
-  max-same-issues: 0
-
-  # Allow `if err := ...; err != nil { ... }` shadowing
-  exclude:
-    - "declaration of \"err\" shadows declaration at"

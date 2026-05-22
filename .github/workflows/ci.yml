@@ -42,9 +42,6 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    # Lint job is informational; v2 schema migration is WIP. Don't gate CI on
-    # it. Test jobs (ubuntu + macos) are the real gates.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
