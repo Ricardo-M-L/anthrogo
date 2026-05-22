@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -229,7 +230,16 @@ func (e *Engine) RunSubagent(ctx context.Context, opts SubagentOptions) (string,
 			clientOpts.TrustKey = e.cfg.KairosTrustKey
 		}
 		// Wire TLS client options from RemoteSpec.
-		clientOpts.InsecureSkipVerify = spec.Remote.InsecureSkipVerify
+		// insecure_skip_verify is gated by an env-var opt-in so a malicious
+		// or accidentally-checked-in subagent spec cannot silently disable
+		// TLS validation. The yaml field still parses, but is ignored unless
+		// ANTHROGO_ALLOW_INSECURE_SUBAGENT=1 is exported by the operator.
+		if spec.Remote.InsecureSkipVerify {
+			if os.Getenv("ANTHROGO_ALLOW_INSECURE_SUBAGENT") != "1" {
+				return "", fmt.Errorf("subagent %q: insecure_skip_verify=true in spec but ANTHROGO_ALLOW_INSECURE_SUBAGENT is not set; refusing to disable TLS validation", spec.Name)
+			}
+			clientOpts.InsecureSkipVerify = true
+		}
 		clientOpts.CACertPath = spec.Remote.CACertPath
 		if spec.Remote.ExecToolsLocally {
 			// Exec-tools-locally: tool calls from the remote subagent run on this
