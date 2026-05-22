@@ -41,7 +41,9 @@ func FetchToken(ctx context.Context, cfg Config, cacheRoot, serverName string) (
 	if cached != nil && cached.RefreshToken != "" {
 		refreshed, err := refreshToken(ctx, cfg, cached.RefreshToken)
 		if err == nil {
-			_ = SaveToken(cacheRoot, serverName, refreshed)
+			if saveErr := SaveToken(cacheRoot, serverName, refreshed); saveErr != nil {
+				fmt.Fprintf(os.Stderr, "oauth: cache refreshed token: %v\n", saveErr)
+			}
 			return refreshed, nil
 		}
 		// fall through to full re-auth on refresh failure
@@ -51,7 +53,9 @@ func FetchToken(ctx context.Context, cfg Config, cacheRoot, serverName string) (
 	if err != nil {
 		return nil, err
 	}
-	_ = SaveToken(cacheRoot, serverName, token)
+	if saveErr := SaveToken(cacheRoot, serverName, token); saveErr != nil {
+		fmt.Fprintf(os.Stderr, "oauth: cache token: %v\n", saveErr)
+	}
 	return token, nil
 }
 
@@ -98,7 +102,10 @@ func authorizationCodeFlow(ctx context.Context, cfg Config) (*Token, error) {
 	defer server.Close()
 
 	// Build the authorization URL.
-	authURL, _ := url.Parse(cfg.AuthorizationURL)
+	authURL, err := url.Parse(cfg.AuthorizationURL)
+	if err != nil {
+		return nil, fmt.Errorf("oauth: invalid authorization_url %q: %w", cfg.AuthorizationURL, err)
+	}
 	q := authURL.Query()
 	q.Set("response_type", "code")
 	q.Set("client_id", cfg.ClientID)
