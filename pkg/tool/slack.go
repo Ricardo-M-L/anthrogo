@@ -65,7 +65,7 @@ func (SlackPost) Schema() map[string]any {
 	}
 }
 
-func (s SlackPost) Call(_ context.Context, input map[string]any, _ *Context) (Result, error) {
+func (s SlackPost) Call(ctx context.Context, input map[string]any, _ *Context) (Result, error) {
 	text, _ := input["text"].(string)
 	if text == "" {
 		return errResult("slackpost: text is required"), nil
@@ -111,7 +111,12 @@ func (s SlackPost) Call(_ context.Context, input map[string]any, _ *Context) (Re
 		client = &http.Client{Timeout: 10 * time.Second}
 	}
 
-	resp, err := client.Post(webhookURL, "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(body))
+	if err != nil {
+		return errResult("slackpost: " + err.Error()), nil
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
 	if err != nil {
 		return errResult("slackpost: " + err.Error()), nil
 	}

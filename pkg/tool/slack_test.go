@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -132,4 +133,34 @@ func TestSlackPost_NoURL_UsesEnv(t *testing.T) {
 	require.NoError(t, err2)
 	require.True(t, res2.IsError)
 	require.Contains(t, res2.Text, "no webhook URL")
+}
+
+func TestSlackPost_RespectsContextCancellation(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
+	// Server that never responds — simulates a hung Slack endpoint.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-time.After(10 * time.Second):
+		}
+	}))
+	defer server.Close()
+	prev := slackURLAllowed
+	slackURLAllowed = func(string) bool { return true }
+	defer func() { slackURLAllowed = prev }()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	s := SlackPost{httpClient: &http.Client{Timeout: 30 * time.Second}}
+	_, _ = s.Call(ctx, map[string]any{
+		"webhook_url": server.URL,
+		"text":        "test",
+	}, nil)
+	elapsed := time.Since(start)
+	require.Less(t, elapsed, 1*time.Second, "Call should abort within ~50ms of ctx cancel, got %v", elapsed)
 }
