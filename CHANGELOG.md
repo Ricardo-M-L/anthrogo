@@ -108,7 +108,10 @@ Highlights since v0.13:
   ImageGen, HTTPRequest, SQLQuery, WebFetch, WebSearch, Task,
   Skill, MCPResource, BackgroundLaunch, Format, References,
   Git, Speech, EnterPlanMode/ExitPlanMode, AskUserQuestion,
-  NotebookEdit, Compact.
+  NotebookEdit, TodoWrite, SymbolSearch, Diff.
+  (Compaction is an engine feature exposed via /compact slash
+  command, not a registered tool — earlier CHANGELOG entry
+  incorrectly listed it.)
 - Providers: Anthropic, OpenAI-compatible (DeepSeek, Kimi,
   MiniMax, GLM, vllm, Ollama, etc.), AWS Bedrock, GCP Vertex,
   Failover.

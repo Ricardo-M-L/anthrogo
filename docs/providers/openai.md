@@ -37,7 +37,16 @@ profiles:
 | Kimi | openai | `https://api.moonshot.cn/v1` | `kimi-k2-0905-preview` |
 | MiniMax | openai | `https://api.minimaxi.com/v1` | `MiniMax-M2`, `abab6.5s-chat` |
 | GLM | openai | `https://open.bigmodel.cn/api/paas/v4` | `glm-4.6`, `glm-zero-preview` |
+| **Google Gemini** | openai | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-flash-latest`, `gemini-3-flash-preview` |
 | vllm | openai | `http://localhost:8000/v1` | any loaded model |
+| Ollama | ollama | n/a (use `type: ollama`) | local models — prefer the dedicated `ollama` provider |
+
+### Notes for Gemini via OpenAI-compat
+
+- `api_key`: a Google AI Studio key (`AIza…`). Set `api_key: env:GEMINI_API_KEY` in the profile.
+- **Free tier limits**: ~20 requests/day/model on `gemini-2.5-flash` and `gemini-2.5-flash-lite`. Each model has independent quota — anthrogo will switch + retry automatically with the v0.14.2 retry-after-aware backoff.
+- **Gemini 3 / `gemini-flash-latest`**: requires `thought_signature` echo on multi-turn tool use. anthrogo passes this through via `ProviderMetadata` on tool_use blocks (since v0.14.2). Without v0.14.2+, second-turn tool calls fail with HTTP 400.
+- **`reasoning_content`** from Gemini 3's thinking is surfaced as `EventThinkingDelta` (separate from assistant text). TUI renders it dimmed; headless `--json` mode emits `{"kind":"thinking_delta", ...}`.
 
 ## Switching profiles at runtime
 

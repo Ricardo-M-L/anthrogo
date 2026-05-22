@@ -21,6 +21,11 @@ provider: anthropic       # anthropic | openai | bedrock | vertex | ollama | <cu
 apiKey: ""                # or use ANTHROPIC_API_KEY env var
 
 # ── Permission rules ──────────────────────────────────
+# IMPORTANT: the pattern key is `match:` (NOT `pattern:`). Typing
+# `pattern:` is silently rejected — anthrogo prints a stderr warning
+# but the rule then matches *no input* for that tool. v0.14.2+ surfaces
+# this with "field pattern not found in type permissions.Rule"; older
+# versions silently dropped it.
 alwaysAllow:
   - tool: Read
   - tool: Glob

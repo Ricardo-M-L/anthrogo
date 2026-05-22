@@ -95,10 +95,6 @@ dist/anthrogo-<version>-linux-arm64
 
 Pre-built binaries for tagged releases are attached to [GitHub releases](https://github.com/Ricardo-M-L/anthrogo/releases). Download and add to your PATH.
 
-## Homebrew (planned)
-
-A Homebrew tap is planned for a future milestone. For now, use `go install` or build from source.
-
 ## Next step
 
 After installation, run [first run](first-run.md) to configure anthrogo and verify your environment.

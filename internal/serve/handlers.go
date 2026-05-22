@@ -179,10 +179,9 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 // ---- /v1/chat ----
 
 type chatRequest struct {
-	SessionID string          `json:"session_id"`
-	Messages  json.RawMessage `json:"messages"`
-	Stream    bool            `json:"stream"`
-	Prompt    string          `json:"prompt"`
+	SessionID string `json:"session_id"`
+	Stream    bool   `json:"stream"`
+	Prompt    string `json:"prompt"`
 }
 
 type chatSyncResponse struct {

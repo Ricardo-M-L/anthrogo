@@ -106,4 +106,6 @@ func (Diff) Call(_ context.Context, input map[string]any, tcx *Context) (Result,
 	return Result{Type: ResultText, Text: combined, ForLLM: combined}, nil
 }
 
-const diffDescription = `Show git diff for the working tree, staged area (cached), a commit range (range), or a path. Supports --stat, custom context lines.`
+const diffDescription = `Run "git diff" in the current working tree. Modes: working-tree changes (default), staged area (cached=true), commit range (range="HEAD~3..HEAD"), or path-scoped (path=...). Supports --stat and custom context lines.
+
+This tool ONLY operates inside a git repository. To diff two arbitrary files that are not tracked by git, use the Bash tool with "diff a b" instead.`
