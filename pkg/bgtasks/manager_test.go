@@ -100,3 +100,41 @@ func TestManager_SnapshotIsolation(t *testing.T) {
 	task1.Stdout.Reset()
 	require.NotEqual(t, task1.Stdout.String(), task2.Stdout.String())
 }
+
+func TestManager_EvictsFinishedBeyondCap(t *testing.T) {
+	m := NewManager()
+	// Manually populate to (cap+5) finished tasks at known FinishedAt timestamps.
+	now := time.Now()
+	for i := 0; i < maxRetainedTasks+5; i++ {
+		id := generateID()
+		m.tasks[id] = &Task{
+			ID:         id,
+			Status:     StatusComplete,
+			FinishedAt: now.Add(time.Duration(i) * time.Second),
+		}
+	}
+	require.Equal(t, maxRetainedTasks+5, len(m.tasks))
+	// Launch a fresh task — should trigger eviction down to (cap-1) + the new one.
+	id := m.Launch("true")
+	require.LessOrEqual(t, len(m.tasks), maxRetainedTasks, "tasks count should not exceed cap after Launch")
+	require.Contains(t, m.tasks, id, "newly launched task should be present")
+}
+
+func TestManager_DoesNotEvictRunningTasks(t *testing.T) {
+	m := NewManager()
+	// Launch a long-running task; populate the rest with finished entries.
+	runningID := m.Launch("sleep 30")
+	t.Cleanup(func() { _ = m.Cancel(runningID) })
+	now := time.Now()
+	for i := 0; i < maxRetainedTasks; i++ {
+		id := generateID()
+		m.tasks[id] = &Task{
+			ID:         id,
+			Status:     StatusComplete,
+			FinishedAt: now.Add(time.Duration(i) * time.Second),
+		}
+	}
+	// Trigger another eviction via a new Launch.
+	_ = m.Launch("true")
+	require.Contains(t, m.tasks, runningID, "running task must not be evicted")
+}

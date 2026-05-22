@@ -71,6 +71,11 @@ type Task struct {
 	cancel context.CancelFunc
 }
 
+// maxRetainedTasks caps the in-memory task history per Manager. When a Launch
+// would push the count over the cap, the oldest finished task is evicted
+// (running tasks are never evicted).
+const maxRetainedTasks = 256
+
 // Manager is an in-process registry of background tasks.
 type Manager struct {
 	mu    sync.Mutex
@@ -101,6 +106,7 @@ func (m *Manager) Launch(command string) string {
 	task.cmd = cmd
 
 	m.mu.Lock()
+	m.evictFinishedLocked()
 	m.tasks[id] = task
 	m.mu.Unlock()
 
@@ -186,4 +192,36 @@ func generateID() string {
 	var b [6]byte
 	_, _ = io.ReadFull(rand.Reader, b[:])
 	return hex.EncodeToString(b[:])
+}
+
+// evictFinishedLocked removes the oldest-finished tasks beyond
+// maxRetainedTasks. Running tasks are never evicted. Caller must hold m.mu.
+func (m *Manager) evictFinishedLocked() {
+	if len(m.tasks) < maxRetainedTasks {
+		return
+	}
+	type byTime struct {
+		id  string
+		end time.Time
+	}
+	finished := make([]byTime, 0, len(m.tasks))
+	for id, t := range m.tasks {
+		if t.Status != StatusRunning {
+			finished = append(finished, byTime{id, t.FinishedAt})
+		}
+	}
+	// Sort ascending by FinishedAt — oldest first.
+	for i := 1; i < len(finished); i++ {
+		for j := i; j > 0 && finished[j].end.Before(finished[j-1].end); j-- {
+			finished[j], finished[j-1] = finished[j-1], finished[j]
+		}
+	}
+	// Evict enough to bring count strictly below the cap.
+	excess := len(m.tasks) - (maxRetainedTasks - 1)
+	if excess > len(finished) {
+		excess = len(finished)
+	}
+	for i := 0; i < excess; i++ {
+		delete(m.tasks, finished[i].id)
+	}
 }
