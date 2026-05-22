@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ricardo/anthrogo/pkg/observability"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/query"
@@ -166,6 +167,11 @@ func (s *Server) withCORS(next http.HandlerFunc) http.HandlerFunc {
 func (s *Server) withLogging(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		// Start an OTel span for every request. Noop when no provider is configured.
+		ctx, span := observability.Tracer().Start(r.Context(), "serve.HTTP "+r.Method+" "+r.URL.Path)
+		defer span.End()
+		r = r.WithContext(ctx)
+
 		rw := &statusWriter{ResponseWriter: w, code: http.StatusOK}
 		next(rw, r)
 		log.Printf("[serve] %s %s %d %s", r.Method, r.URL.Path, rw.code, time.Since(start))

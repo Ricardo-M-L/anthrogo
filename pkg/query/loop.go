@@ -9,11 +9,13 @@ import (
 	"io"
 	"log"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/pkg/message"
+	"github.com/ricardo/anthrogo/pkg/observability"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/tool"
@@ -158,6 +160,14 @@ func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReaso
 }
 
 func (e *Engine) runOneAPITurnAttempt(ctx context.Context, out chan<- Event) (stopReason string, err error) {
+	ctx, span := observability.Tracer().Start(ctx, "engine.turn")
+	defer func() {
+		if stopReason != "" {
+			observability.TurnsTotal.WithLabelValues(stopReason).Inc()
+		}
+		span.End()
+	}()
+
 	e.mu.Lock()
 	msgsCopy := append([]message.Message(nil), e.messages...)
 	e.mu.Unlock()
@@ -169,10 +179,17 @@ func (e *Engine) runOneAPITurnAttempt(ctx context.Context, out chan<- Event) (st
 		Temperature:  e.cfg.Temperature,
 		Tools:        e.toolSpecs(),
 	}
-	ch, err := e.cfg.Provider.Stream(ctx, req)
+
+	// Wrap the provider.Stream call in its own span so we can attribute errors.
+	provCtx, provSpan := observability.Tracer().Start(ctx, "provider.Stream "+e.cfg.Model)
+	ch, err := e.cfg.Provider.Stream(provCtx, req)
 	if err != nil {
+		transient := isTransientStreamError(err)
+		observability.ProviderStreamErrorsTotal.WithLabelValues("provider", strconv.FormatBool(transient)).Inc()
+		provSpan.End()
 		return "", err
 	}
+	provSpan.End()
 
 	// Accumulate assistant content blocks as we stream.
 	var (
@@ -225,6 +242,13 @@ func (e *Engine) runOneAPITurnAttempt(ctx context.Context, out chan<- Event) (st
 			e.lastUsage.Add(ev.Usage)
 			e.usageSinceLastCompact.Add(ev.Usage)
 			e.mu.Unlock()
+			// Mirror token counts to Prometheus.
+			if ev.Usage.InputTokens > 0 {
+				observability.TokensIn.Add(float64(ev.Usage.InputTokens))
+			}
+			if ev.Usage.OutputTokens > 0 {
+				observability.TokensOut.Add(float64(ev.Usage.OutputTokens))
+			}
 			out <- Event{Kind: KindUsage, Usage: ev.Usage}
 			e.recordIfHooked(session.Record{
 				Kind: session.KindUsage,
@@ -243,7 +267,9 @@ func (e *Engine) runOneAPITurnAttempt(ctx context.Context, out chan<- Event) (st
 			}
 			sawStop = true
 		case provider.EventError:
-			if !sawStop && isTransientStreamError(ev.Err) {
+			transient := !sawStop && isTransientStreamError(ev.Err)
+			observability.ProviderStreamErrorsTotal.WithLabelValues("provider", strconv.FormatBool(transient)).Inc()
+			if transient {
 				// Transient mid-stream error before MessageStop — signal for retry.
 				// Discard partial assistant content; the retry will regenerate.
 				return "", ev.Err
@@ -374,7 +400,17 @@ func (e *Engine) executeToolSafe(ctx context.Context, b message.Block, out chan<
 	return e.executeTool(ctx, b, out)
 }
 
-func (e *Engine) executeTool(ctx context.Context, b message.Block, out chan<- Event) message.Block {
+func (e *Engine) executeTool(ctx context.Context, b message.Block, out chan<- Event) (result message.Block) {
+	// Start an OTel span and duration timer for this tool call.
+	ctx, span := observability.Tracer().Start(ctx, "tool."+b.ToolName)
+	toolStart := time.Now()
+	defer func() {
+		span.End()
+		elapsed := time.Since(toolStart).Seconds()
+		observability.ToolDuration.WithLabelValues(b.ToolName).Observe(elapsed)
+		observability.ToolCallsTotal.WithLabelValues(b.ToolName, strconv.FormatBool(result.IsError)).Inc()
+	}()
+
 	// When a ToolDispatcher is configured it takes full responsibility for
 	// executing the tool (including any permission gate on the caller's side).
 	// The local registry lookup and permissions.Decide path are both skipped.

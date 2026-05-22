@@ -15,6 +15,7 @@ import (
 	"github.com/ricardo/anthrogo/internal/config"
 	"github.com/ricardo/anthrogo/internal/session"
 	"github.com/ricardo/anthrogo/internal/version"
+	"github.com/ricardo/anthrogo/pkg/observability"
 	"github.com/ricardo/anthrogo/pkg/query"
 )
 
@@ -225,7 +226,11 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.inFlight.Add(1)
-	defer s.inFlight.Add(-1)
+	observability.InFlightChats.Inc()
+	defer func() {
+		s.inFlight.Add(-1)
+		observability.InFlightChats.Dec()
+	}()
 
 	ctx := r.Context()
 

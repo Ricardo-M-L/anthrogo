@@ -38,6 +38,7 @@ import (
 	"github.com/ricardo/anthrogo/pkg/command/builtins"
 	"github.com/ricardo/anthrogo/pkg/kairos"
 	"github.com/ricardo/anthrogo/pkg/message"
+	"github.com/ricardo/anthrogo/pkg/observability"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/plugin"
 	"github.com/ricardo/anthrogo/pkg/pricing"
@@ -83,6 +84,22 @@ func main() {
 		Use:   "anthrogo",
 		Short: "anthrogo — Go port of Claude Code",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Observability: OTel tracing + Prometheus metrics (opt-in via env vars).
+			rootCtx := cmd.Context()
+			if rootCtx == nil {
+				rootCtx = context.Background()
+			}
+			otelShutdown, otelErr := observability.InitOTel(rootCtx, version.Version)
+			if otelErr != nil {
+				fmt.Fprintf(os.Stderr, "otel init: %v\n", otelErr)
+			}
+			defer func() { _ = otelShutdown(context.Background()) }()
+			metricsShutdown, metricsErr := observability.StartMetricsServer(os.Getenv("ANTHROGO_METRICS_ADDR"))
+			if metricsErr != nil {
+				fmt.Fprintf(os.Stderr, "metrics: %v\n", metricsErr)
+			}
+			defer func() { _ = metricsShutdown(context.Background()) }()
+
 			if showVer {
 				fmt.Println("anthrogo", version.Version)
 				return nil

@@ -83,7 +83,7 @@ func (m *Manager) FirePreToolUse(ctx context.Context, toolName string, input map
 			ToolInput: curInput,
 		}
 
-		res, err := RunHook(ctx, spec, payload)
+		res, err := RunHook(ctx, spec, payload, string(EventPreToolUse))
 		if err != nil {
 			m.log(string(EventPreToolUse), fmt.Sprintf("hook %s start error: %v", spec.Command, err))
 			return Decision{Behavior: DecisionDeny, Reason: fmt.Sprintf("hook %s start error: %v", spec.Command, err)}
@@ -151,7 +151,7 @@ func (m *Manager) FirePostToolUse(ctx context.Context, toolName string, input ma
 			ToolInput:    input,
 			ToolResponse: response,
 		}
-		res, err := RunHook(ctx, spec, payload)
+		res, err := RunHook(ctx, spec, payload, string(EventPostToolUse))
 		if err != nil {
 			m.log(string(EventPostToolUse), fmt.Sprintf("hook %s start error: %v", spec.Command, err))
 			continue
@@ -189,7 +189,7 @@ func (m *Manager) FireUserPromptSubmit(ctx context.Context, prompt string) (cont
 			Common: m.common(EventUserPromptSubmit),
 			Prompt: prompt,
 		}
-		res, err := RunHook(ctx, spec, payload)
+		res, err := RunHook(ctx, spec, payload, string(EventUserPromptSubmit))
 		if err != nil {
 			m.log(string(EventUserPromptSubmit), fmt.Sprintf("hook %s start error: %v", spec.Command, err))
 			return ctx, prompt, true, fmt.Sprintf("hook %s start error: %v", spec.Command, err)
@@ -234,7 +234,7 @@ func (m *Manager) fireAsync(ctx context.Context, eventName EventName, hooks []Sp
 				return
 			default:
 			}
-			res, err := RunHook(ctx, spec, payload)
+			res, err := RunHook(ctx, spec, payload, string(eventName))
 			if err != nil {
 				m.log(string(eventName), fmt.Sprintf("hook %s start error: %v", spec.Command, err))
 				continue
@@ -328,7 +328,7 @@ func (m *Manager) FirePreCompact(ctx context.Context, trigger string) {
 		Trigger: trigger,
 	}
 	for _, spec := range m.cfg.PreCompact {
-		res, err := RunHook(ctx, spec, payload)
+		res, err := RunHook(ctx, spec, payload, string(EventPreCompact))
 		if err != nil {
 			m.log(string(EventPreCompact), fmt.Sprintf("hook %s start error: %v", spec.Command, err))
 			continue

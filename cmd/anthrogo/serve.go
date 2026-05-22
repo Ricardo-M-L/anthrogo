@@ -12,6 +12,8 @@ import (
 
 	"github.com/ricardo/anthrogo/internal/config"
 	"github.com/ricardo/anthrogo/internal/serve"
+	"github.com/ricardo/anthrogo/internal/version"
+	"github.com/ricardo/anthrogo/pkg/observability"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/skill"
@@ -70,6 +72,22 @@ Endpoints:
   GET    /v1/health           — server health and uptime
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Observability: OTel tracing + Prometheus metrics (opt-in via env vars).
+			serveCtx := cmd.Context()
+			if serveCtx == nil {
+				serveCtx = context.Background()
+			}
+			otelShutdown, otelErr := observability.InitOTel(serveCtx, version.Version)
+			if otelErr != nil {
+				fmt.Fprintf(os.Stderr, "otel init: %v\n", otelErr)
+			}
+			defer func() { _ = otelShutdown(context.Background()) }()
+			metricsShutdown, metricsErr := observability.StartMetricsServer(os.Getenv("ANTHROGO_METRICS_ADDR"))
+			if metricsErr != nil {
+				fmt.Fprintf(os.Stderr, "metrics: %v\n", metricsErr)
+			}
+			defer func() { _ = metricsShutdown(context.Background()) }()
+
 			cfg, err := config.Load()
 			if err != nil {
 				// Non-fatal: use zero Config.

@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.14.2-dev] — 2026-05-22
+
+Structured observability: OTel tracing + Prometheus metrics (C6 milestone).
+
+### Observability (C6)
+
+- **`pkg/observability`** — new package with two entry points:
+  - `InitOTel(ctx, version)` — initialises a global OTLP/gRPC `TracerProvider`
+    when `ANTHROGO_OTEL_ENDPOINT` is set; returns a noop shutdown func otherwise.
+  - `StartMetricsServer(addr)` — starts a `/metrics` Prometheus endpoint when
+    `ANTHROGO_METRICS_ADDR` is set; noop otherwise.
+  - `Tracer()` — returns the package tracer; noop tracer when OTel is unconfigured.
+- **Prometheus metrics** registered at package init:
+  - `anthrogo_serve_in_flight_chats` (gauge)
+  - `anthrogo_engine_turns_total{stop_reason}` (counter)
+  - `anthrogo_tool_calls_total{tool,is_error}` (counter)
+  - `anthrogo_tool_duration_seconds{tool}` (histogram)
+  - `anthrogo_provider_stream_errors_total{provider,transient}` (counter)
+  - `anthrogo_tokens_in_total` / `anthrogo_tokens_out_total` (counters)
+  - `anthrogo_hook_duration_seconds{event}` (histogram)
+- **OTel spans** added at: `serve.HTTP <METHOD> <PATH>`, `engine.turn`,
+  `provider.Stream <model>`, `tool.<name>`, `hook.<event>`.
+- **Instrumented sites**:
+  - `internal/serve/server.go` — per-request span in `withLogging` middleware.
+  - `internal/serve/handlers.go` — `InFlightChats` gauge in `handleChat`.
+  - `pkg/query/loop.go` — turn span, token counters, provider error counter,
+    tool span + duration + call counter.
+  - `internal/hooks/runner.go` — hook span + `HookDuration` histogram;
+    `RunHook` accepts optional `event string` variadic for label.
+- **Wired into** `cmd/anthrogo` (root command) and `cmd/anthrogo serve`.
+- **Default behaviour unchanged** — when both env vars are unset no SDK is
+  initialised and no port is opened; zero overhead.
+- **Dependencies added**: `go.opentelemetry.io/otel/sdk v1.43.0`,
+  `go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.43.0`,
+  `go.opentelemetry.io/otel/semconv/v1.26.0`, `github.com/prometheus/client_golang v1.23.2`.
+- **Docs**: `docs/observability.md` — metric reference, Jaeger/Tempo setup,
+  Prometheus scrape config, `curl` example.
+- **Tests** (4 new): `TestInitOTel_NoEnvIsNoop`, `TestInitOTel_BadEndpoint`,
+  `TestStartMetricsServer_NoAddrIsNoop`, `TestStartMetricsServer_ListensAndServesMetrics`.
+
 ## [0.14.1] — 2026-05-22
 
 Post-v0.14.0 polish: distribution paths + governance + workflow

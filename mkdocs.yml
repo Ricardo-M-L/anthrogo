@@ -61,6 +61,7 @@ nav:
   - Operations:
     - HTTP daemon (serve): serve.md
     - Browser UI (web): web.md
+    - Observability: observability.md
   - API reference:
     - Overview: api/index.md
     - pkg/command: api/pkg_command.md

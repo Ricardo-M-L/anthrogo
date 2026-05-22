@@ -11,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/ricardo/anthrogo/pkg/observability"
 )
 
 const (
@@ -31,7 +33,18 @@ type Result struct {
 // RunHook spawns `spec.Command`, feeds `payload` (marshaled JSON) to stdin,
 // waits up to spec.Timeout. Always returns a Result on completion or timeout;
 // returns a non-nil error only on setup failure (e.g. cmd.Start() failure).
-func RunHook(ctx context.Context, spec Spec, payload any) (*Result, error) {
+// event is the hook event name (e.g. "PreToolUse") used for observability labels.
+func RunHook(ctx context.Context, spec Spec, payload any, event ...string) (*Result, error) {
+	eventLabel := "hook"
+	if len(event) > 0 && event[0] != "" {
+		eventLabel = event[0]
+	}
+	hookStart := time.Now()
+	ctx, span := observability.Tracer().Start(ctx, "hook."+eventLabel)
+	defer func() {
+		span.End()
+		observability.HookDuration.WithLabelValues(eventLabel).Observe(time.Since(hookStart).Seconds())
+	}()
 	timeout := spec.Timeout
 	if timeout == 0 {
 		timeout = 30 * time.Second
