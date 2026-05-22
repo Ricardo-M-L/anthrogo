@@ -1670,3 +1670,56 @@ func TestEngine_SubmitMessage_CancelDrainTimeoutCapped(t *testing.T) {
 	require.Less(t, elapsed, 800*time.Millisecond,
 		"SubmitMessage must return when drain timeout is capped (elapsed=%s)", elapsed)
 }
+
+// panicTool's Call() always panics. Used to verify R4 recovery.
+type panicTool struct {
+	tool.DefaultPermission
+}
+
+func (panicTool) Name() string                         { return "PanicTool" }
+func (panicTool) Description(context.Context) string   { return "panics on call" }
+func (panicTool) UserFacingName(map[string]any) string { return "PanicTool" }
+func (panicTool) Schema() map[string]any               { return map[string]any{"type": "object"} }
+func (panicTool) IsReadOnly() bool                     { return true }
+func (panicTool) IsConcurrencySafe() bool              { return true }
+func (panicTool) Call(_ context.Context, _ map[string]any, _ *tool.Context) (tool.Result, error) {
+	panic("intentional test panic")
+}
+
+// TestEngine_PanicInToolBecomesIsErrorResult: a tool that panics must not
+// crash the process; the engine wraps the panic as an IsError tool_result.
+func TestEngine_PanicInToolBecomesIsErrorResult(t *testing.T) {
+	reg := tool.NewRegistry()
+	reg.Register(panicTool{})
+	perms := permissions.Empty()
+	perms.AlwaysAllowRules[permissions.SourceCLI] = []permissions.Rule{{Tool: "PanicTool"}}
+
+	fp := fake.New(
+		[]provider.Event{
+			{Kind: provider.EventToolUseStart, ToolUseID: "tu1", ToolName: "PanicTool"},
+			{Kind: provider.EventToolInputDelta, PartialJSON: `{}`},
+			{Kind: provider.EventBlockStop, StopReason: "tool_use"},
+			{Kind: provider.EventMessageStop, StopReason: "tool_use"},
+		},
+		[]provider.Event{
+			{Kind: provider.EventTextDelta, Text: "ok"},
+			{Kind: provider.EventMessageStop, StopReason: "end_turn"},
+		},
+	)
+
+	e := NewEngine(Config{
+		Provider:    fp,
+		Tools:       reg,
+		Permissions: perms,
+		Model:       "x",
+	})
+
+	var sawErrorResult bool
+	for ev := range e.SubmitMessage(context.Background(), "trigger panic") {
+		if ev.Kind == KindToolResult && ev.ToolUseID == "tu1" && ev.IsError {
+			require.Contains(t, ev.Text, "panicked")
+			sawErrorResult = true
+		}
+	}
+	require.True(t, sawErrorResult, "expected an IsError tool_result for the panicked tool")
+}

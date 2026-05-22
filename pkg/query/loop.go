@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -293,7 +294,7 @@ func (e *Engine) runOneAPITurnAttempt(ctx context.Context, out chan<- Event) (st
 				wg.Add(1)
 				go func(idx int, blk message.Block) {
 					defer wg.Done()
-					results[idx] = e.executeTool(ctx, blk, out)
+					results[idx] = e.executeToolSafe(ctx, blk, out)
 				}(i, b)
 			}
 
@@ -340,7 +341,7 @@ func (e *Engine) runOneAPITurnAttempt(ctx context.Context, out chan<- Event) (st
 			}
 		} else {
 			for i, b := range toolBlocks {
-				results[i] = e.executeTool(ctx, b, out)
+				results[i] = e.executeToolSafe(ctx, b, out)
 			}
 		}
 
@@ -351,6 +352,26 @@ func (e *Engine) runOneAPITurnAttempt(ctx context.Context, out chan<- Event) (st
 		}
 	}
 	return stopReason, nil
+}
+
+// executeToolSafe wraps executeTool with a panic recovery. A panic in any
+// tool's Call() previously took down the entire process; now it becomes an
+// IsError tool_result with the panic message + stack logged.
+func (e *Engine) executeToolSafe(ctx context.Context, b message.Block, out chan<- Event) (res message.Block) {
+	defer func() {
+		if r := recover(); r != nil {
+			msg := fmt.Sprintf("tool %s panicked: %v", b.ToolName, r)
+			log.Printf("anthrogo: query: %s\n%s", msg, debug.Stack())
+			out <- Event{Kind: KindToolResult, ToolUseID: b.ToolUseID, ToolName: b.ToolName, IsError: true, Text: msg}
+			res = message.Block{
+				Type:      message.BlockToolResult,
+				ToolUseID: b.ToolUseID,
+				Text:      msg,
+				IsError:   true,
+			}
+		}
+	}()
+	return e.executeTool(ctx, b, out)
 }
 
 func (e *Engine) executeTool(ctx context.Context, b message.Block, out chan<- Event) message.Block {
