@@ -93,14 +93,21 @@ func buildRequest(model string, req provider.Request) chatRequest {
 					text.WriteString(b.Text)
 				case message.BlockToolUse:
 					raw, _ := json.Marshal(b.Input)
-					toolCalls = append(toolCalls, chatToolCall{
+					tc := chatToolCall{
 						ID:   b.ToolUseID,
 						Type: "function",
 						Function: chatFunc{
 							Name:      b.ToolName,
 							Arguments: string(raw),
 						},
-					})
+					}
+					// Echo provider-opaque metadata captured at tool_use
+					// dispatch time. Gemini 3 requires this so the next
+					// turn's request includes its thought_signature.
+					if len(b.ProviderMetadata) > 0 {
+						tc.ExtraContent = b.ProviderMetadata
+					}
+					toolCalls = append(toolCalls, tc)
 				case message.BlockThinking, message.BlockImage:
 					log.Printf("openai stream: dropping %s block from assistant turn (not supported by OpenAI)", b.Type)
 				}
@@ -223,9 +230,10 @@ func parseSSE(resp *http.Response, out chan<- provider.Event) {
 			if !seenToolCallIdx[tc.Index] && tc.ID != "" {
 				seenToolCallIdx[tc.Index] = true
 				out <- provider.Event{
-					Kind:      provider.EventToolUseStart,
-					ToolUseID: tc.ID,
-					ToolName:  tc.Function.Name,
+					Kind:             provider.EventToolUseStart,
+					ToolUseID:        tc.ID,
+					ToolName:         tc.Function.Name,
+					ProviderMetadata: []byte(tc.ExtraContent),
 				}
 			}
 			if tc.Function.Arguments != "" {

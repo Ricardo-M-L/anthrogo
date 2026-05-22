@@ -252,10 +252,11 @@ func (e *Engine) runOneAPITurnAttempt(ctx context.Context, out chan<- Event) (st
 		case provider.EventToolUseStart:
 			flushText()
 			pendingTool = &message.Block{
-				Type:      message.BlockToolUse,
-				ToolUseID: ev.ToolUseID,
-				ToolName:  ev.ToolName,
-				Input:     map[string]any{},
+				Type:             message.BlockToolUse,
+				ToolUseID:        ev.ToolUseID,
+				ToolName:         ev.ToolName,
+				Input:            map[string]any{},
+				ProviderMetadata: ev.ProviderMetadata,
 			}
 		case provider.EventToolInputDelta:
 			toolInputJSON.WriteString(ev.PartialJSON)

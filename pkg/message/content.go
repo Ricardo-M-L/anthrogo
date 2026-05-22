@@ -36,6 +36,14 @@ type Block struct {
 
 	// image
 	ImageSource *ImageSource `json:"source,omitempty"`
+
+	// ProviderMetadata is opaque per-provider data captured at tool_use
+	// emit time and replayed verbatim when the assistant turn is sent back
+	// to the provider on the next turn. Carries Gemini 3's
+	// `extra_content.google.thought_signature` so multi-turn tool use
+	// works (without it, Gemini 3 errors HTTP 400). Omitted from JSON
+	// serialization so we don't pollute the session JSONL.
+	ProviderMetadata []byte `json:"-"`
 }
 
 // ImageSource follows the Anthropic spec: base64-encoded media.

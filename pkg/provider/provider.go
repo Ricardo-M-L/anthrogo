@@ -69,6 +69,13 @@ type Event struct {
 
 	// error
 	Err error
+
+	// ProviderMetadata is opaque provider-specific data that must be
+	// preserved verbatim and echoed back on subsequent turns. For Gemini 3
+	// via OpenAI-compat this carries the `extra_content.google.
+	// thought_signature` field; without it, the next tool_use turn fails
+	// with HTTP 400 INVALID_ARGUMENT. Carried on EventToolUseStart events.
+	ProviderMetadata []byte
 }
 
 // RateLimitError is returned by providers when the upstream LLM API replies

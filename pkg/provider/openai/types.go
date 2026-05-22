@@ -1,5 +1,7 @@
 package openai
 
+import "encoding/json"
+
 type chatRequest struct {
 	Model         string      `json:"model"`
 	Messages      []chatMsg   `json:"messages"`
@@ -33,9 +35,14 @@ type chatImageURL struct {
 }
 
 type chatToolCall struct {
-	ID       string   `json:"id"`
-	Type     string   `json:"type"`
-	Function chatFunc `json:"function"`
+	ID       string          `json:"id"`
+	Type     string          `json:"type"`
+	Function chatFunc        `json:"function"`
+	// ExtraContent carries provider-specific opaque metadata that must be
+	// echoed back on subsequent turns. Gemini 3 requires
+	// `extra_content.google.thought_signature` to be present on every
+	// historical assistant tool_call or the request errors HTTP 400.
+	ExtraContent json.RawMessage `json:"extra_content,omitempty"`
 }
 
 type chatFunc struct {
@@ -80,10 +87,11 @@ type chatDelta struct {
 }
 
 type chatToolCallDelta struct {
-	Index    int           `json:"index"`
-	ID       string        `json:"id,omitempty"`
-	Type     string        `json:"type,omitempty"`
-	Function chatFuncDelta `json:"function"`
+	Index        int             `json:"index"`
+	ID           string          `json:"id,omitempty"`
+	Type         string          `json:"type,omitempty"`
+	Function     chatFuncDelta   `json:"function"`
+	ExtraContent json.RawMessage `json:"extra_content,omitempty"`
 }
 
 type chatFuncDelta struct {
