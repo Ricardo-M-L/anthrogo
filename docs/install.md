@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Go 1.22+
+- Go 1.26+ (chromedp/cdproto pins this minimum)
 - An API key for your chosen provider (Anthropic, DeepSeek, etc.) or local Ollama
 
 ## Build from source

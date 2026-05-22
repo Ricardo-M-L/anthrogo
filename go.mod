@@ -1,6 +1,12 @@
 module github.com/ricardo/anthrogo
 
+// go 1.26 is required by github.com/chromedp/cdproto (transitive via
+// chromedp/chromedp). Lowering this directive will not work — `go mod tidy`
+// restores it. Users on Go < 1.26 must either upgrade or build without the
+// BrowserAction tool (a future milestone may add a build tag for that path).
 go 1.26
+
+toolchain go1.26.1
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0

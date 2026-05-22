@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Go 1.22+
+- Go 1.26+ (chromedp/cdproto pins this minimum)
 - `make`
 - Optional: `golangci-lint` (`brew install golangci-lint`)
 - Optional: `mkdocs` + `mkdocs-material` (`pip install mkdocs mkdocs-material`)
