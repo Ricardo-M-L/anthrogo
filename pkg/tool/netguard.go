@@ -15,12 +15,12 @@ package tool
 // Setting any of these in production is a security violation.
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"syscall"
 	"time"
 )
 
@@ -116,25 +116,26 @@ func (g *NetGuard) checkIP(ip net.IP) error {
 // is a *http.Transport, TLSClientConfig/TLSHandshakeTimeout/MaxIdleConns/etc. are
 // inherited; otherwise the transport is replaced.
 func (g *NetGuard) HTTPClient(base *http.Client) *http.Client {
+	// Dialer.Control runs AFTER DNS resolution + AFTER syscall.connect's
+	// address argument has been resolved to an IP, so this is the right
+	// place to re-check (defense-in-depth against DNS rebinding past the
+	// CheckURL pre-flight). The `address` here is always "IP:port".
 	dialer := &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
+		Control: func(network, address string, c syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return fmt.Errorf("netguard: bad dial address %q: %w", address, err)
+			}
+			ip := net.ParseIP(host)
+			if ip == nil {
+				return fmt.Errorf("netguard: Control got non-IP %q (Go networking bug?)", host)
+			}
+			return g.checkIP(ip)
+		},
 	}
-
-	dialCtx := func(ctx context.Context, network, address string) (net.Conn, error) {
-		host, port, err := net.SplitHostPort(address)
-		if err != nil {
-			return nil, fmt.Errorf("netguard: bad dial address %q: %w", address, err)
-		}
-		ip := net.ParseIP(host)
-		if ip == nil {
-			return nil, fmt.Errorf("netguard: dial to non-IP address %q (unexpected after DNS resolution)", host)
-		}
-		if err := g.checkIP(ip); err != nil {
-			return nil, err
-		}
-		return dialer.DialContext(ctx, network, net.JoinHostPort(host, port))
-	}
+	dialCtx := dialer.DialContext
 
 	var transport *http.Transport
 	if base != nil {
