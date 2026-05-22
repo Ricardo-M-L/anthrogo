@@ -121,9 +121,23 @@ func (s SlackPost) Call(ctx context.Context, input map[string]any, _ *Context) (
 		return errResult("slackpost: marshal: " + err.Error()), nil
 	}
 
-	client := s.httpClient
-	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
+	// SSRF defense: even though the prefix check above gates against
+	// non-Slack hosts, a hostile Slack-side DNS or redirect could route the
+	// connect to a metadata IP. Run the URL through NetGuard's pre-flight
+	// + dial-time check, same as WebFetch / HTTPRequest / Embed / ImageGen.
+	guard := DefaultNetGuard()
+	if err := guard.CheckURL(webhookURL); err != nil {
+		return errResult("slackpost: " + err.Error()), nil
+	}
+
+	// Use the netguard-wrapped client to enforce the Control hook at dial
+	// time. Keep the existing 10s timeout (tighter than the default 30s)
+	// when no injected client was provided.
+	var client *http.Client
+	if s.httpClient != nil {
+		client = guard.HTTPClient(s.httpClient)
+	} else {
+		client = guard.HTTPClient(&http.Client{Timeout: 10 * time.Second})
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(body))

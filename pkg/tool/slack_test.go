@@ -12,6 +12,7 @@ import (
 )
 
 func TestSlackPost_BasicTextSucceeds(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		w.WriteHeader(http.StatusOK)
@@ -34,6 +35,7 @@ func TestSlackPost_BasicTextSucceeds(t *testing.T) {
 }
 
 func TestSlackPost_BlocksJSONMerged(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	var capturedBody []byte
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, 4096)
@@ -74,6 +76,7 @@ func TestSlackPost_RejectsBadURL(t *testing.T) {
 }
 
 func TestSlackPost_ServerNon200_IsError(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 		_, _ = w.Write([]byte("invalid_token"))
@@ -105,6 +108,7 @@ func TestSlackPost_MissingText(t *testing.T) {
 }
 
 func TestSlackPost_NoURL_UsesEnv(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -163,4 +167,22 @@ func TestSlackPost_RespectsContextCancellation(t *testing.T) {
 	}, nil)
 	elapsed := time.Since(start)
 	require.Less(t, elapsed, 1*time.Second, "Call should abort within ~50ms of ctx cancel, got %v", elapsed)
+}
+
+func TestSlackPost_NetGuardBlocks_LinkLocalEvenWithSlackPrefix(t *testing.T) {
+	// Hostile DNS scenario: a Slack-prefix URL whose host resolves to a
+	// link-local (cloud metadata) address. NetGuard CheckURL must reject
+	// before the request is sent. Use a literal IP to skip DNS.
+	old := slackURLAllowed
+	slackURLAllowed = func(string) bool { return true } // bypass prefix check
+	defer func() { slackURLAllowed = old }()
+
+	tool := SlackPost{}
+	res, err := tool.Call(context.Background(), map[string]any{
+		"webhook_url": "https://169.254.169.254/services/EVIL",
+		"text":        "should not send",
+	}, nil)
+	require.NoError(t, err)
+	require.True(t, res.IsError, "must be blocked by netguard")
+	require.Contains(t, res.Text, "link-local", "expected link-local block message")
 }
