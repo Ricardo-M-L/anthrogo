@@ -161,7 +161,9 @@ func foldICalLine(s string) string {
 	return b.String()
 }
 
-// icsEscape applies iCalendar text escaping.
+// icsEscape applies iCalendar text escaping per RFC 5545 §3.3.11. CR is
+// normalised to \n; raw CR/LF would otherwise be interpreted as a content-
+// line terminator and corrupt the surrounding event.
 func icsEscape(s string) string {
 	var sb strings.Builder
 	for _, r := range s {
@@ -172,7 +174,7 @@ func icsEscape(s string) string {
 			sb.WriteString(`\,`)
 		case ';':
 			sb.WriteString(`\;`)
-		case '\n':
+		case '\n', '\r':
 			sb.WriteString(`\n`)
 		default:
 			sb.WriteRune(r)
