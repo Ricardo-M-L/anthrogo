@@ -23,7 +23,17 @@ type WebSearchConfig struct {
 // WebSearch is the tool that queries a search provider.
 type WebSearch struct {
 	DefaultPermission
-	cfg WebSearchConfig
+	cfg        WebSearchConfig
+	httpClient *http.Client // injectable for tests; nil → guarded 30s client
+}
+
+// websearchClient returns the http.Client to use for outbound requests,
+// honoring the SSRF NetGuard + a 30s timeout.
+func (w *WebSearch) websearchClient() *http.Client {
+	if w.httpClient != nil {
+		return w.httpClient
+	}
+	return DefaultNetGuard().HTTPClient(nil)
 }
 
 // NewWebSearch creates a WebSearch with the given config.
@@ -59,7 +69,7 @@ type webSearchResult struct {
 }
 
 // searchBackend is the per-backend function signature.
-type searchBackend func(ctx context.Context, cfg WebSearchConfig, query string, count int) ([]webSearchResult, error)
+type searchBackend func(ctx context.Context, client *http.Client, cfg WebSearchConfig, query string, count int) ([]webSearchResult, error)
 
 // backends is the dispatch table for all supported search backends.
 var backends = map[string]searchBackend{
@@ -96,7 +106,7 @@ func (w *WebSearch) Call(ctx context.Context, input map[string]any, _ *Context) 
 		return errResult(msg), nil
 	}
 
-	results, err := fn(ctx, w.cfg, query, count)
+	results, err := fn(ctx, w.websearchClient(), w.cfg, query, count)
 	if err != nil {
 		return errResult(err.Error()), nil
 	}
@@ -106,7 +116,7 @@ func (w *WebSearch) Call(ctx context.Context, input map[string]any, _ *Context) 
 }
 
 // searchBrave queries the Brave Search API.
-func searchBrave(ctx context.Context, cfg WebSearchConfig, query string, count int) ([]webSearchResult, error) {
+func searchBrave(ctx context.Context, client *http.Client, cfg WebSearchConfig, query string, count int) ([]webSearchResult, error) {
 	endpoint := cfg.URL
 	if endpoint == "" {
 		endpoint = cfg.Endpoint
@@ -127,7 +137,7 @@ func searchBrave(ctx context.Context, cfg WebSearchConfig, query string, count i
 	req.Header.Set("X-Subscription-Token", cfg.APIKey)
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +166,7 @@ func searchBrave(ctx context.Context, cfg WebSearchConfig, query string, count i
 }
 
 // searchGoogle queries the Google Custom Search API.
-func searchGoogle(ctx context.Context, cfg WebSearchConfig, query string, count int) ([]webSearchResult, error) {
+func searchGoogle(ctx context.Context, client *http.Client, cfg WebSearchConfig, query string, count int) ([]webSearchResult, error) {
 	// cfg.Endpoint stores the CSE ID (cx). cfg.APIKey is the API key.
 	// cfg.URL, if set, overrides the full endpoint (useful for tests).
 	if cfg.Endpoint == "" && cfg.URL == "" {
@@ -189,7 +199,7 @@ func searchGoogle(ctx context.Context, cfg WebSearchConfig, query string, count 
 	}
 
 	req, _ := http.NewRequestWithContext(ctx, "GET", u, nil)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +226,7 @@ func searchGoogle(ctx context.Context, cfg WebSearchConfig, query string, count 
 }
 
 // searchBing queries the Bing Web Search API (Azure).
-func searchBing(ctx context.Context, cfg WebSearchConfig, query string, count int) ([]webSearchResult, error) {
+func searchBing(ctx context.Context, client *http.Client, cfg WebSearchConfig, query string, count int) ([]webSearchResult, error) {
 	endpoint := cfg.URL
 	if endpoint == "" {
 		endpoint = cfg.Endpoint
@@ -234,7 +244,7 @@ func searchBing(ctx context.Context, cfg WebSearchConfig, query string, count in
 	}
 	req, _ := http.NewRequestWithContext(ctx, "GET", endpoint+"?"+params.Encode(), nil)
 	req.Header.Set("Ocp-Apim-Subscription-Key", cfg.APIKey)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +273,7 @@ func searchBing(ctx context.Context, cfg WebSearchConfig, query string, count in
 }
 
 // searchTavily queries the Tavily Search API.
-func searchTavily(ctx context.Context, cfg WebSearchConfig, query string, count int) ([]webSearchResult, error) {
+func searchTavily(ctx context.Context, client *http.Client, cfg WebSearchConfig, query string, count int) ([]webSearchResult, error) {
 	endpoint := cfg.URL
 	if endpoint == "" {
 		endpoint = cfg.Endpoint
@@ -283,7 +293,7 @@ func searchTavily(ctx context.Context, cfg WebSearchConfig, query string, count 
 	body, _ := json.Marshal(bodyMap)
 	req, _ := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}

@@ -11,6 +11,7 @@ import (
 )
 
 func TestWebSearch_BraveBackend(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "test-key", r.Header.Get("X-Subscription-Token"))
 		require.Equal(t, "golang", r.URL.Query().Get("q"))
@@ -47,6 +48,7 @@ func TestWebSearch_DisabledBackend(t *testing.T) {
 }
 
 func TestWebSearch_GoogleBackend(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "test-key", r.URL.Query().Get("key"))
 		require.Equal(t, "my-cx", r.URL.Query().Get("cx"))
@@ -75,6 +77,7 @@ func TestWebSearch_GoogleBackend(t *testing.T) {
 }
 
 func TestWebSearch_BingBackend(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "bing-key", r.Header.Get("Ocp-Apim-Subscription-Key"))
 		require.Equal(t, "rust lang", r.URL.Query().Get("q"))
@@ -103,6 +106,7 @@ func TestWebSearch_BingBackend(t *testing.T) {
 }
 
 func TestWebSearch_TavilyBackend(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "POST", r.Method)
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
