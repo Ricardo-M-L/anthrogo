@@ -8,7 +8,7 @@ import (
 
 type Write struct{ DefaultPermission }
 
-func (Write) Name() string                      { return "Write" }
+func (Write) Name() string                       { return "Write" }
 func (Write) Description(context.Context) string { return writeDescription }
 func (Write) UserFacingName(input map[string]any) string {
 	if p, ok := input["file_path"].(string); ok {

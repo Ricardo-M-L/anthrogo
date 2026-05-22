@@ -14,7 +14,7 @@ import (
 // notebook/image branches (deferred to M2/M3).
 type Read struct{ DefaultPermission }
 
-func (Read) Name() string                      { return "Read" }
+func (Read) Name() string                       { return "Read" }
 func (Read) Description(context.Context) string { return readDescription }
 func (Read) UserFacingName(input map[string]any) string {
 	if p, ok := input["file_path"].(string); ok {

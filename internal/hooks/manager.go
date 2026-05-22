@@ -20,9 +20,9 @@ type ManagerOptions struct {
 
 // Manager coordinates hook dispatch for all nine events.
 type Manager struct {
-	cfg      Config
-	opts     ManagerOptions
-	wg       sync.WaitGroup
+	cfg       Config
+	opts      ManagerOptions
+	wg        sync.WaitGroup
 	drainOnce sync.Once
 }
 

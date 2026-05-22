@@ -11,12 +11,12 @@ import (
 // Cost implements the /cost builtin command.
 type Cost struct{}
 
-func (Cost) Name() string        { return "/cost" }
-func (Cost) Aliases() []string   { return nil }
+func (Cost) Name() string      { return "/cost" }
+func (Cost) Aliases() []string { return nil }
 func (Cost) Description() string {
 	return "Show estimated USD cost of the session. Use '/cost reset' to zero the counter."
 }
-func (Cost) Type() command.Type  { return command.TypeLocal }
+func (Cost) Type() command.Type { return command.TypeLocal }
 
 func (Cost) Run(ctx context.Context, args string, host command.Host) (command.Result, error) {
 	args = strings.TrimSpace(args)

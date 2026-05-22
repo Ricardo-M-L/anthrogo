@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ricardo/anthrogo/pkg/message"
+	"github.com/ricardo/anthrogo/pkg/pricing"
 	"github.com/ricardo/anthrogo/pkg/provider"
 	"github.com/ricardo/anthrogo/pkg/provider/fake"
-	"github.com/ricardo/anthrogo/pkg/pricing"
 	"github.com/ricardo/anthrogo/pkg/query"
 )
 

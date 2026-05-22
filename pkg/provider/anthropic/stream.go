@@ -161,7 +161,7 @@ func translateEvent(raw sdk.MessageStreamEvent, out chan<- provider.Event) {
 				ToolUseID: cb.ID,
 				ToolName:  cb.Name,
 			}
-		// text / thinking blocks: no start event needed
+			// text / thinking blocks: no start event needed
 		}
 
 	case sdk.ContentBlockDeltaEvent:
@@ -200,4 +200,3 @@ func translateEvent(raw sdk.MessageStreamEvent, out chan<- provider.Event) {
 		_ = ev
 	}
 }
-

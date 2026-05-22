@@ -13,8 +13,8 @@ type Telemetry struct {
 	Reporter *telemetry.Reporter
 }
 
-func (Telemetry) Name() string        { return "/telemetry" }
-func (Telemetry) Aliases() []string   { return nil }
+func (Telemetry) Name() string      { return "/telemetry" }
+func (Telemetry) Aliases() []string { return nil }
 func (Telemetry) Description() string {
 	return "Show or toggle telemetry status (status — requires restart to actually change)"
 }

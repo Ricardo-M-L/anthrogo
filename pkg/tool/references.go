@@ -15,7 +15,7 @@ import (
 // across the directory tree.
 type References struct{ DefaultPermission }
 
-func (References) Name() string                      { return "References" }
+func (References) Name() string                       { return "References" }
 func (References) Description(context.Context) string { return referencesDescription }
 func (References) UserFacingName(input map[string]any) string {
 	if n, ok := input["name"].(string); ok {

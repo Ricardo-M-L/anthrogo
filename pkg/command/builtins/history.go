@@ -18,8 +18,8 @@ type History struct {
 	Path string
 }
 
-func (History) Name() string        { return "/history" }
-func (History) Aliases() []string   { return nil }
+func (History) Name() string      { return "/history" }
+func (History) Aliases() []string { return nil }
 func (History) Description() string {
 	return "Show or replay past input prompts (subcommands: list [N], search <kw>, clear)"
 }

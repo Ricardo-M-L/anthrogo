@@ -59,7 +59,7 @@ type PromptRequest struct {
 // PromptResponse is the user's reply.
 type PromptResponse struct {
 	Allow         bool
-	Remember      bool   // upgrade to AlwaysAllow rule
+	Remember      bool // upgrade to AlwaysAllow rule
 	Reason        string
 	SelectedLabel string // set for PromptQuestion
 	Notes         string // optional free-text from user
@@ -71,9 +71,9 @@ type PromptResponse struct {
 // Context flows through a turn — engine builds it once per turn, hands it to
 // every Tool.Call. Surface (TUI / headless) injects callbacks.
 type Context struct {
-	Cwd         string
-	Messages    []message.Message
-	Permissions *permissions.Context
+	Cwd          string
+	Messages     []message.Message
+	Permissions  *permissions.Context
 	AbortContext context.Context
 
 	// SubagentPrefixChain carries the outer Task description chain for nested

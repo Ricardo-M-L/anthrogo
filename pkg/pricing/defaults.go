@@ -26,9 +26,9 @@ func DefaultRates() map[string]Rate {
 		"anthropic.claude-*-sonnet*":   {InputPerM: 3.00, OutputPerM: 15.00},
 		"anthropic.claude-*-haiku*":    {InputPerM: 1.00, OutputPerM: 5.00},
 		// Vertex variants (claude-<model>@<date>)
-		"claude-opus-4-7@*":  {InputPerM: 15.00, OutputPerM: 75.00},
+		"claude-opus-4-7@*":   {InputPerM: 15.00, OutputPerM: 75.00},
 		"claude-sonnet-4-6@*": {InputPerM: 3.00, OutputPerM: 15.00},
-		"claude-haiku-4-5@*": {InputPerM: 1.00, OutputPerM: 5.00},
+		"claude-haiku-4-5@*":  {InputPerM: 1.00, OutputPerM: 5.00},
 		// OpenAI
 		"gpt-5*":        {InputPerM: 10.00, OutputPerM: 40.00},
 		"gpt-4o":        {InputPerM: 2.50, OutputPerM: 10.00},
@@ -43,13 +43,13 @@ func DefaultRates() map[string]Rate {
 		"deepseek-chat":     {InputPerM: 0.27, OutputPerM: 1.10},
 		"deepseek-reasoner": {InputPerM: 0.55, OutputPerM: 2.19},
 		// Kimi (Moonshot)
-		"kimi-k2*":    {InputPerM: 0.60, OutputPerM: 2.50},
-		"moonshot-*":  {InputPerM: 1.20, OutputPerM: 12.00},
+		"kimi-k2*":   {InputPerM: 0.60, OutputPerM: 2.50},
+		"moonshot-*": {InputPerM: 1.20, OutputPerM: 12.00},
 		// MiniMax
 		"MiniMax-M2": {InputPerM: 0.30, OutputPerM: 1.20},
 		"abab*":      {InputPerM: 0.60, OutputPerM: 6.00},
 		// GLM (Zhipu)
-		"glm-4*":    {InputPerM: 0.50, OutputPerM: 1.50},
+		"glm-4*":     {InputPerM: 0.50, OutputPerM: 1.50},
 		"glm-zero-*": {InputPerM: 1.00, OutputPerM: 3.00},
 		// Ollama local — no per-token charges
 		"llama3*":    {InputPerM: 0.0, OutputPerM: 0.0},

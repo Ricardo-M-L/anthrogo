@@ -14,10 +14,10 @@ const pdfMaxBytes = 200_000
 // PDFRead extracts plain text from a local PDF file.
 type PDFRead struct{ DefaultPermission }
 
-func (PDFRead) Name() string                      { return "PDFRead" }
+func (PDFRead) Name() string                       { return "PDFRead" }
 func (PDFRead) Description(context.Context) string { return pdfReadDescription }
-func (PDFRead) IsReadOnly() bool                  { return true }
-func (PDFRead) IsConcurrencySafe() bool           { return true }
+func (PDFRead) IsReadOnly() bool                   { return true }
+func (PDFRead) IsConcurrencySafe() bool            { return true }
 func (PDFRead) UserFacingName(input map[string]any) string {
 	if p, ok := input["file_path"].(string); ok {
 		return "PDFRead " + p
@@ -138,6 +138,5 @@ func parsePDFPageRange(pages any, total int) (int, int, error) {
 	}
 	return n, n, nil
 }
-
 
 const pdfReadDescription = `Extract text from a local PDF file. Returns plain text, optionally limited to a page range (e.g. "1-5", "3", "10-end"). Output is capped at 200 KB.`

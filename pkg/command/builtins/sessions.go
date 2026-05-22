@@ -40,12 +40,12 @@ func (s Sessions) getRecords(path string) ([]session.Record, error) {
 	return session.Replay(path)
 }
 
-func (Sessions) Name() string        { return "/sessions" }
-func (Sessions) Aliases() []string   { return nil }
+func (Sessions) Name() string      { return "/sessions" }
+func (Sessions) Aliases() []string { return nil }
 func (Sessions) Description() string {
 	return "List session JSONLs for the current cwd (subcommands: show <id-prefix>, replay <id-prefix>, search <keyword>, export <id-prefix> [-o file.md], stats [--since YYYY-MM-DD] [--until YYYY-MM-DD], fork <id-prefix> at <turn-n>, reindex)"
 }
-func (Sessions) Type() command.Type  { return command.TypeLocal }
+func (Sessions) Type() command.Type { return command.TypeLocal }
 
 func (s Sessions) Run(ctx context.Context, args string, host command.Host) (command.Result, error) {
 	cwd := host.Cwd()
@@ -306,10 +306,11 @@ func truncate(s string, n int) string {
 const searchMaxMatches = 200
 
 // searchSessions performs cross-session text search with optional flags:
-//   --regex               — interpret keyword as a Go regexp
-//   --recurse-subagents   — also scan <session-id>/subagents/*.jsonl
-//   --since YYYY-MM-DD    — skip records before this date
-//   --until YYYY-MM-DD    — skip records after this date (inclusive end-of-day)
+//
+//	--regex               — interpret keyword as a Go regexp
+//	--recurse-subagents   — also scan <session-id>/subagents/*.jsonl
+//	--since YYYY-MM-DD    — skip records before this date
+//	--until YYYY-MM-DD    — skip records after this date (inclusive end-of-day)
 func (s Sessions) searchSessions(dir, args string) (command.Result, error) {
 	// Parse flags from args.
 	tokens := strings.Fields(args)

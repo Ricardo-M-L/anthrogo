@@ -11,9 +11,9 @@ import (
 
 // fakeMCPResourceManager is a test double for MCPResourceManager.
 type fakeMCPResourceManager struct {
-	resources   map[string][]*sdk.Resource
-	readResult  *sdk.ReadResourceResult
-	readErr     error
+	resources  map[string][]*sdk.Resource
+	readResult *sdk.ReadResourceResult
+	readErr    error
 }
 
 func (f *fakeMCPResourceManager) AllResources(_ context.Context) map[string][]*sdk.Resource {

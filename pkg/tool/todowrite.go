@@ -21,11 +21,11 @@ type TodoWrite struct {
 	items []Todo
 }
 
-func (*TodoWrite) Name() string                      { return "TodoWrite" }
-func (*TodoWrite) Description(context.Context) string { return todoDescription }
+func (*TodoWrite) Name() string                         { return "TodoWrite" }
+func (*TodoWrite) Description(context.Context) string   { return todoDescription }
 func (*TodoWrite) UserFacingName(map[string]any) string { return "TodoWrite" }
-func (*TodoWrite) IsReadOnly() bool                   { return false }
-func (*TodoWrite) IsConcurrencySafe() bool            { return true }
+func (*TodoWrite) IsReadOnly() bool                     { return false }
+func (*TodoWrite) IsConcurrencySafe() bool              { return true }
 
 func (*TodoWrite) Schema() map[string]any {
 	return map[string]any{

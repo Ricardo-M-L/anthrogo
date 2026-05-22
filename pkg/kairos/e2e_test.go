@@ -238,7 +238,7 @@ func TestKAIROS_HopDepth_BuildWorkerSubReg(t *testing.T) {
 		},
 	}
 	localSpec := subagent.Spec{
-		Name:             "local-helper",
+		Name:               "local-helper",
 		SystemPromptSuffix: "you are helpful",
 	}
 

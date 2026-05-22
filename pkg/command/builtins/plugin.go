@@ -15,8 +15,8 @@ type Plugin struct {
 	CwdRoot  string
 }
 
-func (Plugin) Name() string        { return "/plugin" }
-func (Plugin) Aliases() []string   { return nil }
+func (Plugin) Name() string      { return "/plugin" }
+func (Plugin) Aliases() []string { return nil }
 func (Plugin) Description() string {
 	return "Manage installed plugins (subcommands: info <name>, reload, install <path>, remove <name>)"
 }

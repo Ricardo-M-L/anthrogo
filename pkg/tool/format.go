@@ -12,10 +12,10 @@ import (
 // Format formats one or more source files using the language-appropriate formatter.
 type Format struct{ DefaultPermission }
 
-func (Format) Name() string                      { return "Format" }
+func (Format) Name() string                       { return "Format" }
 func (Format) Description(context.Context) string { return formatDescription }
-func (Format) IsReadOnly() bool                  { return false }
-func (Format) IsConcurrencySafe() bool           { return true }
+func (Format) IsReadOnly() bool                   { return false }
+func (Format) IsConcurrencySafe() bool            { return true }
 
 func (Format) UserFacingName(input map[string]any) string {
 	if paths := strSliceField(input, "paths"); len(paths) > 0 {
@@ -36,8 +36,8 @@ func (Format) Schema() map[string]any {
 				"description": "Deprecated; use paths.",
 			},
 			"paths": map[string]any{
-				"type":  "array",
-				"items": map[string]any{"type": "string"},
+				"type":        "array",
+				"items":       map[string]any{"type": "string"},
 				"description": "List of file paths to format. Preferred over singular path.",
 			},
 			"language": map[string]any{

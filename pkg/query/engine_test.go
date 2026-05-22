@@ -213,9 +213,9 @@ func TestEngine_HookModifiedInput_ReachesTool(t *testing.T) {
 
 // recordingHookSink records FirePreCompact and FireSubagentStop calls for tests.
 type recordingHookSink struct {
-	preCompactCalled    bool
-	subagentStopReason  string
-	subagentStopCalled  bool
+	preCompactCalled   bool
+	subagentStopReason string
+	subagentStopCalled bool
 }
 
 func (r *recordingHookSink) FirePostToolUse(_ context.Context, _ string, _, _ map[string]any) string {
@@ -779,12 +779,12 @@ func TestEngine_AutoCompact_FiresWhenThresholdExceeded(t *testing.T) {
 	)
 	rec := &recordingHookSink{}
 	e := NewEngine(Config{
-		Provider:             fp,
-		Tools:                tool.NewRegistry(),
-		Permissions:          permissions.Empty(),
-		Model:                "m",
-		Hooks:                rec,
-		AutoCompactThreshold: 100,
+		Provider:              fp,
+		Tools:                 tool.NewRegistry(),
+		Permissions:           permissions.Empty(),
+		Model:                 "m",
+		Hooks:                 rec,
+		AutoCompactThreshold:  100,
 		AutoCompactKeepRecent: 10,
 	})
 	// Pre-load 15 messages so compact has enough to work with.
@@ -946,12 +946,12 @@ func TestEngine_AutoCompact_UsesCumulativeUsageSinceLastCompact(t *testing.T) {
 	)
 	rec := &recordingHookSink{}
 	e := NewEngine(Config{
-		Provider:             fp,
-		Tools:                tool.NewRegistry(),
-		Permissions:          permissions.Empty(),
-		Model:                "m",
-		Hooks:                rec,
-		AutoCompactThreshold: 200,
+		Provider:              fp,
+		Tools:                 tool.NewRegistry(),
+		Permissions:           permissions.Empty(),
+		Model:                 "m",
+		Hooks:                 rec,
+		AutoCompactThreshold:  200,
 		AutoCompactKeepRecent: 10,
 	})
 	e.SetInitialMessages(makeAutoCompactMessages(15))
@@ -1011,7 +1011,8 @@ func TestEngine_RunSubagent_StreamsTextDeltaCallback(t *testing.T) {
 // TestEngine_NestedSubagent_WritesNestedJSONL verifies that when an Engine whose
 // Session is a subagent Store calls RunSubagent, the resulting child JSONL is
 // written at the expected nested path:
-//   <parent>/subagents/<first-sub-id>/subagents/<second-sub-id>.jsonl
+//
+//	<parent>/subagents/<first-sub-id>/subagents/<second-sub-id>.jsonl
 func TestEngine_NestedSubagent_WritesNestedJSONL(t *testing.T) {
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)

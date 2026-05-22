@@ -30,8 +30,8 @@ type Profile struct {
 	Type      string `yaml:"type"`               // "openai" | "bedrock" | "vertex"
 	BaseURL   string `yaml:"base_url,omitempty"` // openai only
 	Model     string `yaml:"model,omitempty"`
-	APIKey    string `yaml:"api_key,omitempty"`   // openai only; supports "env:VARNAME"
-	Region    string `yaml:"region,omitempty"`    // bedrock / vertex; bedrock defaults to AWS_REGION / default config
+	APIKey    string `yaml:"api_key,omitempty"`    // openai only; supports "env:VARNAME"
+	Region    string `yaml:"region,omitempty"`     // bedrock / vertex; bedrock defaults to AWS_REGION / default config
 	ProjectID string `yaml:"project_id,omitempty"` // vertex only
 }
 

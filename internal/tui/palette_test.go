@@ -15,10 +15,10 @@ type stubCmd struct {
 	desc string
 }
 
-func (s stubCmd) Name() string                                              { return s.name }
-func (s stubCmd) Aliases() []string                                         { return nil }
-func (s stubCmd) Description() string                                       { return s.desc }
-func (s stubCmd) Type() command.Type                                        { return command.TypeLocal }
+func (s stubCmd) Name() string        { return s.name }
+func (s stubCmd) Aliases() []string   { return nil }
+func (s stubCmd) Description() string { return s.desc }
+func (s stubCmd) Type() command.Type  { return command.TypeLocal }
 func (s stubCmd) Run(context.Context, string, command.Host) (command.Result, error) {
 	return command.Result{Text: "ok"}, nil
 }

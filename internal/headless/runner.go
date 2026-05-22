@@ -48,7 +48,7 @@ type Options struct {
 	Session         *session.Store
 	Stdout          io.Writer
 	Stderr          io.Writer
-	Hooks       PromptHookSink
+	Hooks           PromptHookSink
 	// HooksConfig is the raw Config that was used to build the Hooks manager.
 	// When set, it is forwarded to KAIROS workers via RemoteContext so they can
 	// apply the client's hook rules. nil-safe.

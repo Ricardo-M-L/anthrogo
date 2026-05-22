@@ -16,7 +16,7 @@ import (
 
 type Grep struct{ DefaultPermission }
 
-func (Grep) Name() string                      { return "Grep" }
+func (Grep) Name() string                       { return "Grep" }
 func (Grep) Description(context.Context) string { return grepDescription }
 func (Grep) UserFacingName(input map[string]any) string {
 	if p, ok := input["pattern"].(string); ok {

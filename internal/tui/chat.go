@@ -6,8 +6,8 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/glamour"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 )
 
 // chatLine holds both the rendered (ANSI) string that the viewport displays

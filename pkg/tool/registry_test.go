@@ -13,12 +13,12 @@ type stubTool struct {
 	schema map[string]any
 }
 
-func (s stubTool) Name() string                        { return s.name }
-func (s stubTool) Description(context.Context) string  { return "desc:" + s.name }
-func (s stubTool) Schema() map[string]any              { return s.schema }
+func (s stubTool) Name() string                         { return s.name }
+func (s stubTool) Description(context.Context) string   { return "desc:" + s.name }
+func (s stubTool) Schema() map[string]any               { return s.schema }
 func (s stubTool) UserFacingName(map[string]any) string { return s.name }
-func (s stubTool) IsReadOnly() bool                    { return true }
-func (s stubTool) IsConcurrencySafe() bool             { return true }
+func (s stubTool) IsReadOnly() bool                     { return true }
+func (s stubTool) IsConcurrencySafe() bool              { return true }
 func (s stubTool) Call(context.Context, map[string]any, *Context) (Result, error) {
 	return Result{Text: "ok", ForLLM: "ok"}, nil
 }

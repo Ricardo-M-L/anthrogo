@@ -16,10 +16,12 @@ type Subagents struct {
 	CwdRoot  string
 }
 
-func (Subagents) Name() string        { return "/subagents" }
-func (Subagents) Aliases() []string   { return nil }
-func (Subagents) Description() string { return "List registered subagent types (subcommands: show <name>, reload)" }
-func (Subagents) Type() command.Type  { return command.TypeLocal }
+func (Subagents) Name() string      { return "/subagents" }
+func (Subagents) Aliases() []string { return nil }
+func (Subagents) Description() string {
+	return "List registered subagent types (subcommands: show <name>, reload)"
+}
+func (Subagents) Type() command.Type { return command.TypeLocal }
 
 func (s Subagents) Run(ctx context.Context, args string, host command.Host) (command.Result, error) {
 	reg := host.Subagents()

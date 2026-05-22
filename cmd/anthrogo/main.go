@@ -24,9 +24,9 @@ import (
 
 	"github.com/ricardo/anthrogo/internal/config"
 	"github.com/ricardo/anthrogo/internal/doctor"
-	"github.com/ricardo/anthrogo/internal/initconfig"
 	"github.com/ricardo/anthrogo/internal/headless"
 	"github.com/ricardo/anthrogo/internal/hooks"
+	"github.com/ricardo/anthrogo/internal/initconfig"
 	"github.com/ricardo/anthrogo/internal/mcp"
 	"github.com/ricardo/anthrogo/internal/oauth"
 	"github.com/ricardo/anthrogo/internal/session"
@@ -57,26 +57,26 @@ import (
 
 func main() {
 	var (
-		prompt              string
-		modelFlag           string
-		modeFlag            string
-		cwdFlag             string
-		resumeID            string
-		cont                bool
-		showVer             bool
-		pprofAddr           string
-		kairosServeAddr     string
-		kairosSigningKey    string // path to ed25519 private key for --kairos-serve signing
-		kairosTrustKey      string // base64 or path to ed25519 public key for client verification
-		kairosGenerateKey   string // path prefix for keypair generation; writes <path>.priv + <path>.pub
-		providerFlag        string
-		autoCompactFlag     int
-		costLimitFlag       float64
-		jsonFlag            bool
-		tlsCert             string
-		tlsKey              string
-		tlsAuto             bool
-		tlsDomain           string
+		prompt            string
+		modelFlag         string
+		modeFlag          string
+		cwdFlag           string
+		resumeID          string
+		cont              bool
+		showVer           bool
+		pprofAddr         string
+		kairosServeAddr   string
+		kairosSigningKey  string // path to ed25519 private key for --kairos-serve signing
+		kairosTrustKey    string // base64 or path to ed25519 public key for client verification
+		kairosGenerateKey string // path prefix for keypair generation; writes <path>.priv + <path>.pub
+		providerFlag      string
+		autoCompactFlag   int
+		costLimitFlag     float64
+		jsonFlag          bool
+		tlsCert           string
+		tlsKey            string
+		tlsAuto           bool
+		tlsDomain         string
 	)
 
 	root := &cobra.Command{
@@ -428,8 +428,8 @@ func main() {
 			defer bootCancel()
 			mcpStartCtx, mcpStartCancelTimeout := context.WithTimeout(bootCtx, 60*time.Second)
 			if mcpStartErr := mcpMgr.Start(mcpStartCtx); mcpStartErr != nil {
-					fmt.Fprintln(os.Stderr, "mcp:", mcpStartErr)
-				}
+				fmt.Fprintln(os.Stderr, "mcp:", mcpStartErr)
+			}
 			mcpStartCancelTimeout()
 			defer mcpMgr.Close()
 

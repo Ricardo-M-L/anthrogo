@@ -11,10 +11,10 @@ import (
 // Diff wraps `git diff` for the working tree or staged area.
 type Diff struct{ DefaultPermission }
 
-func (Diff) Name() string                      { return "Diff" }
+func (Diff) Name() string                       { return "Diff" }
 func (Diff) Description(context.Context) string { return diffDescription }
-func (Diff) IsReadOnly() bool                  { return true }
-func (Diff) IsConcurrencySafe() bool           { return true }
+func (Diff) IsReadOnly() bool                   { return true }
+func (Diff) IsConcurrencySafe() bool            { return true }
 
 func (Diff) UserFacingName(input map[string]any) string {
 	if p, ok := input["path"].(string); ok && p != "" {

@@ -49,9 +49,9 @@ func TestUsageBuiltin_AutoCompactEnabled(t *testing.T) {
 	)
 	const threshold = 500
 	e := query.NewEngine(query.Config{
-		Provider:             fp,
-		Model:                "m",
-		AutoCompactThreshold: threshold,
+		Provider:              fp,
+		Model:                 "m",
+		AutoCompactThreshold:  threshold,
 		AutoCompactKeepRecent: 10,
 	})
 

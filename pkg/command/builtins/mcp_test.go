@@ -16,12 +16,12 @@ type stubSentinelTool struct {
 	name string
 }
 
-func (s stubSentinelTool) Name() string                                            { return s.name }
-func (s stubSentinelTool) Description(context.Context) string                      { return "sentinel" }
-func (s stubSentinelTool) Schema() map[string]any                                   { return map[string]any{} }
-func (s stubSentinelTool) UserFacingName(map[string]any) string                     { return s.name }
-func (s stubSentinelTool) IsReadOnly() bool                                         { return true }
-func (s stubSentinelTool) IsConcurrencySafe() bool                                  { return true }
+func (s stubSentinelTool) Name() string                         { return s.name }
+func (s stubSentinelTool) Description(context.Context) string   { return "sentinel" }
+func (s stubSentinelTool) Schema() map[string]any               { return map[string]any{} }
+func (s stubSentinelTool) UserFacingName(map[string]any) string { return s.name }
+func (s stubSentinelTool) IsReadOnly() bool                     { return true }
+func (s stubSentinelTool) IsConcurrencySafe() bool              { return true }
 func (s stubSentinelTool) Call(_ context.Context, _ map[string]any, _ *tool.Context) (tool.Result, error) {
 	return tool.Result{}, nil
 }

@@ -114,8 +114,10 @@ func NewMCPAdapter(serverName string, descriptor *sdk.Tool, invoker MCPInvoker) 
 	}
 }
 
-func (a *MCPAdapter) Name() string                         { return a.composedName }
-func (a *MCPAdapter) Description(_ context.Context) string { return fmt.Sprintf("[%s] %s", a.server, a.descriptor.Description) }
+func (a *MCPAdapter) Name() string { return a.composedName }
+func (a *MCPAdapter) Description(_ context.Context) string {
+	return fmt.Sprintf("[%s] %s", a.server, a.descriptor.Description)
+}
 func (a *MCPAdapter) UserFacingName(map[string]any) string { return a.composedName }
 func (a *MCPAdapter) IsReadOnly() bool                     { return false }
 func (a *MCPAdapter) IsConcurrencySafe() bool              { return true }

@@ -257,7 +257,7 @@ func (e *Engine) runOneAPITurnAttempt(ctx context.Context, out chan<- Event) (st
 		e.messages = append(e.messages, message.Message{Role: message.RoleAssistant, Content: assistant})
 		e.mu.Unlock()
 		e.recordIfHooked(session.Record{
-			Kind: session.KindAssistantMessage,
+			Kind:             session.KindAssistantMessage,
 			AssistantMessage: &session.AssistantMessage{Content: assistant, StopReason: stopReason},
 		})
 	}

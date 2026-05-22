@@ -57,12 +57,12 @@ type Options struct {
 	InitialMessages []message.Message
 	RecordHook      func(session.Record)
 	MCP             *mcp.Manager
-	Hooks       PromptHookSink
+	Hooks           PromptHookSink
 	// HooksConfig is the raw hooks.Config used to build the Hooks manager.
 	// Forwarded to the engine so KAIROS workers can inherit the client's hook rules.
 	HooksConfig *hooks.Config
 	Skills      *skill.Registry
-	Subagents       *subagent.Registry
+	Subagents   *subagent.Registry
 	// Plugins is the *plugin.Registry. Typed as any to avoid an import cycle
 	// between tui and pkg/plugin (which imports pkg/command which tui uses).
 	Plugins any
@@ -159,8 +159,8 @@ func New(opts Options) *App {
 	a.palette = newPalette(theme, opts.Commands)
 	a.logPane = newLogPane(theme)
 	a.statusPane = statusPane{
-		theme:    theme,
-		getMode:  func() permissions.Mode {
+		theme: theme,
+		getMode: func() permissions.Mode {
 			if opts.Permissions != nil {
 				return opts.Permissions.Mode
 			}
@@ -620,26 +620,26 @@ func (a *App) RequestPrompt(source string, req tool.PromptRequest) (tool.PromptR
 
 // command.Host implementation
 
-func (a *App) Engine() *query.Engine                 { return a.engine }
-func (a *App) Permissions() *permissions.Context     { return a.opts.Permissions }
-func (a *App) Tools() *tool.Registry                 { return a.opts.Tools }
-func (a *App) Session() *session.Store               { return a.opts.Session }
-func (a *App) Messages() []message.Message           { return a.engine.Messages() }
+func (a *App) Engine() *query.Engine                  { return a.engine }
+func (a *App) Permissions() *permissions.Context      { return a.opts.Permissions }
+func (a *App) Tools() *tool.Registry                  { return a.opts.Tools }
+func (a *App) Session() *session.Store                { return a.opts.Session }
+func (a *App) Messages() []message.Message            { return a.engine.Messages() }
 func (a *App) ReplaceMessages(msgs []message.Message) { a.engine.SetInitialMessages(msgs) }
 func (a *App) ResetSession() error {
 	// M2 stub: clear in-memory engine state. Real file-rotation deferred to M3.
 	a.engine.SetInitialMessages(nil)
 	return nil
 }
-func (a *App) AppendUIMessage(s string)          { a.chat.appendError(s) }
-func (a *App) ClaudeMd() string                  { return a.opts.ClaudeMd }
-func (a *App) Quit()                             { /* triggered by tea.Quit in Update */ }
-func (a *App) Cwd() string                       { return a.opts.Cwd }
-func (a *App) Registry() *command.Registry       { return a.cmdReg }
-func (a *App) MCP() *mcp.Manager                 { return a.opts.MCP }
-func (a *App) Skills() *skill.Registry           { return a.opts.Skills }
-func (a *App) Subagents() *subagent.Registry     { return a.opts.Subagents }
-func (a *App) Plugins() any                      { return a.opts.Plugins }
+func (a *App) AppendUIMessage(s string)      { a.chat.appendError(s) }
+func (a *App) ClaudeMd() string              { return a.opts.ClaudeMd }
+func (a *App) Quit()                         { /* triggered by tea.Quit in Update */ }
+func (a *App) Cwd() string                   { return a.opts.Cwd }
+func (a *App) Registry() *command.Registry   { return a.cmdReg }
+func (a *App) MCP() *mcp.Manager             { return a.opts.MCP }
+func (a *App) Skills() *skill.Registry       { return a.opts.Skills }
+func (a *App) Subagents() *subagent.Registry { return a.opts.Subagents }
+func (a *App) Plugins() any                  { return a.opts.Plugins }
 
 // ThemeName returns the name of the currently active theme.
 func (a *App) ThemeName() string { return a.theme.Name }

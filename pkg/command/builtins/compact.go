@@ -12,12 +12,12 @@ import (
 
 type Compact struct{}
 
-func (Compact) Name() string        { return "/compact" }
-func (Compact) Aliases() []string   { return nil }
+func (Compact) Name() string      { return "/compact" }
+func (Compact) Aliases() []string { return nil }
 func (Compact) Description() string {
 	return "Summarize earlier conversation to reduce context. Use '--reset-budget' to also zero the cost counter."
 }
-func (Compact) Type() command.Type  { return command.TypeLocal }
+func (Compact) Type() command.Type { return command.TypeLocal }
 
 func (Compact) Run(ctx context.Context, args string, host command.Host) (command.Result, error) {
 	opts := query.CompactOptions{Trigger: "manual"}

@@ -156,9 +156,9 @@ func sanitizedEnv() []string {
 		"ANTHROGO_IMAGE_",
 	}
 	denyExact := map[string]bool{
-		"GITHUB_TOKEN":  true,
-		"GH_TOKEN":      true,
-		"NPM_TOKEN":     true,
+		"GITHUB_TOKEN":     true,
+		"GH_TOKEN":         true,
+		"NPM_TOKEN":        true,
 		"ANTHROGO_API_KEY": true,
 	}
 	out := os.Environ()[:0:0]

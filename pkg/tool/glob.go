@@ -12,7 +12,7 @@ import (
 
 type Glob struct{ DefaultPermission }
 
-func (Glob) Name() string                      { return "Glob" }
+func (Glob) Name() string                       { return "Glob" }
 func (Glob) Description(context.Context) string { return globDescription }
 func (Glob) UserFacingName(input map[string]any) string {
 	if p, ok := input["pattern"].(string); ok {

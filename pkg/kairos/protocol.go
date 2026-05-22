@@ -26,9 +26,9 @@ type RunRequest struct {
 // as-is (won't resolve relative to client cwd on worker); permission rules
 // apply to the worker's local tool dispatch.
 type RemoteContext struct {
-	HopDepth    int               `json:"hop_depth"`
-	Hooks       *hooks.Config     `json:"hooks,omitempty"`
-	Permissions *PermSnapshot     `json:"permissions,omitempty"`
+	HopDepth    int           `json:"hop_depth"`
+	Hooks       *hooks.Config `json:"hooks,omitempty"`
+	Permissions *PermSnapshot `json:"permissions,omitempty"`
 }
 
 // PermSnapshot is a JSON-safe projection of permissions.Context used to
@@ -36,7 +36,7 @@ type RemoteContext struct {
 // HookDecide (a Go func) is intentionally not serialized; the worker
 // rebuilds it from the transmitted Hooks config if non-nil.
 type PermSnapshot struct {
-	Mode             string                                     `json:"mode,omitempty"`
+	Mode             string                                    `json:"mode,omitempty"`
 	AlwaysAllowRules map[permissions.Source][]permissions.Rule `json:"always_allow,omitempty"`
 	AlwaysDenyRules  map[permissions.Source][]permissions.Rule `json:"always_deny,omitempty"`
 	AlwaysAskRules   map[permissions.Source][]permissions.Rule `json:"always_ask,omitempty"`

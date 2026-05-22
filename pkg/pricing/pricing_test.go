@@ -11,7 +11,7 @@ import (
 func TestTable_ExactMatch(t *testing.T) {
 	t.Parallel()
 	tbl := pricing.NewTable(map[string]pricing.Rate{
-		"claude-sonnet-4-6": {InputPerM: 3.0, OutputPerM: 15.0},
+		"claude-sonnet-4-6":  {InputPerM: 3.0, OutputPerM: 15.0},
 		"claude-haiku-4-5-*": {InputPerM: 1.0, OutputPerM: 5.0},
 	})
 	r, ok := tbl.Lookup("claude-sonnet-4-6")

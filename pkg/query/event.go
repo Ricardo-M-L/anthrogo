@@ -7,16 +7,16 @@ import "github.com/ricardo/anthrogo/pkg/message"
 type EventKind string
 
 const (
-	KindAssistantDelta  EventKind = "assistant_delta"
-	KindAssistantStop   EventKind = "assistant_stop"
-	KindToolUseRequest  EventKind = "tool_use_request"
-	KindToolResult      EventKind = "tool_result"
-	KindPermissionAsk   EventKind = "permission_ask"
-	KindTurnComplete    EventKind = "turn_complete"
-	KindUsage           EventKind = "usage"
-	KindError           EventKind = "error"
-	KindStreamRetry     EventKind = "stream_retry"
-	KindCancelDraining  EventKind = "cancel_draining"
+	KindAssistantDelta EventKind = "assistant_delta"
+	KindAssistantStop  EventKind = "assistant_stop"
+	KindToolUseRequest EventKind = "tool_use_request"
+	KindToolResult     EventKind = "tool_result"
+	KindPermissionAsk  EventKind = "permission_ask"
+	KindTurnComplete   EventKind = "turn_complete"
+	KindUsage          EventKind = "usage"
+	KindError          EventKind = "error"
+	KindStreamRetry    EventKind = "stream_retry"
+	KindCancelDraining EventKind = "cancel_draining"
 )
 
 type Event struct {

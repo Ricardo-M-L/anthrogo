@@ -101,7 +101,7 @@ func TestRegistry_InstallFromURL_RejectsOversize(t *testing.T) {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		// Write slightly more than maxSkillArchiveBytes bytes.
 		chunk := make([]byte, 1024*1024) // 1 MB
-		for i := 0; i < 52; i++ {       // 52 MB total
+		for i := 0; i < 52; i++ {        // 52 MB total
 			fmt.Fprintf(w, "%s", chunk)
 		}
 	}))

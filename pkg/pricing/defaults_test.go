@@ -31,7 +31,7 @@ func TestDefaultRates_BedrockVertexAliases(t *testing.T) {
 	t.Parallel()
 	tbl := NewTable(DefaultRates())
 	cases := []struct {
-		model string
+		model  string
 		wantIn float64
 	}{
 		// Bedrock exact-style

@@ -118,21 +118,21 @@ type Config struct {
 // Engine owns one conversation. Each SubmitMessage starts a new turn within
 // the same conversation; messages, usage, cwd persist across turns.
 type Engine struct {
-	mu            sync.Mutex
-	cfg           Config
-	messages      []message.Message
-	usage         message.Usage
+	mu       sync.Mutex
+	cfg      Config
+	messages []message.Message
+	usage    message.Usage
 	// lastUsage holds the most recently observed Usage from a provider stream.
 	// Reset to message.Usage{} at the start of each new turn; updated on every
 	// EventUsage; consulted at end-of-turn for auto-compact decision.
-	lastUsage     message.Usage
+	lastUsage message.Usage
 	// usageSinceLastCompact accumulates token usage since the session started
 	// or since the most recent successful Compact(), whichever is later.
 	// Used for the auto-compact threshold check instead of per-turn lastUsage.
 	// Reset to zero inside Compact() when Skipped==false.
 	usageSinceLastCompact message.Usage
-	denials       []PermissionDenial
-	subagentDepth int
+	denials               []PermissionDenial
+	subagentDepth         int
 }
 
 func NewEngine(cfg Config) *Engine {

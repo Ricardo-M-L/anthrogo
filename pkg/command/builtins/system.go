@@ -22,10 +22,12 @@ type System struct {
 	ProjectOverlayPath string
 }
 
-func (System) Name() string        { return "/system" }
-func (System) Aliases() []string   { return nil }
-func (System) Description() string { return "Inspect or edit the system prompt overlays (subcommands: show, edit [home|project], reset [home|project])" }
-func (System) Type() command.Type  { return command.TypeLocal }
+func (System) Name() string      { return "/system" }
+func (System) Aliases() []string { return nil }
+func (System) Description() string {
+	return "Inspect or edit the system prompt overlays (subcommands: show, edit [home|project], reset [home|project])"
+}
+func (System) Type() command.Type { return command.TypeLocal }
 
 func (s System) Run(_ context.Context, args string, host command.Host) (command.Result, error) {
 	args = strings.TrimSpace(args)

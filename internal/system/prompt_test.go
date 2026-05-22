@@ -17,7 +17,7 @@ func TestBuildSystemPrompt_IncludesAllComponents(t *testing.T) {
 		CurrentDate: "2026-05-17",
 		Cwd:         "/work/anthrogo",
 	})
-	require.Contains(t, got, "anthrogo")          // header mentions product
+	require.Contains(t, got, "anthrogo") // header mentions product
 	require.Contains(t, got, "Today's date is 2026-05-17")
 	require.Contains(t, got, "/work/anthrogo")
 	require.Contains(t, got, "Available tools")

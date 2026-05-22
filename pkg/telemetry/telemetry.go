@@ -110,12 +110,12 @@ func (r *Reporter) Event(kind string, data map[string]any) {
 		return
 	}
 	ev := map[string]any{
-		"kind":    kind,
-		"ts":      time.Now().Unix(),
+		"kind":     kind,
+		"ts":       time.Now().Unix(),
 		"anthrogo": os.Getenv("ANTHROGO_VERSION_OVERRIDE"),
-		"go_os":   runtime.GOOS,
-		"go_arch": runtime.GOARCH,
-		"machine": r.machineID,
+		"go_os":    runtime.GOOS,
+		"go_arch":  runtime.GOARCH,
+		"machine":  r.machineID,
 	}
 	for k, v := range sanitizeEvent(data) {
 		ev[k] = v

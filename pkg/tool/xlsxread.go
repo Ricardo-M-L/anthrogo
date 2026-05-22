@@ -13,10 +13,10 @@ const xlsxMaxBytes = 200_000
 // XlsxRead reads a sheet from a local .xlsx file and returns cells as TSV.
 type XlsxRead struct{ DefaultPermission }
 
-func (XlsxRead) Name() string                      { return "XlsxRead" }
+func (XlsxRead) Name() string                       { return "XlsxRead" }
 func (XlsxRead) Description(context.Context) string { return xlsxReadDescription }
-func (XlsxRead) IsReadOnly() bool                  { return true }
-func (XlsxRead) IsConcurrencySafe() bool           { return true }
+func (XlsxRead) IsReadOnly() bool                   { return true }
+func (XlsxRead) IsConcurrencySafe() bool            { return true }
 func (XlsxRead) UserFacingName(input map[string]any) string {
 	if p, ok := input["file_path"].(string); ok {
 		return "XlsxRead " + p

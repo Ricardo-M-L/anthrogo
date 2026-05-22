@@ -129,4 +129,3 @@ func TestSystem_EditReturnsExecCmd(t *testing.T) {
 	require.NotNil(t, res.ExecCmd.Cmd)
 	require.Contains(t, res.Text, "opening")
 }
-

@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/ricardo/anthrogo/pkg/provider"
-	"github.com/ricardo/anthrogo/pkg/provider/fake"
 	"github.com/ricardo/anthrogo/pkg/provider/failover"
+	"github.com/ricardo/anthrogo/pkg/provider/fake"
 )
 
 // errProvider is a Provider whose Stream always returns (nil, error).

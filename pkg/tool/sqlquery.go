@@ -201,9 +201,9 @@ func formatRows(rows *sql.Rows, maxRows int) Result {
 		Text:   text,
 		ForLLM: text,
 		Data: map[string]any{
-			"row_count":  len(allRows),
-			"columns":    cols,
-			"truncated":  truncated,
+			"row_count": len(allRows),
+			"columns":   cols,
+			"truncated": truncated,
 		},
 	}
 }

@@ -9,7 +9,7 @@ import (
 
 type Edit struct{ DefaultPermission }
 
-func (Edit) Name() string                      { return "Edit" }
+func (Edit) Name() string                       { return "Edit" }
 func (Edit) Description(context.Context) string { return editDescription }
 func (Edit) UserFacingName(input map[string]any) string {
 	if p, ok := input["file_path"].(string); ok {

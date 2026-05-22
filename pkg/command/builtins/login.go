@@ -17,8 +17,8 @@ type Login struct {
 	Config oauth.Config
 }
 
-func (Login) Name() string        { return "/login" }
-func (Login) Aliases() []string   { return nil }
+func (Login) Name() string      { return "/login" }
+func (Login) Aliases() []string { return nil }
 func (Login) Description() string {
 	return "Run OAuth 2.1 PKCE flow against the configured IdP; saves a token used by the Anthropic provider."
 }

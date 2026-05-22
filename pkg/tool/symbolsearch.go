@@ -19,7 +19,7 @@ import (
 // Go files are parsed via go/parser; other languages use regex heuristics.
 type SymbolSearch struct{ DefaultPermission }
 
-func (SymbolSearch) Name() string                      { return "SymbolSearch" }
+func (SymbolSearch) Name() string                       { return "SymbolSearch" }
 func (SymbolSearch) Description(context.Context) string { return symbolSearchDescription }
 func (SymbolSearch) UserFacingName(input map[string]any) string {
 	if n, ok := input["name"].(string); ok {

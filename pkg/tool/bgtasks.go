@@ -64,7 +64,7 @@ func (*BackgroundStatus) Description(context.Context) string {
 }
 func (*BackgroundStatus) UserFacingName(_ map[string]any) string { return "BackgroundStatus" }
 func (*BackgroundStatus) IsReadOnly() bool                       { return true }
-func (*BackgroundStatus) IsConcurrencySafe() bool               { return true }
+func (*BackgroundStatus) IsConcurrencySafe() bool                { return true }
 func (*BackgroundStatus) Schema() map[string]any {
 	return map[string]any{
 		"type": "object",
@@ -119,7 +119,7 @@ func (*BackgroundOutput) Description(context.Context) string {
 }
 func (*BackgroundOutput) UserFacingName(_ map[string]any) string { return "BackgroundOutput" }
 func (*BackgroundOutput) IsReadOnly() bool                       { return true }
-func (*BackgroundOutput) IsConcurrencySafe() bool               { return true }
+func (*BackgroundOutput) IsConcurrencySafe() bool                { return true }
 func (*BackgroundOutput) Schema() map[string]any {
 	return map[string]any{
 		"type": "object",
@@ -172,7 +172,7 @@ func (*BackgroundCancel) Description(context.Context) string {
 }
 func (*BackgroundCancel) UserFacingName(_ map[string]any) string { return "BackgroundCancel" }
 func (*BackgroundCancel) IsReadOnly() bool                       { return false }
-func (*BackgroundCancel) IsConcurrencySafe() bool               { return true }
+func (*BackgroundCancel) IsConcurrencySafe() bool                { return true }
 func (*BackgroundCancel) Schema() map[string]any {
 	return map[string]any{
 		"type": "object",

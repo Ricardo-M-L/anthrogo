@@ -22,7 +22,7 @@ type chatMsg struct {
 }
 
 type chatContent struct {
-	Type     string        `json:"type"`               // "text" | "image_url"
+	Type     string        `json:"type"` // "text" | "image_url"
 	Text     string        `json:"text,omitempty"`
 	ImageURL *chatImageURL `json:"image_url,omitempty"`
 }

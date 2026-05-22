@@ -14,12 +14,12 @@ type Skills struct {
 	CwdRoot  string
 }
 
-func (Skills) Name() string        { return "/skills" }
-func (Skills) Aliases() []string   { return nil }
+func (Skills) Name() string      { return "/skills" }
+func (Skills) Aliases() []string { return nil }
 func (Skills) Description() string {
 	return "List loaded skills (subcommands: show <name>, reload, install <src>)"
 }
-func (Skills) Type() command.Type  { return command.TypeLocal }
+func (Skills) Type() command.Type { return command.TypeLocal }
 
 func (s Skills) Run(ctx context.Context, args string, host command.Host) (command.Result, error) {
 	reg := host.Skills()

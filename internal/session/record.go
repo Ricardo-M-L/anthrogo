@@ -54,10 +54,10 @@ type SubagentRecord struct {
 // correctly because the old fields are retained with omitempty and the
 // unused direction is harmless.
 type CompactRecord struct {
-	OriginalCount int    `json:"original_count"`
-	NewCount      int    `json:"new_count"`
-	OriginalTokens int   `json:"original_tokens"`
-	NewTokens      int   `json:"new_tokens"`
+	OriginalCount  int `json:"original_count"`
+	NewCount       int `json:"new_count"`
+	OriginalTokens int `json:"original_tokens"`
+	NewTokens      int `json:"new_tokens"`
 	// Deprecated legacy fields — kept for reading old JSONL files.
 	OriginalBytes int    `json:"original_bytes,omitempty"`
 	NewBytes      int    `json:"new_bytes,omitempty"`

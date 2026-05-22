@@ -19,17 +19,17 @@ import (
 )
 
 type fakeHost struct {
-	perms      *permissions.Context
-	tools      *tool.Registry
-	cmdReg     *command.Registry
-	uiMsgs     []string
-	cwd        string
-	claudeMd   string
-	mgr        *mcp.Manager
-	engine     *query.Engine
-	skills     *skill.Registry
-	subagents  *subagent.Registry
-	plugins    any
+	perms     *permissions.Context
+	tools     *tool.Registry
+	cmdReg    *command.Registry
+	uiMsgs    []string
+	cwd       string
+	claudeMd  string
+	mgr       *mcp.Manager
+	engine    *query.Engine
+	skills    *skill.Registry
+	subagents *subagent.Registry
+	plugins   any
 }
 
 func newFakeHost() *fakeHost {

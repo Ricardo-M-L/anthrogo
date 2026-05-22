@@ -24,10 +24,10 @@ var gitMetachars = []string{";", "&&", "||", "|", ">", "<", "`"}
 // Git exposes a read-only subset of git subcommands.
 type Git struct{ DefaultPermission }
 
-func (Git) Name() string                      { return "Git" }
+func (Git) Name() string                       { return "Git" }
 func (Git) Description(context.Context) string { return gitDescription }
-func (Git) IsReadOnly() bool                  { return true }
-func (Git) IsConcurrencySafe() bool           { return true }
+func (Git) IsReadOnly() bool                   { return true }
+func (Git) IsConcurrencySafe() bool            { return true }
 
 func (Git) UserFacingName(input map[string]any) string {
 	cmd, _ := input["command"].(string)
@@ -46,8 +46,8 @@ func (Git) Schema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"command": map[string]any{
-				"type": "string",
-				"enum": []string{"status", "log", "branch", "show", "blame", "remote"},
+				"type":        "string",
+				"enum":        []string{"status", "log", "branch", "show", "blame", "remote"},
 				"description": "Which git subcommand. Only read-only ones allowed.",
 			},
 			"args": map[string]any{

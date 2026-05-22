@@ -159,4 +159,3 @@ func TestCompact_ProviderError_PropagatesUntouched(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "upstream down"))
 }
-

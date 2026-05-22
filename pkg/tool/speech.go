@@ -13,7 +13,7 @@ import (
 // SpeechToText transcribes an audio file using the whisper CLI.
 type SpeechToText struct{ DefaultPermission }
 
-func (*SpeechToText) Name() string                      { return "SpeechToText" }
+func (*SpeechToText) Name() string                       { return "SpeechToText" }
 func (*SpeechToText) Description(context.Context) string { return speechToTextDescription }
 func (*SpeechToText) UserFacingName(input map[string]any) string {
 	if p, _ := input["path"].(string); p != "" {
@@ -97,7 +97,7 @@ const speechToTextDescription = "Transcribe an audio file to text using OpenAI W
 // TextToSpeech synthesizes speech from text using a platform system synthesizer.
 type TextToSpeech struct{ DefaultPermission }
 
-func (*TextToSpeech) Name() string                      { return "TextToSpeech" }
+func (*TextToSpeech) Name() string                       { return "TextToSpeech" }
 func (*TextToSpeech) Description(context.Context) string { return textToSpeechDescription }
 func (*TextToSpeech) UserFacingName(input map[string]any) string {
 	if t, _ := input["text"].(string); t != "" {

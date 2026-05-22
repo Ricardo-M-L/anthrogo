@@ -25,8 +25,8 @@ var slackURLAllowed = slackURLAllowedDefault
 // SlackPost sends a message to a Slack channel via an Incoming Webhook URL.
 type SlackPost struct {
 	DefaultPermission
-	httpClient   *http.Client          // injectable for testing
-	urlAllowedFn func(string) bool     // per-instance override; nil → use slackURLAllowed
+	httpClient   *http.Client      // injectable for testing
+	urlAllowedFn func(string) bool // per-instance override; nil → use slackURLAllowed
 }
 
 // urlAllowed returns the effective URL allow check: per-instance fn if set,

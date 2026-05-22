@@ -20,7 +20,7 @@ import (
 // M10.2 adds opt-in lightweight sandboxing via sandbox:true (see Schema).
 type Bash struct{ DefaultPermission }
 
-func (Bash) Name() string                      { return "Bash" }
+func (Bash) Name() string                       { return "Bash" }
 func (Bash) Description(context.Context) string { return bashDescription }
 func (Bash) UserFacingName(input map[string]any) string {
 	if c, ok := input["command"].(string); ok {

@@ -144,8 +144,8 @@ func makeSessionRecords() []session.Record {
 			},
 		},
 		{
-			Kind:      session.KindTurnComplete,
-			Timestamp: ts,
+			Kind:         session.KindTurnComplete,
+			Timestamp:    ts,
 			TurnComplete: &session.TurnComplete{StopReason: "end_turn"},
 		},
 		{
@@ -159,7 +159,7 @@ func makeSessionRecords() []session.Record {
 // TestSessions_ReplayUnknownPrefix — prefix has no match.
 func TestSessions_ReplayUnknownPrefix(t *testing.T) {
 	dir := t.TempDir()
-	res, err := (Sessions{}).replaySession(dir,"no-such-prefix")
+	res, err := (Sessions{}).replaySession(dir, "no-such-prefix")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "no match")
 }
@@ -169,7 +169,7 @@ func TestSessions_ReplayAmbiguousPrefix(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "abc-aaa.jsonl"), []byte{}, 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "abc-bbb.jsonl"), []byte{}, 0o644))
-	res, err := (Sessions{}).replaySession(dir,"abc-")
+	res, err := (Sessions{}).replaySession(dir, "abc-")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "ambiguous")
 }
@@ -180,7 +180,7 @@ func TestSessions_ReplayRenders(t *testing.T) {
 	records := makeSessionRecords()
 	writeJSONL(t, dir, "test-session-id", records)
 
-	res, err := (Sessions{}).replaySession(dir,"test-session-id")
+	res, err := (Sessions{}).replaySession(dir, "test-session-id")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "[meta]")
 	require.Contains(t, res.Text, "claude-test")
@@ -201,7 +201,7 @@ func TestSessions_ReplayRenders(t *testing.T) {
 // TestSessions_SearchEmpty — keyword "" returns usage message.
 func TestSessions_SearchEmpty(t *testing.T) {
 	dir := t.TempDir()
-	res, err := (Sessions{}).searchSessions(dir,"")
+	res, err := (Sessions{}).searchSessions(dir, "")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "usage")
 }
@@ -229,7 +229,7 @@ func TestSessions_SearchFindsInUser(t *testing.T) {
 	writeJSONL(t, dir, "session-match", matchRecords)
 	writeJSONL(t, dir, "session-nomatch", noMatchRecords)
 
-	res, err := (Sessions{}).searchSessions(dir,"unique-keyword-xyz")
+	res, err := (Sessions{}).searchSessions(dir, "unique-keyword-xyz")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "unique-keyword-xyz")
 	require.NotContains(t, res.Text, "nothing interesting")
@@ -262,7 +262,7 @@ func TestSessions_SearchFindsInAssistantAndToolResult(t *testing.T) {
 	}
 	writeJSONL(t, dir, "session-both", records)
 
-	res, err := (Sessions{}).searchSessions(dir,"foobar")
+	res, err := (Sessions{}).searchSessions(dir, "foobar")
 	require.NoError(t, err)
 	lines := splitNonEmpty(res.Text)
 	// Two records matched.
@@ -284,7 +284,7 @@ func TestSessions_SearchNoMatches(t *testing.T) {
 	}}
 	writeJSONL(t, dir, "session-empty", records)
 
-	res, err := (Sessions{}).searchSessions(dir,"zzz-not-present-zzz")
+	res, err := (Sessions{}).searchSessions(dir, "zzz-not-present-zzz")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "(no matches)")
 }
@@ -296,7 +296,7 @@ func TestSessions_DeleteDryRun_DoesNotRemove(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "abc-111.jsonl"), []byte(`{}`), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "def-222.jsonl"), []byte(`{}`), 0o644))
 
-	res, err := (Sessions{}).deleteSession(dir,"abc-111")
+	res, err := (Sessions{}).deleteSession(dir, "abc-111")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "would delete")
 	require.Contains(t, res.Text, "abc-111.jsonl")
@@ -310,7 +310,7 @@ func TestSessions_DeleteYes_RemovesFile(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "abc-111.jsonl"), []byte(`{}`), 0o644))
 
-	res, err := (Sessions{}).deleteSession(dir,"--yes abc-111")
+	res, err := (Sessions{}).deleteSession(dir, "--yes abc-111")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "deleted")
 	_, statErr := os.Stat(filepath.Join(dir, "abc-111.jsonl"))
@@ -328,7 +328,7 @@ func TestSessions_DeleteYes_RemovesSubagentsDir(t *testing.T) {
 	require.NoError(t, os.MkdirAll(subDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(subDir, "sub1.jsonl"), []byte(`{}`), 0o644))
 
-	res, err := (Sessions{}).deleteSession(dir,"--yes "+sessionID)
+	res, err := (Sessions{}).deleteSession(dir, "--yes "+sessionID)
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "deleted")
 	require.Contains(t, res.Text, "subagents/")
@@ -341,7 +341,7 @@ func TestSessions_DeleteYes_RemovesSubagentsDir(t *testing.T) {
 // TestSessions_DeleteUnknownPrefix verifies a "no match" result for unknown prefix.
 func TestSessions_DeleteUnknownPrefix(t *testing.T) {
 	dir := t.TempDir()
-	res, err := (Sessions{}).deleteSession(dir,"nope")
+	res, err := (Sessions{}).deleteSession(dir, "nope")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "no match")
 }
@@ -353,7 +353,7 @@ func TestSessions_DeleteAmbiguousPrefix(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "abcXXX.jsonl"), []byte(`{}`), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "abcYYY.jsonl"), []byte(`{}`), 0o644))
 
-	res, err := (Sessions{}).deleteSession(dir,"--yes abc")
+	res, err := (Sessions{}).deleteSession(dir, "--yes abc")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "ambiguous")
 	// Both files must still exist.
@@ -367,7 +367,7 @@ func TestSessions_DeleteAmbiguousPrefix(t *testing.T) {
 func TestSessions_DeleteMissingPrefix(t *testing.T) {
 	dir := t.TempDir()
 	// "--yes" with no additional prefix token.
-	res, err := (Sessions{}).deleteSession(dir,"--yes")
+	res, err := (Sessions{}).deleteSession(dir, "--yes")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "usage")
 }
@@ -379,7 +379,7 @@ func TestSessions_DeleteMissingPrefix(t *testing.T) {
 // TestSessions_ExportMissingPrefix verifies that empty rest returns usage.
 func TestSessions_ExportMissingPrefix(t *testing.T) {
 	dir := t.TempDir()
-	res, err := (Sessions{}).exportSession(dir,"")
+	res, err := (Sessions{}).exportSession(dir, "")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "usage")
 }
@@ -387,7 +387,7 @@ func TestSessions_ExportMissingPrefix(t *testing.T) {
 // TestSessions_ExportUnknownPrefix verifies that an unknown prefix returns "no match".
 func TestSessions_ExportUnknownPrefix(t *testing.T) {
 	dir := t.TempDir()
-	res, err := (Sessions{}).exportSession(dir,"noop")
+	res, err := (Sessions{}).exportSession(dir, "noop")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "no match")
 }
@@ -398,7 +398,7 @@ func TestSessions_ExportToStdout(t *testing.T) {
 	records := makeSessionRecords()
 	writeJSONL(t, dir, "test-session-id", records)
 
-	res, err := (Sessions{}).exportSession(dir,"test-session-id")
+	res, err := (Sessions{}).exportSession(dir, "test-session-id")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "# anthrogo session:")
 	require.Contains(t, res.Text, "👤 User")
@@ -414,7 +414,7 @@ func TestSessions_ExportToFile(t *testing.T) {
 	writeJSONL(t, dir, "test-session-id", records)
 
 	outFile := filepath.Join(t.TempDir(), "out.md")
-	res, err := (Sessions{}).exportSession(dir,"test-session-id -o "+outFile)
+	res, err := (Sessions{}).exportSession(dir, "test-session-id -o "+outFile)
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "exported")
 	require.Contains(t, res.Text, outFile)
@@ -453,7 +453,7 @@ func TestSessions_ExportRendersToolUseAndResult(t *testing.T) {
 	}
 	writeJSONL(t, dir, "tool-session", records)
 
-	res, err := (Sessions{}).exportSession(dir,"tool-session")
+	res, err := (Sessions{}).exportSession(dir, "tool-session")
 	require.NoError(t, err)
 	// Tool use: JSON fenced block
 	require.Contains(t, res.Text, "🔧 Tool: Read")
@@ -489,7 +489,7 @@ func TestSessions_ExportRendersCompactAndError(t *testing.T) {
 	}
 	writeJSONL(t, dir, "compact-error-session", records)
 
-	res, err := (Sessions{}).exportSession(dir,"compact-error-session")
+	res, err := (Sessions{}).exportSession(dir, "compact-error-session")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "> **Compacted:** 50 → 10 messages (manual)")
 	require.Contains(t, res.Text, "> ❗ **Error** during tool_call: permission denied")
@@ -502,7 +502,7 @@ func TestSessions_ExportRendersCompactAndError(t *testing.T) {
 // TestSessions_StatsEmpty — empty dir returns "(no sessions yet)".
 func TestSessions_StatsEmpty(t *testing.T) {
 	dir := t.TempDir()
-	res, err := (Sessions{}).statsSessions(dir,"")
+	res, err := (Sessions{}).statsSessions(dir, "")
 	require.NoError(t, err)
 	require.Equal(t, "(no sessions yet)", res.Text)
 }
@@ -530,18 +530,18 @@ func TestSessions_StatsAggregatesAcrossFiles(t *testing.T) {
 				Usage:     &session.UsageRecord{InputTokens: 200, OutputTokens: 100},
 			},
 			{
-				Kind:      session.KindTurnComplete,
-				Timestamp: ts,
+				Kind:         session.KindTurnComplete,
+				Timestamp:    ts,
 				TurnComplete: &session.TurnComplete{StopReason: "end_turn"},
 			},
 		}
 		writeJSONL(t, dir, name, records)
 	}
 
-	res, err := (Sessions{}).statsSessions(dir,"")
+	res, err := (Sessions{}).statsSessions(dir, "")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "Sessions:   2")
-	require.Contains(t, res.Text, "400 input") // 200+200
+	require.Contains(t, res.Text, "400 input")  // 200+200
 	require.Contains(t, res.Text, "200 output") // 100+100
 	require.Contains(t, res.Text, "Est. cost:")
 	// Cost should be non-zero for claude-sonnet-4-6 (rate $3/$15 per M).
@@ -571,8 +571,8 @@ func TestSessions_StatsSinceFilter(t *testing.T) {
 			Usage:     &session.UsageRecord{InputTokens: 500, OutputTokens: 250},
 		},
 		{
-			Kind:      session.KindTurnComplete,
-			Timestamp: oldTS,
+			Kind:         session.KindTurnComplete,
+			Timestamp:    oldTS,
 			TurnComplete: &session.TurnComplete{StopReason: "end_turn"},
 		},
 	}
@@ -592,15 +592,15 @@ func TestSessions_StatsSinceFilter(t *testing.T) {
 			Usage:     &session.UsageRecord{InputTokens: 100, OutputTokens: 50},
 		},
 		{
-			Kind:      session.KindTurnComplete,
-			Timestamp: newTS,
+			Kind:         session.KindTurnComplete,
+			Timestamp:    newTS,
 			TurnComplete: &session.TurnComplete{StopReason: "end_turn"},
 		},
 	}
 	writeJSONL(t, dir, "old-session", oldRecords)
 	writeJSONL(t, dir, "new-session", newRecords)
 
-	res, err := (Sessions{}).statsSessions(dir,"--since 2026-05-20")
+	res, err := (Sessions{}).statsSessions(dir, "--since 2026-05-20")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "(filtered)")
 	// Only the new session should be counted.
@@ -635,15 +635,15 @@ func TestSessions_StatsPerModelBreakdown(t *testing.T) {
 				Usage:     &session.UsageRecord{InputTokens: 300, OutputTokens: 150},
 			},
 			{
-				Kind:      session.KindTurnComplete,
-				Timestamp: ts,
+				Kind:         session.KindTurnComplete,
+				Timestamp:    ts,
 				TurnComplete: &session.TurnComplete{StopReason: "end_turn"},
 			},
 		}
 		writeJSONL(t, dir, modelName.id, records)
 	}
 
-	res, err := (Sessions{}).statsSessions(dir,"")
+	res, err := (Sessions{}).statsSessions(dir, "")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "Per model:")
 	require.Contains(t, res.Text, "claude-sonnet-4-6")
@@ -771,7 +771,7 @@ func TestSessions_SearchRegex(t *testing.T) {
 	}}
 	writeJSONL(t, dir, "session-regex", records)
 
-	res, err := (Sessions{}).searchSessions(dir,`--regex v\d+\.\d+\.\d+`)
+	res, err := (Sessions{}).searchSessions(dir, `--regex v\d+\.\d+\.\d+`)
 	require.NoError(t, err)
 	require.NotEqual(t, "(no matches)", res.Text)
 	require.Contains(t, res.Text, "[user]")
@@ -781,7 +781,7 @@ func TestSessions_SearchRegex(t *testing.T) {
 // TestSessions_SearchRegexInvalid — invalid regexp returns a descriptive error, not a panic.
 func TestSessions_SearchRegexInvalid(t *testing.T) {
 	dir := t.TempDir()
-	res, err := (Sessions{}).searchSessions(dir,"--regex [invalid")
+	res, err := (Sessions{}).searchSessions(dir, "--regex [invalid")
 	require.NoError(t, err)
 	require.Contains(t, res.Text, "invalid regexp")
 }
@@ -811,7 +811,7 @@ func TestSessions_SearchSinceUntil(t *testing.T) {
 	writeJSONL(t, dir, "session-ts", records)
 
 	// --since 2026-01-01 should exclude the 2025 record.
-	res, err := (Sessions{}).searchSessions(dir,"--since 2026-01-01 needle")
+	res, err := (Sessions{}).searchSessions(dir, "--since 2026-01-01 needle")
 	require.NoError(t, err)
 	lines := splitNonEmpty(res.Text)
 	require.Len(t, lines, 1, "expected only the new record")
@@ -862,7 +862,7 @@ func TestSessions_SearchRecurseSubagents(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(subDir, "sub-001.jsonl"), buf.Bytes(), 0o644))
 
 	// Without --recurse-subagents: no match.
-	res, err := (Sessions{}).searchSessions(dir,"subagent-unique-word")
+	res, err := (Sessions{}).searchSessions(dir, "subagent-unique-word")
 	require.NoError(t, err)
 	require.Equal(t, "(no matches)", res.Text)
 
