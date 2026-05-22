@@ -35,9 +35,9 @@ type chatImageURL struct {
 }
 
 type chatToolCall struct {
-	ID       string          `json:"id"`
-	Type     string          `json:"type"`
-	Function chatFunc        `json:"function"`
+	ID       string   `json:"id"`
+	Type     string   `json:"type"`
+	Function chatFunc `json:"function"`
 	// ExtraContent carries provider-specific opaque metadata that must be
 	// echoed back on subsequent turns. Gemini 3 requires
 	// `extra_content.google.thought_signature` to be present on every
