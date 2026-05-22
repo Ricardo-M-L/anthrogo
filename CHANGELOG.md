@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.13.23-dev] — 2026-05-22
+
+M15.4b — Long-tail quality polish. 9 audit items shipped one
+commit each.
+
+- **O3** Error messages: 3 uppercase-leading errResult sites
+  lowered; 'X required' → 'X is required' normalised across
+  bgtasks + speech tools.
+- **O4** Embed + ImageGen: 5-line `if nil → guard(nil) else
+  guard(c)` pattern collapsed to one-liner via
+  `guard.HTTPClient` already-nil-safe contract.
+- **O5** `errIfNotAbs(field, path)` helper added to read.go;
+  PDFRead, XlsxRead, BrowserAction screenshot deduplicated.
+  Three truncate helpers (sessions/bgtasks/refactor) left as-is
+  due to semantic differences ('…' vs '...', rune vs byte).
+- **O6** `[truncated at 200000 bytes]` literal → `fmt.Sprintf
+  ('[truncated at %d bytes]', <const>)` at 3 sites so the
+  message can't drift from the cap constant.
+- **O8** docs/reference/yaml.md providers_failover description
+  clarified: 'pre-commit error' was misleading; now says 'fails
+  before any event is committed (typically API auth, rate-limit,
+  or network errors during the initial Stream call)'.
+- **O9** .gitignore broadened to cover pprof outputs, mkdocs
+  site/ build output, and editor scratch (*.swp/*.swo).
+- **O1** (partial) startPProfServer + handleGenerateKairosKey
+  extracted from main.go's root RunE. main.go: 1188 → 1167
+  lines. kairos-serve block (~200 lines) deferred — local var
+  capture surface is too wide for a quality milestone.
+- **T1** `t.Parallel()` added to 43 tests across pkg/message,
+  pkg/pricing, pkg/compact, pkg/permissions. -race -count=2
+  clean.
+- **T2** 2 timing-based sleeps replaced with event-based waits:
+  bgtasks Cancel test now polls StatusRunning + 2s deadline;
+  telemetry flush test waits on a server-side channel. Remaining
+  18 sleep sites either legitimate (sleepTool) or worth a
+  dedicated cleanup.
+
+---
+
 ## [0.13.22-dev] — 2026-05-22
 
 M15.4a — Release-blocking essentials. 3 items + repo metadata.
