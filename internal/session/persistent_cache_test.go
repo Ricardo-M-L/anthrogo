@@ -288,3 +288,25 @@ func TestPersistentCache_TrimsBeyondCap(t *testing.T) {
 	require.LessOrEqual(t, c.SizeOnDisk(), maxPersistentCacheRows,
 		"row count must not exceed cap after trim")
 }
+
+func TestStore_New_RefusesSecondOpenOnSameFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionID := "test-flock-1"
+	a, err := New(NewOptions{
+		Cwd:       tmpDir,
+		SessionID: sessionID,
+		Model:     "x",
+	})
+	require.NoError(t, err)
+	defer a.Close()
+	// Second open with same Cwd + SessionID should hit the flock and fail.
+	b, err := New(NewOptions{
+		Cwd:       tmpDir,
+		SessionID: sessionID,
+		Model:     "x",
+	})
+	if b != nil {
+		_ = b.Close()
+	}
+	require.Error(t, err, "second open of the same session JSONL should be refused")
+}

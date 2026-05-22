@@ -44,6 +44,10 @@ func New(opts NewOptions) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := tryLockExclusive(f); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
 	s := &Store{
 		id:        opts.SessionID,
 		path:      path,
