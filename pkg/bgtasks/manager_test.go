@@ -19,6 +19,20 @@ func waitFor(m *Manager, id string, timeout time.Duration) *Task {
 	return t
 }
 
+// waitForRunning polls until the named task is observed in StatusRunning, or
+// `timeout` elapses (whichever comes first). t.Fatal on timeout.
+func waitForRunning(t *testing.T, m *Manager, id string, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if tk, ok := m.Get(id); ok && tk.Status == StatusRunning {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("task %s did not reach StatusRunning within %s", id, timeout)
+}
+
 func TestManager_LaunchAndComplete(t *testing.T) {
 	m := NewManager()
 	id := m.Launch("echo hi")
@@ -41,7 +55,9 @@ func TestManager_LaunchFailed(t *testing.T) {
 func TestManager_Cancel(t *testing.T) {
 	m := NewManager()
 	id := m.Launch("sleep 30")
-	time.Sleep(100 * time.Millisecond) // let it start
+	// Poll until the task is observed in StatusRunning; bounded at 2s so a
+	// hang in cmd startup doesn't deadlock the test.
+	waitForRunning(t, m, id, 2*time.Second)
 	require.NoError(t, m.Cancel(id))
 	task := waitFor(m, id, 2*time.Second)
 	require.NotNil(t, task)

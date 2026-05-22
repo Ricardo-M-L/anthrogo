@@ -34,18 +34,26 @@ func TestReporter_EventSanitizesSensitiveKeys(t *testing.T) {
 }
 
 func TestReporter_FlushSendsBatch(t *testing.T) {
-	var got []byte
+	gotCh := make(chan []byte, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got, _ = io.ReadAll(r.Body)
+		body, _ := io.ReadAll(r.Body)
 		fmt.Fprintln(w, "ok")
+		// Non-blocking send so a double-call doesn't deadlock the test server.
+		select {
+		case gotCh <- body:
+		default:
+		}
 	}))
 	defer srv.Close()
 	r := NewReporter(true, srv.URL, t.TempDir())
 	r.Event("test", map[string]any{"x": 1})
 	r.Close()
-	// give server a moment
-	time.Sleep(100 * time.Millisecond)
-	require.Contains(t, string(got), "\"events\"")
+	select {
+	case got := <-gotCh:
+		require.Contains(t, string(got), "\"events\"")
+	case <-time.After(2 * time.Second):
+		t.Fatal("reporter did not flush within 2s")
+	}
 }
 
 func TestSanitizeEvent_RemovesSensitiveKeys(t *testing.T) {
