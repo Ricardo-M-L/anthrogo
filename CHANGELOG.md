@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.13.20-dev] — 2026-05-22
+
+M15.2 — P1 design defects. 9 items from the deep audit, one
+commit each.
+
+### Concurrency / context
+- **D9** Thread per-call ctx through `permissions.Decide` →
+  `HookDecide`. Hook subprocesses + auto-compact now respect
+  Ctrl-C / engine cancellation; previously bound only by their
+  own timeout. Signature change touches gate.go, context.go,
+  loop.go, kairos/client.go, main.go, 4 test files.
+
+### Resource lifecycle
+- **D1** Advisory `flock(LOCK_EX|LOCK_NB)` on session JSONL —
+  TUI + serve sharing a sessions directory no longer interleave
+  partial lines. Unix-only (Linux/macOS/BSD); Windows is no-op.
+- **D2** JSONL `Flush()` on every record, `Sync()` on durable
+  boundaries. Process crash no longer loses bufio-buffered
+  records.
+- **D3** PersistentCache (SQLite) trims oldest rows beyond 2000
+  on insert. Long-lived installs no longer grow unbounded.
+- **D4** bgtasks.Manager.tasks map capped at 256 entries via
+  LRU on finished tasks; running tasks never evicted.
+- **D5** WebFetch `order` slice cleans stale URL on TTL expiry
+  (prevented duplicate URL push + LRU corruption).
+- **D6** YAML loaders (settings, skill, subagent, plugin) check
+  file size with `os.Stat` before `os.ReadFile`. Caps: 1 MiB
+  settings, 4 MiB SKILL.md, 256 KiB subagent, 1 MiB plugin.
+- **D7** BackgroundLaunch stdout/stderr capped at 1 MiB per
+  stream via locked-buffer truncation marker.
+- **D8** PostToolUse hook AdditionalContext wrapped in
+  `<hook_additional_context>` tags + capped at 32 KiB. Defense
+  against prompt injection from compromised hook scripts.
+
+### Tests
+- 14 new tests across pkg/tool, pkg/bgtasks, internal/session.
+
+### Files: ~17 across pkg/permissions, pkg/query, pkg/kairos, pkg/tool, pkg/bgtasks, pkg/skill, pkg/subagent, pkg/plugin, internal/session, internal/config, cmd/anthrogo.
+
+---
+
 ## [0.13.19-dev] — 2026-05-22
 
 M15.1 — P0 安全+Race 紧急包. 11 issues from the deep audit
