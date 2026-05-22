@@ -81,8 +81,10 @@ func main() {
 	)
 
 	root := &cobra.Command{
-		Use:   "anthrogo",
-		Short: "anthrogo — Go port of Claude Code",
+		Use:           "anthrogo",
+		Short:         "anthrogo — Go port of Claude Code",
+		SilenceUsage:  true, // don't print --help on RunE error
+		SilenceErrors: true, // we print our own error to stderr
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Observability: OTel tracing + Prometheus metrics (opt-in via env vars).
 			rootCtx := cmd.Context()
