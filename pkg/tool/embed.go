@@ -93,6 +93,12 @@ func (e Embed) Call(ctx context.Context, input map[string]any, _ *Context) (Resu
 	}
 	baseURL = strings.TrimRight(baseURL, "/")
 
+	// SSRF protection: validate base_url before any network I/O.
+	guard := DefaultNetGuard()
+	if err := guard.CheckURL(baseURL); err != nil {
+		return errResult("embed: " + err.Error()), nil
+	}
+
 	// Resolve api_key
 	apiKey, _ := input["api_key"].(string)
 	if apiKey == "" {
@@ -158,7 +164,9 @@ func (e Embed) Call(ctx context.Context, input map[string]any, _ *Context) (Resu
 
 	client := e.httpClient
 	if client == nil {
-		client = http.DefaultClient
+		client = guard.HTTPClient(nil)
+	} else {
+		client = guard.HTTPClient(client)
 	}
 	resp, err := client.Do(httpReq)
 	if err != nil {

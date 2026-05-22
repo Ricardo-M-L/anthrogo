@@ -15,6 +15,7 @@ import (
 )
 
 func TestHTTPRequest_GetSuccess(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "GET", r.Method)
 		fmt.Fprintln(w, "hello")
@@ -29,6 +30,7 @@ func TestHTTPRequest_GetSuccess(t *testing.T) {
 }
 
 func TestHTTPRequest_POSTWithBody(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		require.Equal(t, "POST", r.Method)
@@ -67,6 +69,7 @@ func TestHTTPRequest_RejectsBadMethod(t *testing.T) {
 }
 
 func TestHTTPRequest_SaveTo(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("disk content"))
 	}))
@@ -83,6 +86,7 @@ func TestHTTPRequest_SaveTo(t *testing.T) {
 }
 
 func TestHTTPRequest_404IsError(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
 	}))
@@ -94,6 +98,7 @@ func TestHTTPRequest_404IsError(t *testing.T) {
 }
 
 func TestHTTPRequest_MaxResponseSizeTruncates(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write(bytes.Repeat([]byte("x"), 1000))
 	}))

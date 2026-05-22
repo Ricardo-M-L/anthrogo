@@ -38,6 +38,7 @@ func imageGenServer(t *testing.T, statusCode int, b64data string) *httptest.Serv
 }
 
 func TestImageGen_HappyPath(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	b64 := base64.StdEncoding.EncodeToString(minimalPNG)
 	srv := imageGenServer(t, http.StatusOK, b64)
 	defer srv.Close()
@@ -74,6 +75,7 @@ func TestImageGen_MissingPrompt_IsError(t *testing.T) {
 
 func TestImageGen_MissingKey_IsError(t *testing.T) {
 	// Clear all possible key env vars so the tool truly has no key.
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	t.Setenv("ANTHROGO_IMAGE_API_KEY", "")
 	t.Setenv("OPENAI_API_KEY", "")
 	tool := ImageGen{}
@@ -87,6 +89,7 @@ func TestImageGen_MissingKey_IsError(t *testing.T) {
 }
 
 func TestImageGen_ServerError_IsError(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := imageGenServer(t, http.StatusInternalServerError, "")
 	defer srv.Close()
 
@@ -102,6 +105,7 @@ func TestImageGen_ServerError_IsError(t *testing.T) {
 }
 
 func TestImageGen_ErrorRedactsAPIKey(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	const fakeKey = "sk-abcdef0123456789"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -122,6 +126,7 @@ func TestImageGen_ErrorRedactsAPIKey(t *testing.T) {
 }
 
 func TestImageGen_CustomOutPath(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	b64 := base64.StdEncoding.EncodeToString(minimalPNG)
 	srv := imageGenServer(t, http.StatusOK, b64)
 	defer srv.Close()

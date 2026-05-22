@@ -82,6 +82,12 @@ func (ig ImageGen) Call(ctx context.Context, input map[string]any, _ *Context) (
 	}
 	baseURL = strings.TrimRight(baseURL, "/")
 
+	// SSRF protection: validate base_url before any network I/O.
+	guard := DefaultNetGuard()
+	if err := guard.CheckURL(baseURL); err != nil {
+		return errResult("imagegen: " + err.Error()), nil
+	}
+
 	// Resolve api_key
 	apiKey, _ := input["api_key"].(string)
 	if apiKey == "" {
@@ -129,7 +135,9 @@ func (ig ImageGen) Call(ctx context.Context, input map[string]any, _ *Context) (
 
 	client := ig.httpClient
 	if client == nil {
-		client = http.DefaultClient
+		client = guard.HTTPClient(nil)
+	} else {
+		client = guard.HTTPClient(client)
 	}
 	resp, err := client.Do(httpReq)
 	if err != nil {

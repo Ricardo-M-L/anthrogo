@@ -34,6 +34,7 @@ func buildEmbedResponse(model string, n, dim int) []byte {
 }
 
 func TestEmbed_SingleInput_Summary(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/embeddings", r.URL.Path)
 		require.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
@@ -57,6 +58,7 @@ func TestEmbed_SingleInput_Summary(t *testing.T) {
 }
 
 func TestEmbed_BatchInputList(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
@@ -81,6 +83,7 @@ func TestEmbed_BatchInputList(t *testing.T) {
 }
 
 func TestEmbed_JSONOutput(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	const dim = 4
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -111,6 +114,7 @@ func TestEmbed_JSONOutput(t *testing.T) {
 
 func TestEmbed_MissingKey_IsError(t *testing.T) {
 	// Clear all possible key env vars so the tool truly has no key.
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	t.Setenv("ANTHROGO_EMBED_API_KEY", "")
 	t.Setenv("OPENAI_API_KEY", "")
 	tool := Embed{}
@@ -124,6 +128,7 @@ func TestEmbed_MissingKey_IsError(t *testing.T) {
 }
 
 func TestEmbed_NoInput_IsError(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	tool := Embed{}
 	res, err := tool.Call(context.Background(), map[string]any{
 		"base_url": "http://localhost:1",
@@ -135,6 +140,7 @@ func TestEmbed_NoInput_IsError(t *testing.T) {
 }
 
 func TestEmbed_ServerError_IsError(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprint(w, `{"error":"internal"}`)
@@ -153,6 +159,7 @@ func TestEmbed_ServerError_IsError(t *testing.T) {
 }
 
 func TestEmbed_ErrorRedactsAPIKey(t *testing.T) {
+	t.Setenv("ANTHROGO_NETGUARD_ALLOW_LOOPBACK", "1")
 	const fakeKey = "sk-abcdef0123456789"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

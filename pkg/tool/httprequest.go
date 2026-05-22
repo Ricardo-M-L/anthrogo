@@ -26,7 +26,10 @@ var allowedMethods = map[string]bool{
 // Unlike WebFetch (GET-only + HTML→markdown), HTTPRequest supports all
 // common HTTP verbs, raw body in/out, configurable timeout and response
 // size cap, and optional file-save of the response body.
-type HTTPRequest struct{ DefaultPermission }
+type HTTPRequest struct {
+	DefaultPermission
+	netGuard *NetGuard // nil → DefaultNetGuard() used per call
+}
 
 func (*HTTPRequest) Name() string { return "HTTPRequest" }
 
@@ -85,13 +88,22 @@ func (*HTTPRequest) Schema() map[string]any {
 	}
 }
 
-func (*HTTPRequest) Call(ctx context.Context, input map[string]any, _ *Context) (Result, error) {
+func (t *HTTPRequest) Call(ctx context.Context, input map[string]any, _ *Context) (Result, error) {
 	url, _ := input["url"].(string)
 	if url == "" {
 		return errResult("httprequest: url required"), nil
 	}
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		return errResult("httprequest: only http(s) URLs allowed"), nil
+	}
+
+	// SSRF protection: pre-flight URL check before DNS is consulted by http.Client.
+	guard := t.netGuard
+	if guard == nil {
+		guard = DefaultNetGuard()
+	}
+	if err := guard.CheckURL(url); err != nil {
+		return errResult("httprequest: " + err.Error()), nil
 	}
 
 	method, _ := input["method"].(string)
@@ -128,7 +140,9 @@ func (*HTTPRequest) Call(ctx context.Context, input map[string]any, _ *Context) 
 	}
 	req.Header.Set("User-Agent", "anthrogo/0.12.2 HTTPRequest")
 
-	resp, err := http.DefaultClient.Do(req)
+	// Use the guarded client (installs Dialer Control for DNS-rebinding defense).
+	httpClient := guard.HTTPClient(nil)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return errResult("httprequest: " + err.Error()), nil
 	}

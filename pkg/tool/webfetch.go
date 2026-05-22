@@ -25,10 +25,11 @@ type cacheEntry struct {
 
 type WebFetch struct {
 	DefaultPermission
-	mu    sync.Mutex
-	cache map[string]cacheEntry
-	order []string
-	conv  *md.Converter
+	mu       sync.Mutex
+	cache    map[string]cacheEntry
+	order    []string
+	conv     *md.Converter
+	netGuard *NetGuard // nil → DefaultNetGuard() used per call
 }
 
 func NewWebFetch() *WebFetch {
@@ -68,12 +69,24 @@ func (w *WebFetch) Call(ctx context.Context, input map[string]any, _ *Context) (
 		return Result{Type: ResultText, Text: cached, ForLLM: cached, Data: map[string]any{"cached": true}}, nil
 	}
 
+	// SSRF protection: pre-flight URL check.
+	guard := w.netGuard
+	if guard == nil {
+		guard = DefaultNetGuard()
+	}
+	if err := guard.CheckURL(url); err != nil {
+		return errResult("webfetch: " + err.Error()), nil
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return errResult(err.Error()), nil
 	}
 	req.Header.Set("User-Agent", "anthrogo/0.2")
-	resp, err := http.DefaultClient.Do(req)
+	// Use the guarded client (installs Dialer Control for DNS-rebinding defense,
+	// and also adds a 30s timeout replacing the no-timeout http.DefaultClient).
+	httpClient := guard.HTTPClient(nil)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return errResult(err.Error()), nil
 	}
