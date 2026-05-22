@@ -72,3 +72,42 @@ func TestRunner_CommandNotFound(t *testing.T) {
 	// So we expect no setup error but exit code 127.
 	require.NoError(t, err)
 }
+
+func TestSanitizedEnv_StripsAPIKeyPrefixes(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "sk-secret")
+	t.Setenv("OPENAI_API_KEY", "sk-openai")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "aws-secret")
+	t.Setenv("GITHUB_TOKEN", "gh-secret")
+	t.Setenv("USER", "alice") // should pass through
+	t.Setenv("ANTHROGO_HOOKS_FULL_ENV", "")
+
+	env := sanitizedEnv()
+
+	require.NotContains(t, env, "ANTHROPIC_API_KEY=sk-secret")
+	require.NotContains(t, env, "OPENAI_API_KEY=sk-openai")
+	require.NotContains(t, env, "AWS_SECRET_ACCESS_KEY=aws-secret")
+	require.NotContains(t, env, "GITHUB_TOKEN=gh-secret")
+
+	found := false
+	for _, e := range env {
+		if e == "USER=alice" {
+			found = true
+		}
+	}
+	require.True(t, found, "USER should be passed through")
+}
+
+func TestSanitizedEnv_FullEnvEscapeHatch(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "sk-secret")
+	t.Setenv("ANTHROGO_HOOKS_FULL_ENV", "1")
+
+	env := sanitizedEnv()
+
+	found := false
+	for _, e := range env {
+		if e == "ANTHROPIC_API_KEY=sk-secret" {
+			found = true
+		}
+	}
+	require.True(t, found, "with FULL_ENV=1 the API key should pass through")
+}

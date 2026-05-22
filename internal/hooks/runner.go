@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -41,6 +43,7 @@ func RunHook(ctx context.Context, spec Spec, payload any) (*Result, error) {
 
 	cmd := exec.CommandContext(runCtx, "sh", "-c", spec.Command)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Env = sanitizedEnv()
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil
@@ -115,4 +118,71 @@ func (l *limitedWriter) Write(p []byte) (int, error) {
 	n, err := l.w.Write(p)
 	l.n -= n
 	return n, err
+}
+
+// sanitizedEnv returns the parent environment with credential-bearing
+// variables stripped. Hooks execute user-supplied scripts; passing through
+// every API key would let a malicious or compromised hook exfiltrate them.
+// Callers wanting an unfiltered hook env can opt back in via the
+// ANTHROGO_HOOKS_FULL_ENV=1 escape hatch.
+func sanitizedEnv() []string {
+	if os.Getenv("ANTHROGO_HOOKS_FULL_ENV") == "1" {
+		return os.Environ()
+	}
+	denyPrefixes := []string{
+		"ANTHROPIC_",
+		"OPENAI_",
+		"GROQ_",
+		"MISTRAL_",
+		"COHERE_",
+		"DEEPSEEK_",
+		"KIMI_",
+		"MOONSHOT_",
+		"MINIMAX_",
+		"GLM_",
+		"ZHIPU_",
+		"AWS_",
+		"AZURE_",
+		"GOOGLE_",
+		"GCP_",
+		"VERTEX_",
+		"HUGGINGFACE_",
+		"SLACK_",
+		"GITHUB_TOKEN",
+		"GH_TOKEN",
+		"NPM_TOKEN",
+		"PYPI_",
+		"ANTHROGO_EMBED_",
+		"ANTHROGO_IMAGE_",
+	}
+	denyExact := map[string]bool{
+		"GITHUB_TOKEN":  true,
+		"GH_TOKEN":      true,
+		"NPM_TOKEN":     true,
+		"ANTHROGO_API_KEY": true,
+	}
+	out := os.Environ()[:0:0]
+	for _, e := range os.Environ() {
+		eq := strings.IndexByte(e, '=')
+		if eq < 0 {
+			out = append(out, e)
+			continue
+		}
+		name := e[:eq]
+		if denyExact[name] {
+			continue
+		}
+		drop := false
+		for _, p := range denyPrefixes {
+			if strings.HasPrefix(name, p) {
+				drop = true
+				break
+			}
+		}
+		if drop {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }
