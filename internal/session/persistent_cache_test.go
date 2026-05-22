@@ -326,3 +326,22 @@ func TestPersistentCache_UsesWALMode(t *testing.T) {
 	// synchronous returns integer string: 1=NORMAL, 2=FULL
 	require.Equal(t, "1", sync, "expected synchronous=NORMAL (1)")
 }
+
+func TestStore_Resume_RefusesSecondOpenOnSameFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionID := "test-resume-flock"
+
+	// Create a session first.
+	a, err := New(NewOptions{Cwd: tmpDir, SessionID: sessionID, Model: "x"})
+	require.NoError(t, err)
+	// Don't close it yet — keep the lock held.
+
+	// Try to Resume the same session while the first handle holds the lock.
+	// Expected: error, not a silently-interleaved second writer.
+	b, err := Resume(tmpDir, sessionID)
+	if b != nil {
+		_ = b.Close()
+	}
+	require.Error(t, err, "Resume must refuse to attach to an actively-locked session JSONL")
+	_ = a.Close()
+}

@@ -115,6 +115,13 @@ func Resume(cwd, sessionID string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Apply the same advisory exclusive lock that New() uses, so resuming a
+	// session that another anthrogo process is actively writing fails
+	// cleanly instead of interleaving JSONL records on disk.
+	if err := tryLockExclusive(f); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
 	return &Store{
 		id:   sessionID,
 		path: path,
