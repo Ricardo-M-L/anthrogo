@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -127,4 +128,16 @@ func TestResolveServeToken_EmptyWhenAllAbsent(t *testing.T) {
 func TestResolveServeToken_FileNotFound_ReturnsError(t *testing.T) {
 	_, err := resolveServeToken("", "/nonexistent/path/token")
 	require.Error(t, err)
+}
+
+func TestVersionSubcommand_PrintsVersion(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "anthrogo")
+	build := exec.Command("go", "build", "-o", bin, ".")
+	build.Dir = "."
+	if buildOut, err := build.CombinedOutput(); err != nil {
+		t.Skipf("could not build test binary: %s", string(buildOut))
+	}
+	out, err := exec.Command(bin, "version").CombinedOutput()
+	require.NoError(t, err, "version subcommand should exit 0, got %s", string(out))
+	require.Contains(t, string(out), "anthrogo ")
 }

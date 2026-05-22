@@ -867,6 +867,15 @@ func main() {
 	root.AddCommand(newServeCmd())
 	root.AddCommand(newWebCmd())
 
+	versionCmd := &cobra.Command{
+		Use:   "version",
+		Short: "Print the anthrogo version and exit",
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Printf("anthrogo %s\n", version.Version)
+		},
+	}
+	root.AddCommand(versionCmd)
+
 	var forceInit bool
 	initCmd := &cobra.Command{
 		Use:   "init-config",
