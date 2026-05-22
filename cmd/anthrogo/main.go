@@ -502,7 +502,7 @@ func main() {
 			taskTool := tool.NewTask(subagentReg, func(ctx context.Context, opts tool.TaskOptions) (string, error) {
 				e := engineRef.Load()
 				if e == nil {
-					return "", fmt.Errorf("Task: engine not initialized")
+					return "", fmt.Errorf("task: engine not initialized")
 				}
 				return e.RunSubagent(ctx, query.SubagentOptions{
 					Type:        opts.SubagentType,

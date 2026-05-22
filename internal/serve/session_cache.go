@@ -25,36 +25,6 @@ func newSessionCache() *sessionCache {
 	return &sessionCache{entries: make(map[string]*cacheEntry, maxCachedSessions)}
 }
 
-// get returns the Engine for sessionID and updates its last-access time.
-// Returns nil if the session is not cached.
-func (c *sessionCache) get(sessionID string) *query.Engine {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	e, ok := c.entries[sessionID]
-	if !ok {
-		return nil
-	}
-	e.lastAccess = time.Now()
-	return e.engine
-}
-
-// put stores engine under sessionID. If the cache is at capacity it first
-// evicts the entry with the oldest last-access time.
-func (c *sessionCache) put(sessionID string, engine *query.Engine) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	// If already present just refresh access time.
-	if e, ok := c.entries[sessionID]; ok {
-		e.engine = engine
-		e.lastAccess = time.Now()
-		return
-	}
-	if len(c.entries) >= maxCachedSessions {
-		c.evictOldestLocked()
-	}
-	c.entries[sessionID] = &cacheEntry{engine: engine, lastAccess: time.Now()}
-}
-
 // GetOrCreate returns the cached Engine for sessionID, or calls builder to
 // construct one. The entire get→build→put sequence is performed under the
 // write lock so that concurrent calls for the same ID always produce exactly

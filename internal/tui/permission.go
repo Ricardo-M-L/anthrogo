@@ -419,13 +419,6 @@ func (p *permission) handleElicitMulti(k tea.KeyMsg) bool {
 	return true
 }
 
-func renderInput(s string, focused bool) string {
-	if focused {
-		return fmt.Sprintf("> %s█", s)
-	}
-	return fmt.Sprintf("> %s", s)
-}
-
 // renderInputWithCursor renders the buffer with a block cursor at the given rune position.
 func renderInputWithCursor(buf []rune, cursor int, focused bool) string {
 	if !focused {

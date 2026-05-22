@@ -43,7 +43,19 @@ linters:
         linters:
           - errcheck
           - staticcheck   # tests sometimes use deprecated APIs intentionally
-    # Allow `if err := ...; err != nil { ... }` shadowing.
+      # Allow `if err := ...; err != nil { ... }` shadowing — common Go idiom.
+      - text: 'shadow: declaration of "err" shadows declaration'
+        linters:
+          - govet
+      # staticcheck QF* are "quick-fix" suggestions, not bugs. Silence as a
+      # category until we want to bulk-apply them.
+      - text: '^QF[0-9]'
+        linters:
+          - staticcheck
+      # Auto-suggestion to merge var declaration with assignment — stylistic.
+      - text: '^S1021:'
+        linters:
+          - staticcheck
     presets:
       - common-false-positives
 

@@ -69,18 +69,6 @@ func (lb *lockedBuffer) snapshot() []byte {
 	return append([]byte(nil), lb.buf.Bytes()...)
 }
 
-// taskSnapshot is the immutable view returned by Manager.Get().
-type taskSnapshot struct {
-	ID         string
-	Command    string
-	Status     Status
-	Stdout     bytes.Buffer
-	Stderr     bytes.Buffer
-	ExitCode   int
-	StartedAt  time.Time
-	FinishedAt time.Time
-}
-
 // Task holds the runtime state of one background task.
 type Task struct {
 	ID         string

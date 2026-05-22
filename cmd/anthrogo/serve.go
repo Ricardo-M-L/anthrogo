@@ -95,7 +95,7 @@ Endpoints:
 			skillReg := skill.NewRegistry(nil)
 			subagentReg := subagent.NewRegistry()
 			taskTool := tool.NewTask(subagentReg, func(ctx context.Context, opts tool.TaskOptions) (string, error) {
-				return "", fmt.Errorf("Task subagents not available in serve mode")
+				return "", fmt.Errorf("task subagents not available in serve mode")
 			})
 			tools.Register(tool.NewSkill(skillReg))
 			tools.Register(taskTool)
