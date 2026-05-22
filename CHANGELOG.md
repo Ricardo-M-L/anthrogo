@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.13.22-dev] — 2026-05-22
+
+M15.4a — Release-blocking essentials. 3 items + repo metadata.
+
+- **O2** go.mod stays at `go 1.26` (cdproto v2026.03 forces it
+  via chromedp); added `toolchain go1.26.1` directive and an
+  explanatory comment. `docs/install.md` + `docs/development.md`
+  updated to say `Go 1.26+ (chromedp/cdproto pins this minimum)`.
+- **O7** `anthrogo version` subcommand: prints `anthrogo
+  <Version>` and exits. The existing `--version` flag still
+  works; both forms coexist.
+- **LICENSE** AGPL-3.0 (full text from gnu.org, 661 lines).
+- **SECURITY.md** Private-report policy + scope split + map
+  of V*/R*/K*/D* audit IDs to CHANGELOG entries.
+- **CONTRIBUTING.md** Build prereqs, repo-layout table, test
+  conventions, license-compatibility note.
+- **README.md** License section references AGPL-3.0 + network
+  copyleft obligation; new Contributing section.
+
+### Tests added: 1 (`anthrogo version` subcommand smoke test).
+
+---
+
 ## [0.13.21-dev] — 2026-05-22
 
 M15.3 — P2 robustness. 5 items from the deep audit, one commit
