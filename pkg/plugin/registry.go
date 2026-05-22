@@ -269,7 +269,7 @@ func extractTarGz(archivePath, destDir string) error {
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 				return err
 			}
-			out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(hdr.Mode))
+			out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, safeArchiveMode(os.FileMode(hdr.Mode)))
 			if err != nil {
 				return err
 			}
@@ -299,7 +299,7 @@ func extractZip(archivePath, destDir string) error {
 		}
 
 		if file.FileInfo().IsDir() {
-			if err := os.MkdirAll(target, file.Mode()); err != nil {
+			if err := os.MkdirAll(target, safeArchiveMode(file.Mode())); err != nil {
 				return err
 			}
 			continue
@@ -308,7 +308,7 @@ func extractZip(archivePath, destDir string) error {
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
-		out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
+		out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, safeArchiveMode(file.Mode()))
 		if err != nil {
 			return err
 		}
@@ -378,21 +378,17 @@ func copyDir(src, dst string) error {
 		rel, _ := filepath.Rel(src, path)
 		target := filepath.Join(dst, rel)
 		if info.Mode()&os.ModeSymlink != 0 {
-			link, err := os.Readlink(path)
-			if err != nil {
-				return err
-			}
-			return os.Symlink(link, target)
+			return fmt.Errorf("plugin contains symlink: %s — refusing to install for security", rel)
 		}
 		if info.IsDir() {
-			return os.MkdirAll(target, info.Mode())
+			return os.MkdirAll(target, safeArchiveMode(info.Mode()))
 		}
 		in, err := os.Open(path)
 		if err != nil {
 			return err
 		}
 		defer in.Close()
-		out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+		out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, safeArchiveMode(info.Mode()))
 		if err != nil {
 			return err
 		}
@@ -400,4 +396,11 @@ func copyDir(src, dst string) error {
 		_, err = io.Copy(out, in)
 		return err
 	})
+}
+
+// safeArchiveMode strips setuid/setgid/sticky bits and world-write from a
+// file mode parsed from an untrusted archive header. Mirrors the skill
+// helper of the same name.
+func safeArchiveMode(m os.FileMode) os.FileMode {
+	return m & 0o755
 }

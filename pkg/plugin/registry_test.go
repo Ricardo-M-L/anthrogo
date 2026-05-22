@@ -376,3 +376,8 @@ func TestRegistry_Install_FromGit_NoGitOnPath(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "git clone failed")
 }
+
+func TestSafeArchiveMode_PluginStripsSetuid(t *testing.T) {
+	got := safeArchiveMode(0o7777)
+	require.Equal(t, os.FileMode(0o755), got)
+}

@@ -161,3 +161,21 @@ func TestRegistry_Reload_ReplacesAtomically(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "git-flow", sk.Name)
 }
+
+func TestSafeArchiveMode_StripsSetuidSetgidSticky(t *testing.T) {
+	// setuid (04000) | setgid (02000) | sticky (01000) | 0777 = 07777
+	got := safeArchiveMode(0o7777)
+	require.Equal(t, os.FileMode(0o755), got)
+}
+
+func TestSafeArchiveMode_StripsWorldWrite(t *testing.T) {
+	// world-writable file (0666) should drop to (0644-ish via the mask, actually 0644 not 0664)
+	got := safeArchiveMode(0o666)
+	require.Equal(t, os.FileMode(0o644), got)
+}
+
+func TestSafeArchiveMode_PreservesNormalModes(t *testing.T) {
+	require.Equal(t, os.FileMode(0o755), safeArchiveMode(0o755))
+	require.Equal(t, os.FileMode(0o644), safeArchiveMode(0o644))
+	require.Equal(t, os.FileMode(0o600), safeArchiveMode(0o600))
+}
