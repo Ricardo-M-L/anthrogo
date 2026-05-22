@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.13.19-dev] — 2026-05-22
+
+M15.1 — P0 安全+Race 紧急包. 11 issues from the deep audit
+shipped one-by-one (each its own commit, each its own gate).
+
+### Security (real vulnerabilities)
+- **V1** Bearer token compare now `crypto/subtle.ConstantTimeCompare` (was string `!=`, leaked length + content via timing).
+- **V2** SSRF protection on `HTTPRequest`, `WebFetch`, `Embed`, `ImageGen`: new `pkg/tool/netguard.go` blocks loopback / link-local (covers AWS IMDS) / RFC-1918 / multicast / file:// — both at URL check time and at dial time (DNS-rebinding defense via custom Dialer).
+- **V3** `serve` no longer defaults to `ModeBypassPermissions` when `ServerConfig.Permissions` is nil. Defaults to `ModeDefault` + `ShouldAvoidPrompts=true` (Ask → Deny). Bypass is opt-in.
+- **V4** Archive extraction strips setuid/setgid/sticky/world-write bits from file modes (skill + plugin); plugin's copy path now also refuses symlinks to mirror skill's M14.2 hardening.
+- **V5** Hook subprocesses run with sanitized env: `ANTHROPIC_*`, `OPENAI_*`, `AWS_*`, `AZURE_*`, `GITHUB_TOKEN`, etc. stripped by default. Escape hatch: `ANTHROGO_HOOKS_FULL_ENV=1`.
+- **V6** `--token` for `serve`/`web` now flagged insecure (`ps aux` exposure). Two new options: `--token-file <path>` and `$ANTHROGO_SERVE_TOKEN`.
+- **V7** Session JSONL + TUI input history changed from `0o644` to `0o600`. Privacy fix on shared boxes.
+
+### Races / leaks (confirmed bugs)
+- **R1** `Engine.denials` append + read now protected by `e.mu`. Was a data race under parallel safe-tool dispatch.
+- **R2** `hooks.Manager.Drain` made idempotent via `sync.Once`. Multi-call no longer risks close-of-closed-channel panic.
+- **R3** `SlackPost.Call` honors context cancellation. Was using `client.Post` with `_ ctx`; Ctrl-C couldn't abort a hung webhook.
+- **R4** `executeToolSafe` wraps `executeTool` with `defer/recover`. Any tool panic now becomes an IsError tool_result instead of killing the process.
+
+### Tests added: 38+
+- netguard suite (21), SlackPost cancel (1), SanitizedEnv (2), resolveServeToken (5), safeArchiveMode (4), Drain idempotency (1), panicTool recovery (1), per-tool SSRF guards (5)
+
+### Files: ~25 across pkg/tool, pkg/query, pkg/skill, pkg/plugin, internal/serve, internal/hooks, internal/session, internal/tui, cmd/anthrogo.
+
+---
+
 ## [0.13.18-dev] — 2026-05-21
 
 M14.4 — Test backfill + go.mod hygiene.
