@@ -7,10 +7,9 @@ import (
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/ricardo/anthrogo/internal/hooks"
 	"github.com/ricardo/anthrogo/internal/mcp"
+	"github.com/ricardo/anthrogo/internal/yamlsafe"
 	"github.com/ricardo/anthrogo/pkg/skill"
 )
 
@@ -74,7 +73,7 @@ func loadDir(root, source string) ([]Plugin, []string) {
 			continue
 		}
 		var m Manifest
-		if err := yaml.Unmarshal(raw, &m); err != nil {
+		if err := yamlsafe.Unmarshal(raw, &m, "plugin "+dirname+"/plugin.yaml", &warnings); err != nil {
 			warnings = append(warnings, fmt.Sprintf("plugin %q: bad YAML: %v", dirname, err))
 			continue
 		}
@@ -149,7 +148,7 @@ func loadOneSkill(skillDir, source string) (skill.Skill, bool, string) {
 		Name        string `yaml:"name"`
 		Description string `yaml:"description"`
 	}
-	if err := yaml.Unmarshal(fm, &meta); err != nil {
+	if err := yamlsafe.Unmarshal(fm, &meta, "plugin SKILL.md ("+source+")", nil); err != nil {
 		return skill.Skill{}, false, "bad YAML: " + err.Error()
 	}
 	if meta.Name == "" || meta.Description == "" {

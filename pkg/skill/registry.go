@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"gopkg.in/yaml.v3"
+	"github.com/ricardo/anthrogo/internal/yamlsafe"
 )
 
 // maxSkillArchiveBytes is the maximum size of a skill archive downloaded via URL.
@@ -107,8 +107,12 @@ func (r *Registry) installFromDir(srcDir, destRoot string) (Skill, []string, err
 		Name        string `yaml:"name"`
 		Description string `yaml:"description"`
 	}
-	if err := yaml.Unmarshal(fm, &meta); err != nil {
+	var warns []string
+	if err := yamlsafe.Unmarshal(fm, &meta, "install SKILL.md", &warns); err != nil {
 		return Skill{}, nil, fmt.Errorf("install: bad YAML: %w", err)
+	}
+	for _, w := range warns {
+		fmt.Fprintf(os.Stderr, "anthrogo: %s\n", w)
 	}
 	if meta.Name == "" {
 		return Skill{}, nil, fmt.Errorf("install: empty skill name")

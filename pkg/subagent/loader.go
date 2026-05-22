@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/ricardo/anthrogo/internal/yamlsafe"
 )
 
 // maxSubagentYAMLBytes caps the size of a subagent spec file we'll load.
@@ -91,7 +91,7 @@ func loadDir(root string) ([]Spec, []string) {
 			continue
 		}
 		var y yamlSpec
-		if err := yaml.Unmarshal(raw, &y); err != nil {
+		if err := yamlsafe.Unmarshal(raw, &y, "subagent "+stem, &warnings); err != nil {
 			warnings = append(warnings, fmt.Sprintf("subagent %q: bad YAML: %v", stem, err))
 			continue
 		}

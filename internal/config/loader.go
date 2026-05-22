@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/ricardo/anthrogo/internal/hooks"
 	"github.com/ricardo/anthrogo/internal/mcp"
+	"github.com/ricardo/anthrogo/internal/yamlsafe"
 	"github.com/ricardo/anthrogo/pkg/permissions"
 )
 
@@ -145,8 +144,12 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	cfg := defaults()
-	if err := yaml.Unmarshal(raw, &cfg); err != nil {
+	var yamlWarnings []string
+	if err := yamlsafe.Unmarshal(raw, &cfg, "settings.yaml", &yamlWarnings); err != nil {
 		return Config{}, err
+	}
+	for _, w := range yamlWarnings {
+		fmt.Fprintf(os.Stderr, "anthrogo: %s\n", w)
 	}
 	// Expand hook paths and fill default timeouts; warnings are surfaced by callers.
 	cfg.Hooks.Expand()

@@ -7,8 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
+	"github.com/ricardo/anthrogo/internal/yamlsafe"
 	"github.com/ricardo/anthrogo/pkg/command"
 )
 
@@ -89,8 +88,12 @@ func installHookBundle(src, root string) (command.Result, error) {
 	var m struct {
 		Name string `yaml:"name"`
 	}
-	if err := yaml.Unmarshal(raw, &m); err != nil {
+	var warns []string
+	if err := yamlsafe.Unmarshal(raw, &m, "hook.yaml", &warns); err != nil {
 		return command.Result{Text: "install: bad yaml: " + err.Error()}, nil
+	}
+	for _, w := range warns {
+		fmt.Fprintf(os.Stderr, "anthrogo: %s\n", w)
 	}
 	if m.Name == "" {
 		return command.Result{Text: "install: empty hook name in hook.yaml"}, nil

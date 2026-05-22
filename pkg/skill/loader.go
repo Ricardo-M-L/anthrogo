@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/ricardo/anthrogo/internal/yamlsafe"
 )
 
 const maxBodyBytes = 1 << 20
@@ -86,7 +86,7 @@ func loadDir(root, source string) ([]Skill, []string) {
 			continue
 		}
 		var meta frontmatter
-		if err := yaml.Unmarshal(fm, &meta); err != nil {
+		if err := yamlsafe.Unmarshal(fm, &meta, "skill "+name+"/SKILL.md", &warnings); err != nil {
 			warnings = append(warnings, fmt.Sprintf("skill %q: bad YAML: %v", name, err))
 			continue
 		}

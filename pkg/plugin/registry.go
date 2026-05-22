@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"gopkg.in/yaml.v3"
+	"github.com/ricardo/anthrogo/internal/yamlsafe"
 )
 
 // Registry holds all loaded plugins, thread-safe.
@@ -92,8 +92,12 @@ func (r *Registry) installFromDir(srcDir, destRoot string) (Plugin, []string, er
 		return Plugin{}, nil, fmt.Errorf("install: no plugin.yaml in %s: %w", srcDir, err)
 	}
 	var m Manifest
-	if err := yaml.Unmarshal(raw, &m); err != nil {
+	var warns []string
+	if err := yamlsafe.Unmarshal(raw, &m, "install plugin.yaml", &warns); err != nil {
 		return Plugin{}, nil, fmt.Errorf("install: bad manifest: %w", err)
+	}
+	for _, w := range warns {
+		fmt.Fprintf(os.Stderr, "anthrogo: %s\n", w)
 	}
 	if !nameRE.MatchString(m.Name) {
 		return Plugin{}, nil, fmt.Errorf("install: invalid plugin name %q", m.Name)
