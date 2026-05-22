@@ -499,11 +499,25 @@ func (e *Engine) executeTool(ctx context.Context, b message.Block, out chan<- Ev
 	}
 
 	resultText := res.ModelText()
-	// Invoke PostToolUse hook; any returned additional context is appended to result.
+	// Invoke PostToolUse hook; any returned additional context is appended
+	// to the tool result. The hook output is delimited by HOOK_CONTEXT tags
+	// + capped at 32 KiB so a compromised or buggy hook cannot:
+	//   - inject instructions that look like model-authored content
+	//     (HOOK_CONTEXT tags clearly fence the boundary)
+	//   - balloon a tool_result to consume the context window
+	//     (cap with truncation marker)
+	// The trust model: user-configured hooks are trusted by definition,
+	// but defense-in-depth helps when hook scripts are themselves
+	// generated or fetched (template engines, shell shared with other
+	// processes, etc.).
 	if e.cfg.Hooks != nil {
 		responseMap := map[string]any{"text": resultText, "is_error": res.IsError}
 		if extra := e.cfg.Hooks.FirePostToolUse(ctx, b.ToolName, b.Input, responseMap); extra != "" {
-			resultText = resultText + "\n\n" + extra
+			const maxHookExtraBytes = 32 * 1024
+			if len(extra) > maxHookExtraBytes {
+				extra = extra[:maxHookExtraBytes] + "\n... [hook output truncated]"
+			}
+			resultText = resultText + "\n\n<hook_additional_context>\n" + extra + "\n</hook_additional_context>"
 		}
 	}
 
