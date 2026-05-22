@@ -40,7 +40,7 @@ func New(opts NewOptions) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func NewSubagent(parent *Store, subagentID string) (*Store, error) {
 		return nil, err
 	}
 	path := filepath.Join(dir, subagentID+".jsonl")
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func Resume(cwd, sessionID string) (*Store, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("session %s not found: %w", sessionID, err)
 	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return nil, err
 	}

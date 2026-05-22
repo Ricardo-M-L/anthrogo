@@ -68,7 +68,7 @@ func (p *promptInput) appendHistory(text string) {
 	}
 	if p.historyPath != "" {
 		_ = os.MkdirAll(filepath.Dir(p.historyPath), 0o755)
-		f, err := os.OpenFile(p.historyPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+		f, err := os.OpenFile(p.historyPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 		if err == nil {
 			fmt.Fprintln(f, text)
 			f.Close()
