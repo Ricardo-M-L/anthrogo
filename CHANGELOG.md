@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.14.1] — 2026-05-22
+
+Post-v0.14.0 polish: distribution paths + governance + workflow
+hardening + dependency refresh.
+
+### Distribution (M16.1)
+- **Homebrew tap**: `brew install Ricardo-M-L/tap/anthrogo` works.
+  goreleaser auto-publishes the formula on every tag.
+- **Prebuilt binaries**: linux/darwin × amd64/arm64 attached to
+  every Release via goreleaser.
+- **Docker image**: `ghcr.io/ricardo-m-l/anthrogo:latest`,
+  multi-arch (linux/amd64 + linux/arm64), distroless.
+- **README + README.zh.md**: TUI mockup, 3-path install table,
+  4-mode quickstart, English + 简体中文 cross-links.
+
+### OSS governance (M16.2)
+- Issue templates (bug + feature + config), PR template.
+- CODE_OF_CONDUCT.md (Contributor Covenant v2.1), CODEOWNERS.
+- Dependabot weekly gomod + actions, grouped by vendor.
+- govulncheck workflow (weekly + push + PR).
+- CodeQL workflow (Go + JavaScript).
+- GitHub Discussions enabled.
+
+### Engineering quality (M16.3)
+- .golangci.yml migrated to v2 schema; lint job restored as
+  a CI gate.
+- coverage upload to codecov + 3 new badges (CodeQL / govuln /
+  codecov).
+- 3 Go fuzz tests (UnmarshalJSONLine, icsEscape, foldICalLine).
+  Found + fixed a real bug in icsEscape: `\r` was not escaped
+  per RFC 5545 §3.3.11.
+- docs/architecture.md with 6 mermaid diagrams.
+- install.md expanded with Homebrew / prebuilt binary / Docker
+  / Gatekeeper note sections.
+- Dead-code cleanup: removed unused `(*sessionCache).get/put`,
+  `renderInput`, `taskSnapshot` types/funcs flagged by lint v2.
+
+### Dependency updates (merged via dependabot)
+- `golang.org/x/crypto` 0.51.0 → 0.52.0
+- `github.com/spf13/cobra` 1.8.1 → 1.10.2
+- `bubbletea` group: bubbles 0.18 → 1.0, bubbletea 0.27 → 1.3.10,
+  glamour 0.7 → 1.0, lipgloss 0.13 → 1.1.1-dev. Fixed deprecated
+  `viewport.LineUp/LineDown` → `ScrollUp/ScrollDown` in
+  internal/tui/chat.go.
+- GitHub Actions: checkout v4 → v6, setup-python 5 → 6,
+  upload-pages-artifact 3 → 5.
+
+### Deferred to a future milestone
+- `anthropic-sdk-go` 0.2.0-alpha → 1.45.0 (issue #8): major-version
+  API rewrite — `sdk.F[T]()` helpers gone, ToolUnionUnionParam
+  renamed, MessageStreamEvent removed. Needs hand-written
+  migration of pkg/provider/anthropic.
+
+---
+
 ## [0.14.0] — 2026-05-22
 
 **First stable release.** Rolls up everything from v0.13.0-dev

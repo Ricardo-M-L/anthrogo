@@ -1,4 +1,4 @@
 package version
 
 // Version is the binary version. Overwritten via -ldflags at release.
-var Version = "0.14.0"
+var Version = "0.14.1"
