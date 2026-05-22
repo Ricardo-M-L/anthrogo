@@ -33,6 +33,7 @@ nav:
     - Installation: install.md
     - First run: first-run.md
     - Configuration: configuration.md
+    - Architecture: architecture.md
     - Migration guide: migration.md
   - Features:
     - Tools: tools.md
@@ -83,7 +84,11 @@ nav:
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
   - tables
