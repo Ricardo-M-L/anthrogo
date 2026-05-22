@@ -22,17 +22,44 @@ const (
 	StatusCanceled Status = "canceled"
 )
 
+// maxBGStreamBytes caps how much stdout / stderr we retain per background
+// task. Further writes are silently dropped (the underlying process keeps
+// running; only the in-memory copy is bounded).
+const maxBGStreamBytes = 1 << 20 // 1 MiB, matches hooks runner
+
 // lockedBuffer is a bytes.Buffer protected by a mutex so that exec.Cmd's
 // internal copy goroutines and Manager.Get() can access it concurrently.
+// Capped at maxBGStreamBytes; writes past the cap return success but are
+// dropped (with a one-time `... [truncated at N bytes]` marker appended).
 type lockedBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
+	mu        sync.Mutex
+	buf       bytes.Buffer
+	truncated bool
 }
 
 func (lb *lockedBuffer) Write(p []byte) (int, error) {
 	lb.mu.Lock()
 	defer lb.mu.Unlock()
-	return lb.buf.Write(p)
+	remaining := maxBGStreamBytes - lb.buf.Len()
+	if remaining <= 0 {
+		if !lb.truncated {
+			lb.buf.WriteString(fmt.Sprintf("\n... [truncated at %d bytes]\n", maxBGStreamBytes))
+			lb.truncated = true
+		}
+		// Return len(p) so exec.Cmd's copier doesn't see a short write.
+		return len(p), nil
+	}
+	if len(p) > remaining {
+		_, err := lb.buf.Write(p[:remaining])
+		if err == nil && !lb.truncated {
+			lb.buf.WriteString(fmt.Sprintf("\n... [truncated at %d bytes]\n", maxBGStreamBytes))
+			lb.truncated = true
+		}
+		// Pretend full absorption.
+		return len(p), err
+	}
+	_, err := lb.buf.Write(p)
+	return len(p), err
 }
 
 // snapshot returns a copy of the current contents.

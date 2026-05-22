@@ -138,3 +138,23 @@ func TestManager_DoesNotEvictRunningTasks(t *testing.T) {
 	_ = m.Launch("true")
 	require.Contains(t, m.tasks, runningID, "running task must not be evicted")
 }
+
+func TestLockedBuffer_TruncatesPastCap(t *testing.T) {
+	var lb lockedBuffer
+	// Write maxBGStreamBytes + 1024 bytes.
+	chunk := make([]byte, 4096)
+	for i := range chunk {
+		chunk[i] = 'A'
+	}
+	total := 0
+	for total < maxBGStreamBytes+1024 {
+		n, err := lb.Write(chunk)
+		require.NoError(t, err)
+		require.Equal(t, len(chunk), n, "Write must report full absorption to satisfy io.Writer contract")
+		total += n
+	}
+	snap := lb.snapshot()
+	require.LessOrEqual(t, len(snap), maxBGStreamBytes+128,
+		"snapshot must not exceed cap by more than the truncation marker")
+	require.Contains(t, string(snap[len(snap)-128:]), "truncated at")
+}
