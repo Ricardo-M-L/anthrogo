@@ -3,6 +3,9 @@
 **English** | [简体中文](README.zh.md)
 
 [![CI](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/ci.yml/badge.svg)](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/codeql.yml/badge.svg)](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/codeql.yml)
+[![Vulnerability scan](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/govulncheck.yml/badge.svg)](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/govulncheck.yml)
+[![codecov](https://codecov.io/gh/Ricardo-M-L/anthrogo/branch/main/graph/badge.svg)](https://codecov.io/gh/Ricardo-M-L/anthrogo)
 [![Docs](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/docs.yml/badge.svg)](https://ricardo-m-l.github.io/anthrogo/)
 [![Release](https://img.shields.io/github/v/release/Ricardo-M-L/anthrogo)](https://github.com/Ricardo-M-L/anthrogo/releases/latest)
 [![Go Reference](https://pkg.go.dev/badge/github.com/ricardo/anthrogo.svg)](https://pkg.go.dev/github.com/ricardo/anthrogo)
