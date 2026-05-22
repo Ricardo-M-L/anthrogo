@@ -113,5 +113,12 @@ anthrogo/
 
 ## License
 
-Source code Anthropic-attributed in the reference repo. This port is for
-research and personal use; do not redistribute commercially.
+AGPL-3.0. See [LICENSE](LICENSE) for the full text. The original Claude
+Code reference implementation is Anthropic's; this Go port is independent
+and licensed AGPL-3.0 — if you deploy a network-accessible service built
+on anthrogo, you must offer corresponding source to its users.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for build, test, and patch flow.
+Security issues: see [SECURITY.md](SECURITY.md).
