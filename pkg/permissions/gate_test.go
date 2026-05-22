@@ -17,6 +17,7 @@ func ctx() *Context {
 }
 
 func TestGate_BypassMode_AlwaysAllow(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.Mode = ModeBypassPermissions
 	c.IsBypassAvailable = true
@@ -25,6 +26,7 @@ func TestGate_BypassMode_AlwaysAllow(t *testing.T) {
 }
 
 func TestGate_DenyTrumpsAllow(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.AlwaysAllowRules[SourceUser] = []Rule{{Tool: "Bash"}}
 	c.AlwaysDenyRules[SourceUser] = []Rule{{Tool: "Bash", Pattern: "rm -rf*"}}
@@ -33,6 +35,7 @@ func TestGate_DenyTrumpsAllow(t *testing.T) {
 }
 
 func TestGate_AllowMatched(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.AlwaysAllowRules[SourceUser] = []Rule{{Tool: "Bash", Pattern: "git status*"}}
 	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "git status -s"})
@@ -40,12 +43,14 @@ func TestGate_AllowMatched(t *testing.T) {
 }
 
 func TestGate_NoRule_FallsBackToAsk(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "git push"})
 	require.Equal(t, BehaviorAsk, d.Behavior)
 }
 
 func TestGate_AskAvoided_ReturnsDeny(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.ShouldAvoidPrompts = true
 	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "git push"})
@@ -53,6 +58,7 @@ func TestGate_AskAvoided_ReturnsDeny(t *testing.T) {
 }
 
 func TestGate_AcceptEdits_AllowsWriteEdit(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.Mode = ModeAcceptEdits
 	for _, tool := range []string{"Write", "Edit"} {
@@ -65,6 +71,7 @@ func TestGate_AcceptEdits_AllowsWriteEdit(t *testing.T) {
 }
 
 func TestGate_PlanMode_DeniesWriteTools(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.Mode = ModePlan
 	for _, tool := range []string{"Write", "Edit", "NotebookEdit"} {
@@ -74,6 +81,7 @@ func TestGate_PlanMode_DeniesWriteTools(t *testing.T) {
 }
 
 func TestGate_PlanMode_AllowsReadOnlyBash(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.Mode = ModePlan
 	c.AlwaysAllowRules[SourceCLI] = []Rule{{Tool: "Bash"}}
@@ -82,6 +90,7 @@ func TestGate_PlanMode_AllowsReadOnlyBash(t *testing.T) {
 }
 
 func TestGate_PlanMode_DeniesWriteBash(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.Mode = ModePlan
 	c.AlwaysAllowRules[SourceCLI] = []Rule{{Tool: "Bash"}}
@@ -90,6 +99,7 @@ func TestGate_PlanMode_DeniesWriteBash(t *testing.T) {
 }
 
 func TestGate_PlanMode_AllowsReadTools(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.Mode = ModePlan
 	c.AlwaysAllowRules[SourceCLI] = []Rule{{Tool: "Read"}}
@@ -100,6 +110,7 @@ func TestGate_PlanMode_AllowsReadTools(t *testing.T) {
 // Plan mode must hard-lock write tools even when an alwaysAllow rule would
 // otherwise let them through. Locks in the reviewer's M2 spec-compliance ask.
 func TestGate_PlanMode_HardLocksWriteEvenWithAllowRule(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.Mode = ModePlan
 	c.AlwaysAllowRules[SourceCLI] = []Rule{
@@ -114,6 +125,7 @@ func TestGate_PlanMode_HardLocksWriteEvenWithAllowRule(t *testing.T) {
 }
 
 func TestGate_HookDeny_ShortCircuits(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.HookDecide = func(_ context.Context, toolName string, input map[string]any) HookOutcome {
 		return HookOutcome{Deny: true, Reason: "hook said no"}
@@ -124,6 +136,7 @@ func TestGate_HookDeny_ShortCircuits(t *testing.T) {
 }
 
 func TestGate_HookAllow_OverridesAsk(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	// No rules → would normally be BehaviorAsk.
 	c.HookDecide = func(_ context.Context, toolName string, input map[string]any) HookOutcome {
@@ -135,6 +148,7 @@ func TestGate_HookAllow_OverridesAsk(t *testing.T) {
 }
 
 func TestGate_HookAllow_DoesNotUnlockPlanModeWriteTool(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.Mode = ModePlan
 	c.HookDecide = func(_ context.Context, toolName string, input map[string]any) HookOutcome {
@@ -147,6 +161,7 @@ func TestGate_HookAllow_DoesNotUnlockPlanModeWriteTool(t *testing.T) {
 }
 
 func TestGate_HookModifiedInput_Visible(t *testing.T) {
+	t.Parallel()
 	c := ctx()
 	c.HookDecide = func(_ context.Context, toolName string, input map[string]any) HookOutcome {
 		// Pass but return a modified input.

@@ -30,6 +30,7 @@ func writeTempPNG(t *testing.T) string {
 }
 
 func TestParseUserPrompt_PlainText(t *testing.T) {
+	t.Parallel()
 	blocks, err := ParseUserPrompt("hello world")
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
@@ -38,12 +39,14 @@ func TestParseUserPrompt_PlainText(t *testing.T) {
 }
 
 func TestParseUserPrompt_EmptyString(t *testing.T) {
+	t.Parallel()
 	blocks, err := ParseUserPrompt("")
 	require.NoError(t, err)
 	require.Nil(t, blocks)
 }
 
 func TestParseUserPrompt_SingleImage(t *testing.T) {
+	t.Parallel()
 	p := writeTempPNG(t)
 	blocks, err := ParseUserPrompt("@image:" + p)
 	require.NoError(t, err)
@@ -56,6 +59,7 @@ func TestParseUserPrompt_SingleImage(t *testing.T) {
 }
 
 func TestParseUserPrompt_TextBeforeAndAfterImage(t *testing.T) {
+	t.Parallel()
 	p := writeTempPNG(t)
 	prompt := "before @image:" + p + " after"
 	blocks, err := ParseUserPrompt(prompt)
@@ -69,6 +73,7 @@ func TestParseUserPrompt_TextBeforeAndAfterImage(t *testing.T) {
 }
 
 func TestParseUserPrompt_MultipleImages(t *testing.T) {
+	t.Parallel()
 	p1 := writeTempPNG(t)
 	p2 := writeTempPNG(t)
 	prompt := "@image:" + p1 + " text @image:" + p2
@@ -82,6 +87,7 @@ func TestParseUserPrompt_MultipleImages(t *testing.T) {
 }
 
 func TestParseUserPrompt_UnsupportedMime(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	p := filepath.Join(dir, "file.txt")
 	require.NoError(t, os.WriteFile(p, []byte("hello text file"), 0600))
@@ -91,6 +97,7 @@ func TestParseUserPrompt_UnsupportedMime(t *testing.T) {
 }
 
 func TestParseUserPrompt_MissingFile(t *testing.T) {
+	t.Parallel()
 	_, err := ParseUserPrompt("@image:/nonexistent/path/img.png")
 	require.Error(t, err)
 }

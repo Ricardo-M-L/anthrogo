@@ -32,6 +32,7 @@ func summaryProvider(summary string) provider.Provider {
 }
 
 func TestCompact_NoOpWhenShort(t *testing.T) {
+	t.Parallel()
 	msgs := []message.Message{textMsg(message.RoleUser, "hi"), textMsg(message.RoleAssistant, "hello")}
 	out, err := Run(context.Background(), Input{
 		Provider:   summaryProvider("unused"),
@@ -46,6 +47,7 @@ func TestCompact_NoOpWhenShort(t *testing.T) {
 }
 
 func TestCompact_SummarizesHead(t *testing.T) {
+	t.Parallel()
 	msgs := make([]message.Message, 15)
 	for i := range msgs {
 		if i%2 == 0 {
@@ -73,6 +75,7 @@ func TestCompact_SummarizesHead(t *testing.T) {
 // find an assistant message, so the resulting conversation starts with the
 // summary user-message followed immediately by an assistant turn.
 func TestCompact_AssistantBoundary(t *testing.T) {
+	t.Parallel()
 	// 15 messages: 0=user,1=asst,...,14=user. KeepRecent=10 → desiredSplit=5.
 	// msgs[5] is assistant → split=5, head=5, tail=10. newCount=11.
 	msgs := make([]message.Message, 15)
@@ -100,6 +103,7 @@ func TestCompact_AssistantBoundary(t *testing.T) {
 // TestCompact_NoAssistantBoundary verifies skipping when no assistant turn exists
 // in the window to anchor the split.
 func TestCompact_NoAssistantBoundary(t *testing.T) {
+	t.Parallel()
 	// All user messages — no assistant boundary to find.
 	msgs := make([]message.Message, 15)
 	for i := range msgs {
@@ -117,6 +121,7 @@ func TestCompact_NoAssistantBoundary(t *testing.T) {
 }
 
 func TestCompact_PartialStreamThenError_ReturnsAccumulated(t *testing.T) {
+	t.Parallel()
 	fp := fake.New([]provider.Event{
 		{Kind: provider.EventTextDelta, Text: "PARTIAL"},
 		{Kind: provider.EventError, Err: errors.New("upstream cut")},
@@ -135,6 +140,7 @@ func TestCompact_PartialStreamThenError_ReturnsAccumulated(t *testing.T) {
 }
 
 func TestCompact_ProviderError_PropagatesUntouched(t *testing.T) {
+	t.Parallel()
 	// Adaptation: fake.New (variadic) instead of fake.NewScripted.
 	// The fake provider sends EventError on the channel (does NOT return it from Stream).
 	// streamSummary handles this by reading ev.Err from the channel.

@@ -8,6 +8,7 @@ import (
 )
 
 func TestTextBlockRoundTrip(t *testing.T) {
+	t.Parallel()
 	b := Block{Type: BlockText, Text: "hi"}
 	data, err := json.Marshal(b)
 	require.NoError(t, err)
@@ -19,6 +20,7 @@ func TestTextBlockRoundTrip(t *testing.T) {
 }
 
 func TestToolUseBlockRoundTrip(t *testing.T) {
+	t.Parallel()
 	b := Block{
 		Type:      BlockToolUse,
 		ToolUseID: "abc",
@@ -36,6 +38,7 @@ func TestToolUseBlockRoundTrip(t *testing.T) {
 }
 
 func TestToolResultBlockMarksError(t *testing.T) {
+	t.Parallel()
 	b := Block{
 		Type:      BlockToolResult,
 		ToolUseID: "abc",

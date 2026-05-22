@@ -9,6 +9,7 @@ import (
 )
 
 func TestTable_ExactMatch(t *testing.T) {
+	t.Parallel()
 	tbl := pricing.NewTable(map[string]pricing.Rate{
 		"claude-sonnet-4-6": {InputPerM: 3.0, OutputPerM: 15.0},
 		"claude-haiku-4-5-*": {InputPerM: 1.0, OutputPerM: 5.0},
@@ -20,6 +21,7 @@ func TestTable_ExactMatch(t *testing.T) {
 }
 
 func TestTable_GlobMatch(t *testing.T) {
+	t.Parallel()
 	tbl := pricing.NewTable(map[string]pricing.Rate{
 		"claude-haiku-4-5-*": {InputPerM: 1.0, OutputPerM: 5.0},
 	})
@@ -30,6 +32,7 @@ func TestTable_GlobMatch(t *testing.T) {
 }
 
 func TestTable_NoMatch(t *testing.T) {
+	t.Parallel()
 	tbl := pricing.NewTable(map[string]pricing.Rate{
 		"claude-sonnet-4-6": {InputPerM: 3.0, OutputPerM: 15.0},
 	})
@@ -38,6 +41,7 @@ func TestTable_NoMatch(t *testing.T) {
 }
 
 func TestEstimateUSD_LinearScaling(t *testing.T) {
+	t.Parallel()
 	rate := pricing.Rate{InputPerM: 3.0, OutputPerM: 15.0}
 
 	// 1M input + 0 output = $3.00

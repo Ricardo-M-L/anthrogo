@@ -7,6 +7,7 @@ import (
 )
 
 func TestDefaultRates_HasMajorModels(t *testing.T) {
+	t.Parallel()
 	rates := DefaultRates()
 	for _, model := range []string{
 		"claude-sonnet-4-6",
@@ -27,6 +28,7 @@ func TestDefaultRates_HasMajorModels(t *testing.T) {
 }
 
 func TestDefaultRates_BedrockVertexAliases(t *testing.T) {
+	t.Parallel()
 	tbl := NewTable(DefaultRates())
 	cases := []struct {
 		model string
@@ -53,6 +55,7 @@ func TestDefaultRates_BedrockVertexAliases(t *testing.T) {
 }
 
 func TestMergeWithUserRates_UserOverridesBuiltin(t *testing.T) {
+	t.Parallel()
 	user := map[string]Rate{
 		"claude-sonnet-4-6": {InputPerM: 99.0, OutputPerM: 999.0},
 	}
@@ -65,6 +68,7 @@ func TestMergeWithUserRates_UserOverridesBuiltin(t *testing.T) {
 }
 
 func TestMergeWithUserRates_PreservesBuiltinsWhenUserMissing(t *testing.T) {
+	t.Parallel()
 	user := map[string]Rate{
 		"my-private-model": {InputPerM: 1.0, OutputPerM: 2.0},
 	}
