@@ -6,8 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"os"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGit_StatusInRepo(t *testing.T) {
