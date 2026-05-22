@@ -2,9 +2,20 @@ bin/
 /anthrogo
 *.test
 *.out
+*.prof
+*.pprof
+*.cpuprofile
+*.memprofile
 .DS_Store
 .idea/
 .vscode/
 coverage.txt
+coverage.html
 vendor/
 .anthrogo/
+# Local mkdocs build output
+site/
+# Editor / OS scratch
+*~
+*.swp
+*.swo
