@@ -165,6 +165,11 @@ func parseSSE(resp *http.Response, out chan<- provider.Event) {
 
 	// Track which tool-call indexes we've already emitted EventToolUseStart for.
 	seenToolCallIdx := map[int]bool{}
+	// sawToolCall remembers whether any tool_calls delta appeared in this
+	// stream. Gemini 3 (via OpenAI-compat) emits finish_reason="stop" even
+	// when a tool_use was just dispatched — different from OpenAI's
+	// finish_reason="tool_calls" convention. We override when needed.
+	sawToolCall := false
 	// Buffer partial tool call arguments per index (not needed for streaming event translation,
 	// but we track seen status per index).
 
@@ -208,6 +213,7 @@ func parseSSE(resp *http.Response, out chan<- provider.Event) {
 		}
 
 		for _, tc := range delta.ToolCalls {
+			sawToolCall = true
 			if !seenToolCallIdx[tc.Index] && tc.ID != "" {
 				seenToolCallIdx[tc.Index] = true
 				out <- provider.Event{
@@ -226,9 +232,16 @@ func parseSSE(resp *http.Response, out chan<- provider.Event) {
 
 		if choice.FinishReason != "" {
 			out <- provider.Event{Kind: provider.EventBlockStop}
+			fr := choice.FinishReason
+			// Gemini 3 quirk: finish_reason="stop" even with a tool_call
+			// in the same response. Coerce to OpenAI-standard "tool_calls"
+			// so the engine takes the tool_use path instead of ending.
+			if fr == "stop" && sawToolCall {
+				fr = "tool_calls"
+			}
 			out <- provider.Event{
 				Kind:       provider.EventMessageStop,
-				StopReason: mapFinishReason(choice.FinishReason),
+				StopReason: mapFinishReason(fr),
 			}
 		}
 
