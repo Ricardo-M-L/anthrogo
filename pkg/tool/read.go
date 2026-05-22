@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -89,6 +90,18 @@ func intField(input map[string]any, key string, def int) int {
 
 func errResult(msg string) Result {
 	return Result{Type: ResultText, Text: msg, ForLLM: msg, IsError: true}
+}
+
+// errIfNotAbs validates that a tool's path-typed input is absolute. Returns
+// (errResult, true) to be passed back directly when invalid; (Result{}, false)
+// when valid. Used by PDFRead, XlsxRead, BrowserAction (screenshot) etc. to
+// reject LLM-supplied relative paths that would silently resolve against
+// the process CWD.
+func errIfNotAbs(field, path string) (Result, bool) {
+	if !filepath.IsAbs(path) {
+		return errResult(field + " must be an absolute path"), true
+	}
+	return Result{}, false
 }
 
 const readDescription = `Read a file from the local filesystem. Returns up to 2000 lines starting from line 1; use offset/limit for paging. Each line is prefixed with its 1-indexed line number and a tab.`

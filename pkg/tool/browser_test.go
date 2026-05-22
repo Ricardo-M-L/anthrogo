@@ -81,7 +81,7 @@ func TestBrowser_Screenshot_RejectsRelativePath(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 	assert.True(t, result.IsError)
-	assert.Contains(t, result.Text, "out_path must be absolute")
+	assert.Contains(t, result.Text, "out_path must be an absolute path")
 }
 
 // TestBrowser_Close_RemovesUserDataDir verifies that Close removes the temp

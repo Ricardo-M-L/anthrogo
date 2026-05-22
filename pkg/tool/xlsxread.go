@@ -3,7 +3,6 @@ package tool
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/xuri/excelize/v2"
@@ -51,8 +50,8 @@ func (XlsxRead) Call(ctx context.Context, input map[string]any, _ *Context) (Res
 	if !ok || path == "" {
 		return errResult("file_path is required"), nil
 	}
-	if !filepath.IsAbs(path) {
-		return errResult("file_path must be an absolute path"), nil
+	if r, isErr := errIfNotAbs("file_path", path); isErr {
+		return r, nil
 	}
 
 	f, err := excelize.OpenFile(path)

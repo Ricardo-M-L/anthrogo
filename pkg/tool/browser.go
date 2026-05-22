@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -120,8 +119,8 @@ func (b *Browser) Call(parent context.Context, input map[string]any, _ *Context)
 		if outPath == "" {
 			return errResult("out_path is required for mode=screenshot"), nil
 		}
-		if !filepath.IsAbs(outPath) {
-			return errResult("out_path must be absolute"), nil
+		if r, isErr := errIfNotAbs("out_path", outPath); isErr {
+			return r, nil
 		}
 	default:
 		return errResult(fmt.Sprintf("unknown mode %q; must be get|click|text|screenshot", mode)), nil
