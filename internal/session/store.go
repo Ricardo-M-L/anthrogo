@@ -135,10 +135,17 @@ func (s *Store) Append(r Record) error {
 	if _, err := s.w.Write(line); err != nil {
 		return err
 	}
+	// Always Flush() — pushes userland bufio bytes into the OS file so an
+	// anthrogo crash mid-turn doesn't lose records sitting in bufio's
+	// internal buffer. The OS page cache survives a process crash; a
+	// machine crash before sync still loses these bytes, which is the
+	// trade-off accepted to avoid per-record fsync overhead.
+	if err := s.w.Flush(); err != nil {
+		return err
+	}
+	// Sync() to disk only on durable boundaries — TurnComplete, Error,
+	// Compact — to cap fsync frequency.
 	if r.Kind == KindTurnComplete || r.Kind == KindError || r.Kind == KindCompact {
-		if err := s.w.Flush(); err != nil {
-			return err
-		}
 		return s.f.Sync()
 	}
 	return nil
