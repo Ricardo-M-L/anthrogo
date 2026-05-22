@@ -162,12 +162,7 @@ func (e Embed) Call(ctx context.Context, input map[string]any, _ *Context) (Resu
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 
-	client := e.httpClient
-	if client == nil {
-		client = guard.HTTPClient(nil)
-	} else {
-		client = guard.HTTPClient(client)
-	}
+	client := guard.HTTPClient(e.httpClient)
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return errResult("embed: http: " + err.Error()), nil

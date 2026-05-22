@@ -133,12 +133,7 @@ func (ig ImageGen) Call(ctx context.Context, input map[string]any, _ *Context) (
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 
-	client := ig.httpClient
-	if client == nil {
-		client = guard.HTTPClient(nil)
-	} else {
-		client = guard.HTTPClient(client)
-	}
+	client := guard.HTTPClient(ig.httpClient)
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return errResult("imagegen: http: " + err.Error()), nil
