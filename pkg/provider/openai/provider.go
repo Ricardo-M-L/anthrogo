@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ricardo/anthrogo/pkg/provider"
@@ -18,8 +19,11 @@ type Provider struct {
 	BaseURL string
 	APIKey  string
 	// Client is the HTTP client used for requests. When nil, a default client
-	// with a 5-minute timeout is used.
+	// with a 5-minute timeout is used (lazily initialised + cached).
 	Client *http.Client
+
+	defaultOnce   sync.Once
+	defaultClient *http.Client
 }
 
 // New constructs a Provider.
@@ -31,7 +35,10 @@ func (p *Provider) httpClient() *http.Client {
 	if p.Client != nil {
 		return p.Client
 	}
-	return &http.Client{Timeout: 5 * time.Minute}
+	p.defaultOnce.Do(func() {
+		p.defaultClient = &http.Client{Timeout: 5 * time.Minute}
+	})
+	return p.defaultClient
 }
 
 // Stream implements provider.Provider.
