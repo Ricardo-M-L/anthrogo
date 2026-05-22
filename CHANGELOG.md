@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.14.0] — 2026-05-22
+
+**First stable release.** Rolls up everything from v0.13.0-dev
+through v0.13.23-dev: 15 feature milestones (M13.1-M13.15) +
+4 audit waves (M14.1-M14.4, M15.1-M15.4b), 49 audit fixes total.
+
+Highlights since v0.13:
+- TUI + headless + HTTP daemon + web UI in one binary.
+- 30+ built-in tools: Read/Write/Edit/Bash/Glob/Grep, PDFRead,
+  XlsxRead, BrowserAction, SlackPost, CalendarEvent, Embed,
+  ImageGen, HTTPRequest, SQLQuery, WebFetch, WebSearch, Task,
+  Skill, MCPResource, BackgroundLaunch, Format, References,
+  Git, Speech, EnterPlanMode/ExitPlanMode, AskUserQuestion,
+  NotebookEdit, Compact.
+- Providers: Anthropic, OpenAI-compatible (DeepSeek, Kimi,
+  MiniMax, GLM, vllm, Ollama, etc.), AWS Bedrock, GCP Vertex,
+  Failover.
+- MCP: stdio + SSE + streamable HTTP transports, OAuth client,
+  ed25519 signing for remote KAIROS subagents.
+- Session: JSONL persistence + SQLite replay cache, flock,
+  fsync-on-boundary, 0o600 mode.
+- Security: SSRF guard with DNS-rebinding defense, timing-safe
+  bearer compare, archive setuid/setgid stripping, hook env
+  sanitization, subagent insecure_skip_verify gating.
+- Reliability: stream retry, cancel-safe tool drain, panic
+  recovery, idempotent shutdown.
+
+See git log v0.13.0-dev..v0.14.0 for the full ~50-commit
+release-prep series.
+
+---
+
 ## [0.13.23-dev] — 2026-05-22
 
 M15.4b — Long-tail quality polish. 9 audit items shipped one
