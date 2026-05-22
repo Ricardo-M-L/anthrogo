@@ -87,6 +87,16 @@ func NewPersistentCache(dbPath string, memCap int) *PersistentCache {
 		fmt.Fprintf(os.Stderr, "session cache: open %s: %v\n", dbPath, err)
 		return &PersistentCache{mem: mem}
 	}
+	// WAL mode lets concurrent readers run alongside one writer, and
+	// synchronous=NORMAL is the documented sweet spot for WAL: ACI but not D
+	// across power loss within ~milliseconds — acceptable for a derived cache
+	// we can always rebuild from JSONL.
+	if _, err := db.Exec("PRAGMA journal_mode = WAL"); err != nil {
+		fmt.Fprintf(os.Stderr, "session cache: WAL: %v\n", err)
+	}
+	if _, err := db.Exec("PRAGMA synchronous = NORMAL"); err != nil {
+		fmt.Fprintf(os.Stderr, "session cache: synchronous: %v\n", err)
+	}
 	if err := openAndMigrate(db); err != nil {
 		fmt.Fprintf(os.Stderr, "session cache: schema: %v\n", err)
 		_ = db.Close()

@@ -310,3 +310,19 @@ func TestStore_New_RefusesSecondOpenOnSameFile(t *testing.T) {
 	}
 	require.Error(t, err, "second open of the same session JSONL should be refused")
 }
+
+func TestPersistentCache_UsesWALMode(t *testing.T) {
+	tmpDir := t.TempDir()
+	c := NewPersistentCache(filepath.Join(tmpDir, "cache.db"), 8)
+	require.NotNil(t, c.db)
+	defer c.Close()
+
+	var mode string
+	require.NoError(t, c.db.QueryRow("PRAGMA journal_mode").Scan(&mode))
+	require.Equal(t, "wal", mode, "expected journal_mode=wal after K5")
+
+	var sync string
+	require.NoError(t, c.db.QueryRow("PRAGMA synchronous").Scan(&sync))
+	// synchronous returns integer string: 1=NORMAL, 2=FULL
+	require.Equal(t, "1", sync, "expected synchronous=NORMAL (1)")
+}
