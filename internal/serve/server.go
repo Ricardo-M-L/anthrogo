@@ -220,8 +220,14 @@ func (s *Server) getOrCreateEngine(sessionID string) (*query.Engine, error) {
 
 		perms := s.cfg.Permissions
 		if perms == nil {
+			// Safe default: gate stays at ModeDefault so the engine asks
+			// before destructive tools. ShouldAvoidPrompts=true because
+			// there is no interactive TUI to receive prompts — under that
+			// flag, the gate treats Ask as Deny rather than blocking.
+			// Callers that want bypass must opt in explicitly via
+			// ServerConfig.Permissions.
 			perms = &permissions.Context{
-				Mode:               permissions.ModeBypassPermissions,
+				Mode:               permissions.ModeDefault,
 				ShouldAvoidPrompts: true,
 			}
 		}
