@@ -20,9 +20,10 @@ type ManagerOptions struct {
 
 // Manager coordinates hook dispatch for all nine events.
 type Manager struct {
-	cfg  Config
-	opts ManagerOptions
-	wg   sync.WaitGroup
+	cfg      Config
+	opts     ManagerOptions
+	wg       sync.WaitGroup
+	drainOnce sync.Once
 }
 
 // NewManager creates a Manager. cfg should already have been Validate()d.
@@ -249,13 +250,25 @@ func (m *Manager) fireAsync(ctx context.Context, eventName EventName, hooks []Sp
 	}()
 }
 
-// Drain blocks until all in-flight async hook goroutines finish or timeout elapses.
+// Drain blocks until all in-flight async hook goroutines finish or timeout
+// elapses. Idempotent and safe to call multiple times: the helper goroutine
+// that waits on m.wg is spawned only on the first call (via drainOnce), so a
+// second invocation after the first timed out won't race to close(done) or
+// leak another waiter. After the timeout, the m.wg.Wait() goroutine remains
+// pending until the hooks eventually finish — acceptable since the process
+// is exiting and the goroutine will be cleaned up by the runtime.
 func (m *Manager) Drain(timeout time.Duration) {
 	done := make(chan struct{})
-	go func() {
-		m.wg.Wait()
-		close(done)
-	}()
+	m.drainOnce.Do(func() {
+		go func() {
+			m.wg.Wait()
+			close(done)
+		}()
+	})
+	// If drainOnce already fired previously, `done` is a fresh channel that
+	// will never be closed by this call — fall through to the timeout. This
+	// preserves the idempotent contract: returning is always bounded by
+	// `timeout`, and we never close an already-closed channel.
 	select {
 	case <-done:
 	case <-time.After(timeout):

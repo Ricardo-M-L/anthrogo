@@ -151,3 +151,15 @@ func TestManager_FirePreToolUse_Timeout_ReturnsDeny(t *testing.T) {
 	require.Equal(t, DecisionDeny, dec.Behavior)
 	require.Contains(t, dec.Reason, "timeout")
 }
+
+func TestManager_Drain_IsIdempotent(t *testing.T) {
+	m := NewManager(Config{}, ManagerOptions{})
+	// First call returns immediately (no in-flight hooks); the inner goroutine
+	// spawned by drainOnce closes its `done` channel.
+	m.Drain(50 * time.Millisecond)
+	// Second call must not panic on close-of-closed-channel; drainOnce
+	// suppresses re-spawning, and we fall through to the timeout safely.
+	require.NotPanics(t, func() {
+		m.Drain(50 * time.Millisecond)
+	})
+}
