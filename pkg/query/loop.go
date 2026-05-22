@@ -439,11 +439,13 @@ func (e *Engine) executeTool(ctx context.Context, b message.Block, out chan<- Ev
 	}
 
 	if decision.Behavior == permissions.BehaviorDeny {
+		e.mu.Lock()
 		e.denials = append(e.denials, PermissionDenial{
 			ToolName:  b.ToolName,
 			ToolUseID: b.ToolUseID,
 			ToolInput: b.Input,
 		})
+		e.mu.Unlock()
 		msg := "permission denied: " + decision.Reason
 		out <- Event{Kind: KindToolResult, ToolUseID: b.ToolUseID, ToolName: b.ToolName, IsError: true, Text: msg}
 		e.recordIfHooked(session.Record{

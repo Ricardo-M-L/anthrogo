@@ -9,6 +9,8 @@ type PermissionDenial struct {
 
 // Denials returns a copy of all denials recorded during this engine's lifetime.
 func (e *Engine) Denials() []PermissionDenial {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	out := make([]PermissionDenial, len(e.denials))
 	copy(out, e.denials)
 	return out
