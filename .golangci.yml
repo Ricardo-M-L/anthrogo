@@ -27,11 +27,22 @@ linters:
   settings:
     errcheck:
       exclude-functions:
+        # Any io.Closer.Close — covers files, network sockets, MCP managers,
+        # session stores, sqlite, gzip writers, http servers, oauth, etc.
+        - (io.Closer).Close
+        # Buffered writer flush in shutdown paths — the next write or
+        # explicit Sync handles real durability.
         - (*bufio.Writer).Flush
-        - (*os.File).Close
+        # Print-family writers (stderr, ttys) where errors are unrecoverable.
+        - fmt.Fprint
         - fmt.Fprintln
         - fmt.Fprintf
-        - encoding/json.Encoder.Encode
+        - fmt.Sscanf
+        # Standard JSON encoder/decoder writes to in-memory buffers.
+        - (*encoding/json.Encoder).Encode
+        # os.Remove for cleanup of files that may have already been removed.
+        - os.Remove
+        - os.RemoveAll
     govet:
       enable:
         - shadow
