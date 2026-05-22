@@ -16,7 +16,7 @@ func TestSpeechToText_MissingPath(t *testing.T) {
 	res, err := (&SpeechToText{}).Call(context.Background(), map[string]any{}, nil)
 	require.NoError(t, err)
 	require.True(t, res.IsError)
-	require.Contains(t, res.Text, "path required")
+	require.Contains(t, res.Text, "path is required")
 }
 
 // TestSpeechToText_MissingFile verifies that a non-existent audio file returns an error.
@@ -65,7 +65,7 @@ func TestTextToSpeech_MissingText(t *testing.T) {
 	res, err := (&TextToSpeech{}).Call(context.Background(), map[string]any{}, nil)
 	require.NoError(t, err)
 	require.True(t, res.IsError)
-	require.Contains(t, res.Text, "text required")
+	require.Contains(t, res.Text, "text is required")
 }
 
 // TestTextToSpeech_DarwinSay synthesizes a short phrase to a temp file on macOS.

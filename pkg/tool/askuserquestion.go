@@ -56,7 +56,7 @@ func (AskUserQuestion) Call(_ context.Context, input map[string]any, tcx *Contex
 		opts = append(opts, PromptOption{Label: label, Description: desc})
 	}
 	if tcx == nil || tcx.RequestPrompt == nil {
-		return errResult("AskUserQuestion is interactive-only; use REPL mode"), nil
+		return errResult("askuserquestion: interactive-only; use REPL mode"), nil
 	}
 	resp, err := tcx.RequestPrompt("AskUserQuestion", PromptRequest{
 		Kind:     PromptQuestion,

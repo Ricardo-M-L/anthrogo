@@ -42,7 +42,7 @@ func (*BackgroundLaunch) Schema() map[string]any {
 func (b *BackgroundLaunch) Call(_ context.Context, input map[string]any, _ *Context) (Result, error) {
 	cmd, _ := input["command"].(string)
 	if cmd == "" {
-		return errResult("command required"), nil
+		return errResult("command is required"), nil
 	}
 	if b.Manager == nil {
 		return errResult("background manager not configured"), nil
@@ -135,7 +135,7 @@ func (b *BackgroundOutput) Call(_ context.Context, input map[string]any, _ *Cont
 	}
 	id, _ := input["task_id"].(string)
 	if id == "" {
-		return errResult("task_id required"), nil
+		return errResult("task_id is required"), nil
 	}
 	t, ok := b.Manager.Get(id)
 	if !ok {
@@ -188,7 +188,7 @@ func (b *BackgroundCancel) Call(_ context.Context, input map[string]any, _ *Cont
 	}
 	id, _ := input["task_id"].(string)
 	if id == "" {
-		return errResult("task_id required"), nil
+		return errResult("task_id is required"), nil
 	}
 	if err := b.Manager.Cancel(id); err != nil {
 		return errResult(err.Error()), nil

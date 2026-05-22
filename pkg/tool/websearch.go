@@ -92,7 +92,7 @@ func (w *WebSearch) Call(ctx context.Context, input map[string]any, _ *Context) 
 		backend = "brave"
 	}
 	if backend == "disabled" {
-		return errResult("WebSearch disabled — configure webSearch.backend + webSearch.apiKey in settings.yaml"), nil
+		return errResult("websearch: disabled — configure webSearch.backend + webSearch.apiKey in settings.yaml"), nil
 	}
 
 	fn, ok := backends[backend]

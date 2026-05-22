@@ -59,7 +59,7 @@ func (PDFRead) Call(ctx context.Context, input map[string]any, _ *Context) (Resu
 
 	numPages := r.NumPage()
 	if numPages == 0 {
-		return errResult("PDF has no pages"), nil
+		return errResult("pdf has no pages"), nil
 	}
 
 	startPage, endPage, parseErr := parsePDFPageRange(input["pages"], numPages)

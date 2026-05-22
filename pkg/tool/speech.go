@@ -48,7 +48,7 @@ func (*SpeechToText) Schema() map[string]any {
 func (*SpeechToText) Call(ctx context.Context, input map[string]any, _ *Context) (Result, error) {
 	path, _ := input["path"].(string)
 	if path == "" {
-		return errResult("path required"), nil
+		return errResult("path is required"), nil
 	}
 	if _, err := os.Stat(path); err != nil {
 		return errResult("audio file not found: " + path), nil
@@ -134,7 +134,7 @@ func (*TextToSpeech) Schema() map[string]any {
 func (*TextToSpeech) Call(ctx context.Context, input map[string]any, _ *Context) (Result, error) {
 	text, _ := input["text"].(string)
 	if text == "" {
-		return errResult("text required"), nil
+		return errResult("text is required"), nil
 	}
 	output, _ := input["output"].(string)
 	voice, _ := input["voice"].(string)
