@@ -38,7 +38,7 @@ func RunAll(ctx context.Context, cfg config.Config) []Check {
 	out = append(out, checkAPIKey(cfg)...)
 	out = append(out, checkHomeDir())
 	out = append(out, checkBinaries()...)
-	out = append(out, checkNetworkConnectivity(ctx)...)
+	out = append(out, checkNetworkConnectivity(ctx, cfg)...)
 	out = append(out, checkVersion(ctx))
 	return out
 }
@@ -67,6 +67,40 @@ func checkConfigFile() Check {
 
 func checkAPIKey(cfg config.Config) []Check {
 	var out []Check
+
+	// 1) Check the env var referenced by the ACTIVE provider profile (if any).
+	if cfg.Provider != "" && cfg.Profiles != nil {
+		if prof, ok := cfg.Profiles[cfg.Provider]; ok {
+			if prof.APIKey != "" {
+				if env, isEnv := strings.CutPrefix(prof.APIKey, "env:"); isEnv {
+					if os.Getenv(env) != "" {
+						out = append(out, Check{
+							Name:     "API key (active profile " + cfg.Provider + ")",
+							Severity: SeverityPass,
+							Message:  env + " is set",
+						})
+					} else {
+						out = append(out, Check{
+							Name:        "API key (active profile " + cfg.Provider + ")",
+							Severity:    SeverityFail,
+							Message:     env + " referenced in profile but not set in environment",
+							Remediation: "export " + env + "=<your_key>",
+						})
+					}
+				} else if prof.APIKey != "" {
+					// Literal key in YAML — bad practice but accepted.
+					out = append(out, Check{
+						Name:     "API key (active profile " + cfg.Provider + ")",
+						Severity: SeverityWarn,
+						Message:  "literal key in settings.yaml — prefer env:VAR for security",
+					})
+				}
+				return out
+			}
+		}
+	}
+
+	// 2) Fallback: enumerate well-known env vars (legacy default-provider mode).
 	keys := map[string]string{
 		"ANTHROPIC_API_KEY": "anthropic",
 		"DEEPSEEK_API_KEY":  "deepseek",
@@ -74,6 +108,7 @@ func checkAPIKey(cfg config.Config) []Check {
 		"MINIMAX_API_KEY":   "minimax",
 		"GLM_API_KEY":       "glm",
 		"OPENAI_API_KEY":    "openai",
+		"GEMINI_API_KEY":    "gemini",
 		"GITHUB_TOKEN":      "github (optional, for update check rate limit)",
 	}
 	for env, label := range keys {
@@ -86,7 +121,7 @@ func checkAPIKey(cfg config.Config) []Check {
 			Name:        "API keys",
 			Severity:    SeverityFail,
 			Message:     "no provider API keys set",
-			Remediation: "Set at least ANTHROPIC_API_KEY (or another provider's key) in your shell environment.",
+			Remediation: "Set at least ANTHROPIC_API_KEY (or another provider's key), or configure a profile in settings.yaml.",
 		})
 	}
 	return out
@@ -151,15 +186,29 @@ func checkBinaries() []Check {
 	return out
 }
 
-func checkNetworkConnectivity(ctx context.Context) []Check {
+func checkNetworkConnectivity(ctx context.Context, cfg config.Config) []Check {
 	var out []Check
 	endpoints := map[string]string{
-		"Anthropic API": "https://api.anthropic.com",
-		"GitHub API":    "https://api.github.com",
+		"GitHub API": "https://api.github.com",
 	}
+	// Pick the provider endpoint to probe based on the active profile, so
+	// custom-base-URL deployments (gemini-openai-compat, vllm, deepseek, etc.)
+	// get a relevant connectivity check instead of always probing Anthropic.
+	probeName := "Anthropic API"
+	probeURL := "https://api.anthropic.com"
+	if cfg.Provider != "" && cfg.Profiles != nil {
+		if prof, ok := cfg.Profiles[cfg.Provider]; ok && prof.BaseURL != "" {
+			probeName = "Provider API (" + cfg.Provider + ")"
+			probeURL = prof.BaseURL
+		}
+	}
+	endpoints[probeName] = probeURL
 	for name, url := range endpoints {
 		ctxT, cancel := context.WithTimeout(ctx, 5*time.Second)
-		cmd := exec.CommandContext(ctxT, "curl", "-sf", "-o", "/dev/null", "-w", "%{http_code}", url)
+		// -s (silent) without -f so 4xx counts as "reachable" — Gemini /
+		// OpenAI return 404 for the bare base URL, which still proves DNS +
+		// TLS work. We only treat 5xx and connection-level errors as bad.
+		cmd := exec.CommandContext(ctxT, "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", url)
 		outBytes, err := cmd.Output()
 		cancel()
 		if err != nil {
@@ -171,7 +220,7 @@ func checkNetworkConnectivity(ctx context.Context) []Check {
 			continue
 		}
 		code := strings.TrimSpace(string(outBytes))
-		if code == "" || code[0] == '5' {
+		if code == "" || code == "000" || (len(code) > 0 && code[0] == '5') {
 			out = append(out, Check{Name: name, Severity: SeverityWarn, Message: "got HTTP " + code})
 			continue
 		}

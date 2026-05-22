@@ -17,7 +17,7 @@ func TestCheckGoRuntime(t *testing.T) {
 
 func TestCheckAPIKey_NoneSet(t *testing.T) {
 	// Clear all known API key env vars
-	for _, k := range []string{"ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "KIMI_API_KEY", "MINIMAX_API_KEY", "GLM_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN"} {
+	for _, k := range []string{"ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "KIMI_API_KEY", "MINIMAX_API_KEY", "GLM_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GITHUB_TOKEN"} {
 		t.Setenv(k, "")
 	}
 	checks := checkAPIKey(config.Config{})
@@ -26,7 +26,7 @@ func TestCheckAPIKey_NoneSet(t *testing.T) {
 }
 
 func TestCheckAPIKey_AnthropicSet(t *testing.T) {
-	for _, k := range []string{"ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "KIMI_API_KEY", "MINIMAX_API_KEY", "GLM_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN"} {
+	for _, k := range []string{"ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "KIMI_API_KEY", "MINIMAX_API_KEY", "GLM_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GITHUB_TOKEN"} {
 		t.Setenv(k, "")
 	}
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")

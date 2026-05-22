@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"time"
 
 	"github.com/ricardo/anthrogo/pkg/message"
 )
@@ -68,4 +69,20 @@ type Event struct {
 
 	// error
 	Err error
+}
+
+// RateLimitError is returned by providers when the upstream LLM API replies
+// with HTTP 429. RetryAfter is parsed from the Retry-After response header
+// (RFC 7231); falls back to 0 if absent or unparsable. Engine retry logic
+// uses RetryAfter (when > 0) instead of the fixed backoff ladder.
+type RateLimitError struct {
+	RetryAfter time.Duration
+	Body       string // truncated server response for diagnostics
+}
+
+func (e *RateLimitError) Error() string {
+	if e.RetryAfter > 0 {
+		return "rate limited (HTTP 429); retry-after=" + e.RetryAfter.String()
+	}
+	return "rate limited (HTTP 429)"
 }

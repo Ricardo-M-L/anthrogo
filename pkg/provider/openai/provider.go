@@ -5,13 +5,35 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/ricardo/anthrogo/pkg/provider"
 )
+
+// parseRetryAfter accepts an RFC 7231 Retry-After value: either an integer
+// seconds count ("60") or an HTTP-date. Returns the duration to wait or 0
+// on parse failure / absent header.
+func parseRetryAfter(h string) time.Duration {
+	h = strings.TrimSpace(h)
+	if h == "" {
+		return 0
+	}
+	if secs, err := strconv.Atoi(h); err == nil && secs > 0 {
+		return time.Duration(secs) * time.Second
+	}
+	if t, err := http.ParseTime(h); err == nil {
+		d := time.Until(t)
+		if d > 0 {
+			return d
+		}
+	}
+	return 0
+}
 
 // Provider implements provider.Provider for any OpenAI Chat Completions
 // compatible endpoint (DeepSeek, Kimi, MiniMax, GLM, vllm, ollama, etc.).
@@ -66,8 +88,13 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
-		return nil, fmt.Errorf("openai provider: server returned %d", resp.StatusCode)
+		if resp.StatusCode == http.StatusTooManyRequests {
+			ra := parseRetryAfter(resp.Header.Get("Retry-After"))
+			return nil, &provider.RateLimitError{RetryAfter: ra, Body: string(body)}
+		}
+		return nil, fmt.Errorf("openai provider: server returned %d: %s", resp.StatusCode, string(body))
 	}
 
 	out := make(chan provider.Event, 64)

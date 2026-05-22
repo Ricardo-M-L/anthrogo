@@ -117,7 +117,15 @@ func isTransientStreamError(err error) bool {
 }
 
 // streamRetryDelays returns the backoff delays for successive retry attempts.
-var streamRetryDelays = []time.Duration{200 * time.Millisecond, 600 * time.Millisecond, 2 * time.Second}
+// First two are short (transient connection blip), last two are longer to
+// cover provider rate-limit windows. A RateLimitError with Retry-After
+// overrides this ladder.
+var streamRetryDelays = []time.Duration{
+	200 * time.Millisecond,
+	2 * time.Second,
+	10 * time.Second,
+	30 * time.Second,
+}
 
 func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReason string, err error) {
 	maxRetries := e.cfg.MaxStreamRetries
@@ -143,6 +151,17 @@ func (e *Engine) runOneAPITurn(ctx context.Context, out chan<- Event) (stopReaso
 		delay := streamRetryDelays[attempt]
 		if attempt >= len(streamRetryDelays) {
 			delay = streamRetryDelays[len(streamRetryDelays)-1]
+		}
+		// If the provider signalled a rate limit with a Retry-After,
+		// honor that instead of the default ladder (caps at 90s so a
+		// hostile server can't park us forever).
+		var rle *provider.RateLimitError
+		if errors.As(lastErr, &rle) && rle.RetryAfter > 0 {
+			if rle.RetryAfter > 90*time.Second {
+				delay = 90 * time.Second
+			} else {
+				delay = rle.RetryAfter
+			}
 		}
 		out <- Event{
 			Kind:         KindStreamRetry,
