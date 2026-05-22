@@ -1,6 +1,7 @@
 package permissions
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ func TestGate_BypassMode_AlwaysAllow(t *testing.T) {
 	c := ctx()
 	c.Mode = ModeBypassPermissions
 	c.IsBypassAvailable = true
-	d := Decide(c, "Bash", map[string]any{"command": "rm -rf /"})
+	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "rm -rf /"})
 	require.Equal(t, BehaviorAllow, d.Behavior)
 }
 
@@ -27,27 +28,27 @@ func TestGate_DenyTrumpsAllow(t *testing.T) {
 	c := ctx()
 	c.AlwaysAllowRules[SourceUser] = []Rule{{Tool: "Bash"}}
 	c.AlwaysDenyRules[SourceUser] = []Rule{{Tool: "Bash", Pattern: "rm -rf*"}}
-	d := Decide(c, "Bash", map[string]any{"command": "rm -rf /"})
+	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "rm -rf /"})
 	require.Equal(t, BehaviorDeny, d.Behavior)
 }
 
 func TestGate_AllowMatched(t *testing.T) {
 	c := ctx()
 	c.AlwaysAllowRules[SourceUser] = []Rule{{Tool: "Bash", Pattern: "git status*"}}
-	d := Decide(c, "Bash", map[string]any{"command": "git status -s"})
+	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "git status -s"})
 	require.Equal(t, BehaviorAllow, d.Behavior)
 }
 
 func TestGate_NoRule_FallsBackToAsk(t *testing.T) {
 	c := ctx()
-	d := Decide(c, "Bash", map[string]any{"command": "git push"})
+	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "git push"})
 	require.Equal(t, BehaviorAsk, d.Behavior)
 }
 
 func TestGate_AskAvoided_ReturnsDeny(t *testing.T) {
 	c := ctx()
 	c.ShouldAvoidPrompts = true
-	d := Decide(c, "Bash", map[string]any{"command": "git push"})
+	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "git push"})
 	require.Equal(t, BehaviorDeny, d.Behavior)
 }
 
@@ -55,11 +56,11 @@ func TestGate_AcceptEdits_AllowsWriteEdit(t *testing.T) {
 	c := ctx()
 	c.Mode = ModeAcceptEdits
 	for _, tool := range []string{"Write", "Edit"} {
-		d := Decide(c, tool, map[string]any{"path": "/tmp/x"})
+		d := Decide(context.Background(), c, tool, map[string]any{"path": "/tmp/x"})
 		require.Equalf(t, BehaviorAllow, d.Behavior, "tool=%s", tool)
 	}
 	// other tools still go to ask
-	d := Decide(c, "Bash", map[string]any{"command": "ls"})
+	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "ls"})
 	require.Equal(t, BehaviorAsk, d.Behavior)
 }
 
@@ -67,7 +68,7 @@ func TestGate_PlanMode_DeniesWriteTools(t *testing.T) {
 	c := ctx()
 	c.Mode = ModePlan
 	for _, tool := range []string{"Write", "Edit", "NotebookEdit"} {
-		d := Decide(c, tool, map[string]any{"path": "/x"})
+		d := Decide(context.Background(), c, tool, map[string]any{"path": "/x"})
 		require.Equalf(t, BehaviorDeny, d.Behavior, "tool=%s", tool)
 	}
 }
@@ -76,7 +77,7 @@ func TestGate_PlanMode_AllowsReadOnlyBash(t *testing.T) {
 	c := ctx()
 	c.Mode = ModePlan
 	c.AlwaysAllowRules[SourceCLI] = []Rule{{Tool: "Bash"}}
-	d := Decide(c, "Bash", map[string]any{"command": "git status"})
+	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "git status"})
 	require.Equal(t, BehaviorAllow, d.Behavior)
 }
 
@@ -84,7 +85,7 @@ func TestGate_PlanMode_DeniesWriteBash(t *testing.T) {
 	c := ctx()
 	c.Mode = ModePlan
 	c.AlwaysAllowRules[SourceCLI] = []Rule{{Tool: "Bash"}}
-	d := Decide(c, "Bash", map[string]any{"command": "rm foo"})
+	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "rm foo"})
 	require.Equal(t, BehaviorDeny, d.Behavior)
 }
 
@@ -92,7 +93,7 @@ func TestGate_PlanMode_AllowsReadTools(t *testing.T) {
 	c := ctx()
 	c.Mode = ModePlan
 	c.AlwaysAllowRules[SourceCLI] = []Rule{{Tool: "Read"}}
-	d := Decide(c, "Read", map[string]any{"file_path": "/x"})
+	d := Decide(context.Background(), c, "Read", map[string]any{"file_path": "/x"})
 	require.Equal(t, BehaviorAllow, d.Behavior)
 }
 
@@ -107,17 +108,17 @@ func TestGate_PlanMode_HardLocksWriteEvenWithAllowRule(t *testing.T) {
 		{Tool: "NotebookEdit"},
 	}
 	for _, tool := range []string{"Write", "Edit", "NotebookEdit"} {
-		d := Decide(c, tool, map[string]any{"path": "/x"})
+		d := Decide(context.Background(), c, tool, map[string]any{"path": "/x"})
 		require.Equalf(t, BehaviorDeny, d.Behavior, "tool=%s should be denied even with allow rule", tool)
 	}
 }
 
 func TestGate_HookDeny_ShortCircuits(t *testing.T) {
 	c := ctx()
-	c.HookDecide = func(toolName string, input map[string]any) HookOutcome {
+	c.HookDecide = func(_ context.Context, toolName string, input map[string]any) HookOutcome {
 		return HookOutcome{Deny: true, Reason: "hook said no"}
 	}
-	d := Decide(c, "Bash", map[string]any{"command": "ls"})
+	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "ls"})
 	require.Equal(t, BehaviorDeny, d.Behavior)
 	require.Equal(t, "hook said no", d.Reason)
 }
@@ -125,10 +126,10 @@ func TestGate_HookDeny_ShortCircuits(t *testing.T) {
 func TestGate_HookAllow_OverridesAsk(t *testing.T) {
 	c := ctx()
 	// No rules → would normally be BehaviorAsk.
-	c.HookDecide = func(toolName string, input map[string]any) HookOutcome {
+	c.HookDecide = func(_ context.Context, toolName string, input map[string]any) HookOutcome {
 		return HookOutcome{Allow: true, Reason: "hook approved"}
 	}
-	d := Decide(c, "Bash", map[string]any{"command": "ls"})
+	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "ls"})
 	require.Equal(t, BehaviorAllow, d.Behavior)
 	require.Equal(t, "hook approved", d.Reason)
 }
@@ -136,23 +137,23 @@ func TestGate_HookAllow_OverridesAsk(t *testing.T) {
 func TestGate_HookAllow_DoesNotUnlockPlanModeWriteTool(t *testing.T) {
 	c := ctx()
 	c.Mode = ModePlan
-	c.HookDecide = func(toolName string, input map[string]any) HookOutcome {
+	c.HookDecide = func(_ context.Context, toolName string, input map[string]any) HookOutcome {
 		return HookOutcome{Allow: true, Reason: "hook approved write"}
 	}
 	for _, tool := range []string{"Write", "Edit", "NotebookEdit"} {
-		d := Decide(c, tool, map[string]any{"path": "/x"})
+		d := Decide(context.Background(), c, tool, map[string]any{"path": "/x"})
 		require.Equalf(t, BehaviorDeny, d.Behavior, "tool=%s must still be denied in plan mode", tool)
 	}
 }
 
 func TestGate_HookModifiedInput_Visible(t *testing.T) {
 	c := ctx()
-	c.HookDecide = func(toolName string, input map[string]any) HookOutcome {
+	c.HookDecide = func(_ context.Context, toolName string, input map[string]any) HookOutcome {
 		// Pass but return a modified input.
 		return HookOutcome{Pass: true, ModifiedInput: map[string]any{"command": "ls -al"}}
 	}
 	// With no rules, should fall through to Ask (the default).
-	d := Decide(c, "Bash", map[string]any{"command": "ls"})
+	d := Decide(context.Background(), c, "Bash", map[string]any{"command": "ls"})
 	// Behavior should still be Ask (hook passed, no rules matched).
 	require.Equal(t, BehaviorAsk, d.Behavior)
 }

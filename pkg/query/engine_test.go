@@ -187,7 +187,7 @@ func TestEngine_HookModifiedInput_ReachesTool(t *testing.T) {
 
 	perms := permissions.Empty()
 	// Hook: always pass (don't deny or allow), but rewrite the input.
-	perms.HookDecide = func(toolName string, input map[string]any) permissions.HookOutcome {
+	perms.HookDecide = func(_ context.Context, toolName string, input map[string]any) permissions.HookOutcome {
 		return permissions.HookOutcome{
 			Pass:          true,
 			ModifiedInput: map[string]any{"mutated": true},
@@ -312,7 +312,7 @@ func TestEngine_SkillRespectsAlwaysDeny(t *testing.T) {
 	perms.AlwaysDenyRules[permissions.SourceCLI] = []permissions.Rule{{Tool: "Skill"}}
 	perms.ShouldAvoidPrompts = true
 
-	d := permissions.Decide(perms, "Skill", map[string]any{"skill": "git-flow"})
+	d := permissions.Decide(context.Background(), perms, "Skill", map[string]any{"skill": "git-flow"})
 	require.Equal(t, permissions.BehaviorDeny, d.Behavior, "alwaysDeny must trump alwaysAllow for Skill")
 }
 

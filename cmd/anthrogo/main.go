@@ -626,8 +626,8 @@ func main() {
 				hookMgr.Drain(5 * time.Second)
 			}()
 
-			hookDecide := func(toolName string, input map[string]any) permissions.HookOutcome {
-				d := hookMgr.FirePreToolUse(context.Background(), toolName, input)
+			hookDecide := func(ctx context.Context, toolName string, input map[string]any) permissions.HookOutcome {
+				d := hookMgr.FirePreToolUse(ctx, toolName, input)
 				switch d.Behavior {
 				case hooks.DecisionAllow:
 					return permissions.HookOutcome{Allow: true, Reason: d.Reason, ModifiedInput: d.ModifiedInput}
@@ -637,7 +637,7 @@ func main() {
 					return permissions.HookOutcome{Pass: true, ModifiedInput: d.ModifiedInput}
 				}
 			}
-			perms.HookDecide = func(toolName string, input map[string]any) permissions.HookOutcome {
+			perms.HookDecide = func(ctx context.Context, toolName string, input map[string]any) permissions.HookOutcome {
 				if e := engineRef.Load(); e != nil {
 					if over, cur, lim := e.IsOverBudget(); over {
 						return permissions.HookOutcome{
@@ -646,7 +646,7 @@ func main() {
 						}
 					}
 				}
-				return hookDecide(toolName, input)
+				return hookDecide(ctx, toolName, input)
 			}
 
 			p, effectiveModel, err := buildProvider(cfg, providerFlag)

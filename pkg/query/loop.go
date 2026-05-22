@@ -86,7 +86,7 @@ func (e *Engine) SubmitMessageBlocks(ctx context.Context, blocks []message.Block
 						if keep == 0 {
 							keep = 10
 						}
-						if _, compactErr := e.Compact(context.Background(), CompactOptions{
+						if _, compactErr := e.Compact(ctx, CompactOptions{
 							Trigger:    "auto",
 							KeepRecent: keep,
 						}); compactErr != nil {
@@ -434,7 +434,7 @@ func (e *Engine) executeTool(ctx context.Context, b message.Block, out chan<- Ev
 	// can short-circuit the gate by returning Allow/Deny here.
 	decision := t.Permission(ctx, b.Input)
 	if decision.Behavior == permissions.BehaviorAsk {
-		decision = permissions.Decide(e.cfg.Permissions, b.ToolName, b.Input)
+		decision = permissions.Decide(ctx, e.cfg.Permissions, b.ToolName, b.Input)
 	}
 	// Apply any input mutation produced by the hook (ModifiedInput) so the
 	// tool receives the rewritten input, not the original model-generated one.

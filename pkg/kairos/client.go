@@ -232,7 +232,7 @@ func dispatchToolLocally(ctx context.Context, tur ToolUseRequest, opts ClientOpt
 	// Apply client-side permission gate.
 	decision := t.Permission(ctx, tur.ToolInput)
 	if decision.Behavior == permissions.BehaviorAsk {
-		decision = permissions.Decide(opts.Permissions, tur.ToolName, tur.ToolInput)
+		decision = permissions.Decide(ctx, opts.Permissions, tur.ToolName, tur.ToolInput)
 	}
 	if decision.ModifiedInput != nil {
 		tur.ToolInput = decision.ModifiedInput

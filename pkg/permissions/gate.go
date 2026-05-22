@@ -1,5 +1,7 @@
 package permissions
 
+import "context"
+
 // Behavior is the gate's verdict.
 type Behavior string
 
@@ -26,7 +28,7 @@ type Decision struct {
 //  4. allow rules → allow.
 //  5. ask rules → ask (unless ShouldAvoidPrompts).
 //  6. fallback → ask (default mode) / deny (ShouldAvoidPrompts).
-func Decide(c *Context, tool string, input map[string]any) Decision {
+func Decide(ctx context.Context, c *Context, tool string, input map[string]any) Decision {
 	if c.Mode == ModeBypassPermissions && c.IsBypassAvailable {
 		return Decision{Behavior: BehaviorAllow, Reason: "bypassPermissions mode"}
 	}
@@ -35,7 +37,7 @@ func Decide(c *Context, tool string, input map[string]any) Decision {
 	var hookModified map[string]any
 	// Consult hook decision before rule lookup.
 	if c.HookDecide != nil {
-		out := c.HookDecide(tool, input)
+		out := c.HookDecide(ctx, tool, input)
 		if out.Deny {
 			return Decision{Behavior: BehaviorDeny, Reason: out.Reason, ModifiedInput: out.ModifiedInput}
 		}

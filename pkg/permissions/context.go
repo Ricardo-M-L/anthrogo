@@ -1,5 +1,7 @@
 package permissions
 
+import "context"
+
 // AdditionalDir is a working directory that's been opted into via --add-dir.
 type AdditionalDir struct {
 	Path string
@@ -27,7 +29,11 @@ type Context struct {
 	PrePlanMode                  Mode
 
 	// HookDecide is consulted by Decide before any rule lookup. nil-safe.
-	HookDecide func(toolName string, input map[string]any) HookOutcome
+	// ctx is the per-tool-call context; if the engine cancels the call
+	// (Ctrl-C, timeout), HookDecide implementations must propagate it to
+	// any subprocess/network they fire (the runtime hook runner already
+	// uses exec.CommandContext).
+	HookDecide func(ctx context.Context, toolName string, input map[string]any) HookOutcome
 }
 
 // Clone returns a shallow copy of c suitable for handing to a subagent.
