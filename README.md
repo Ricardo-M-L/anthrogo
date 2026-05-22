@@ -1,5 +1,7 @@
 # anthrogo
 
+**English** | [简体中文](README.zh.md)
+
 [![CI](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/ci.yml/badge.svg)](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/ci.yml)
 [![Docs](https://github.com/Ricardo-M-L/anthrogo/actions/workflows/docs.yml/badge.svg)](https://ricardo-m-l.github.io/anthrogo/)
 [![Release](https://img.shields.io/github/v/release/Ricardo-M-L/anthrogo)](https://github.com/Ricardo-M-L/anthrogo/releases/latest)
@@ -22,16 +24,86 @@ The upstream CLI is TypeScript + Bun + React/Ink. anthrogo targets the same
 behavioral contract while being a single statically-linked Go binary with no
 Node.js runtime requirement.
 
+## A look at the TUI
+
+```
+┌─ anthrogo · ~/code/myproject ─────────────────────────── claude-opus-4-7 ─┐
+│                                                                            │
+│  > Refactor pkg/auth to use the new token middleware.                      │
+│                                                                            │
+│  ● Read pkg/auth/middleware.go (87 lines)                                  │
+│  ● Read pkg/auth/token.go (124 lines)                                      │
+│  ● Grep "WithToken" --type go                                              │
+│     ↳ 14 matches across 8 files                                            │
+│                                                                            │
+│  I'll update the 3 callsites that don't yet use the helper. Here's        │
+│  the plan:                                                                 │
+│    1. cmd/api/server.go:42 — wrap with WithToken                          │
+│    2. internal/handlers/user.go:118 — same                                │
+│    3. internal/handlers/admin.go:73 — same                                │
+│                                                                            │
+│  ● Edit cmd/api/server.go (+1, -1) ✓                                       │
+│  ● Edit internal/handlers/user.go (+1, -1) ✓                               │
+│  ● Edit internal/handlers/admin.go (+1, -1) ✓                              │
+│  ● Bash "go test ./pkg/auth/..."                                          │
+│     ↳ ok  github.com/foo/myproject/pkg/auth   2.342s                       │
+│                                                                            │
+├─ history ──────────────────────────────────────────────────────────────────┤
+│  > _                                                                       │
+└── Ctrl+E edit · F2 layout · /help · $0.0421 · 12.3k tokens ────────────────┘
+```
+
+*(Live asciinema GIF coming — for now this mock captures the four panes:
+header with cwd + model, scrollback with tool-use bullets, history split, and
+the status bar with shortcuts, cost, and token counter.)*
+
 ## Quickstart
+
+### Install
+
+**macOS / Linux via Homebrew (recommended)**
+
+```bash
+brew install Ricardo-M-L/tap/anthrogo
+```
+
+**Prebuilt binaries** — pick your platform from
+[Releases](https://github.com/Ricardo-M-L/anthrogo/releases/latest)
+(linux/darwin × amd64/arm64). Extract and put `anthrogo` on your `$PATH`.
+
+**From source** (requires Go 1.26+)
 
 ```bash
 go install github.com/Ricardo-M-L/anthrogo/cmd/anthrogo@latest
+```
+
+### First run
+
+```bash
 anthrogo init-config   # interactive wizard → ~/.anthrogo/settings.yaml
 anthrogo doctor        # ~20 environment checks
 anthrogo               # launch TUI
 ```
 
-Use `anthrogo -p "explain main.go"` for headless (non-interactive) mode.
+Headless (non-interactive) mode for scripts and pipes:
+
+```bash
+anthrogo -p "explain main.go"
+echo "summarize" | anthrogo --json
+```
+
+HTTP daemon mode:
+
+```bash
+anthrogo serve --addr 127.0.0.1:8765
+curl http://127.0.0.1:8765/v1/health
+```
+
+Browser UI:
+
+```bash
+anthrogo web   # opens http://127.0.0.1:8766 in your browser
+```
 
 ## Highlights
 
