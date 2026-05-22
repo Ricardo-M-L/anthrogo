@@ -3,6 +3,7 @@ package serve
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"log"
 	"net/http"
@@ -143,7 +144,7 @@ func (s *Server) withAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		auth := r.Header.Get("Authorization")
 		expected := "Bearer " + s.cfg.Token
-		if auth != expected {
+		if subtle.ConstantTimeCompare([]byte(auth), []byte(expected)) != 1 {
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
