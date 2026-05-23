@@ -99,3 +99,48 @@ func TestReporter_Endpoint(t *testing.T) {
 	defer r.Close()
 	require.Equal(t, "https://tel.example.com/events", r.Endpoint())
 }
+
+func TestReporter_Close_DoesNotHangOnDeadEndpoint(t *testing.T) {
+	// Endpoint that accepts TCP but never writes — simulates a stuck
+	// telemetry server. The dedicated 5s client.Timeout must abort
+	// instead of parking Close() forever during process exit.
+	handlerDone := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Block until either the client disconnects (via timeout) or
+		// the test signals shutdown.
+		select {
+		case <-r.Context().Done():
+		case <-handlerDone:
+		}
+	}))
+	// NOTE: srv.Close() blocks on active handler goroutines. We close it
+	// only AFTER signalling handlerDone, otherwise t.Fatalf's deferred
+	// srv.Close() would hang and mask the real result.
+	t.Cleanup(func() {
+		close(handlerDone)
+		srv.Close()
+	})
+
+	tmp := t.TempDir()
+	r := NewReporter(true, srv.URL, tmp)
+	r.Event("test", map[string]any{"x": 1})
+
+	start := time.Now()
+	done := make(chan struct{})
+	go func() {
+		r.Close()
+		close(done)
+	}()
+
+	// Close() does ONE final flush against the stuck endpoint. With our
+	// dedicated 5s-Timeout client this returns within ~5s. We allow 9s
+	// total budget to leave headroom.
+	select {
+	case <-done:
+		elapsed := time.Since(start)
+		t.Logf("Close() returned in %v", elapsed)
+		require.Less(t, elapsed, 9*time.Second, "Close() must respect 5s timeout")
+	case <-time.After(9 * time.Second):
+		t.Fatalf("Close() hung past 9s — telemetry timeout not honored (elapsed %v)", time.Since(start))
+	}
+}

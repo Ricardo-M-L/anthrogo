@@ -172,7 +172,11 @@ func (r *Reporter) flush() {
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	// Dedicated client with both context AND transport-level timeout so a
+	// stalled DNS / TLS handshake to an unreachable endpoint can't park
+	// Close() forever during process exit.
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		// Silent failure — re-queue to retry next flush.
 		r.mu.Lock()
