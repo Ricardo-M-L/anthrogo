@@ -26,10 +26,10 @@ type WebSearchConfig struct {
 // Profile defines a named provider profile. Used for OpenAI-compatible
 // endpoints (DeepSeek, Kimi, MiniMax, GLM, etc.), AWS Bedrock, and GCP Vertex.
 type Profile struct {
-	Type      string `yaml:"type"`               // "openai" | "bedrock" | "vertex"
-	BaseURL   string `yaml:"base_url,omitempty"` // openai only
+	Type      string `yaml:"type"`               // "openai" | "anthropic" | "ollama" | "bedrock" | "vertex"
+	BaseURL   string `yaml:"base_url,omitempty"` // openai / anthropic / ollama types
 	Model     string `yaml:"model,omitempty"`
-	APIKey    string `yaml:"api_key,omitempty"`    // openai only; supports "env:VARNAME"
+	APIKey    string `yaml:"api_key,omitempty"`    // openai / anthropic; supports "env:VARNAME"
 	Region    string `yaml:"region,omitempty"`     // bedrock / vertex; bedrock defaults to AWS_REGION / default config
 	ProjectID string `yaml:"project_id,omitempty"` // vertex only
 }

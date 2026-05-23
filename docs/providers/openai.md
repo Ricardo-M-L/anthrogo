@@ -35,7 +35,8 @@ profiles:
 |----------|------|----------|----------------|
 | DeepSeek | openai | `https://api.deepseek.com` | `deepseek-chat`, `deepseek-reasoner` |
 | Kimi | openai | `https://api.moonshot.cn/v1` | `kimi-k2-0905-preview` |
-| MiniMax | openai | `https://api.minimaxi.com/v1` | `MiniMax-M2`, `abab6.5s-chat` |
+| MiniMax (OpenAI-compat) | openai | `https://api.minimaxi.com/v1` | `MiniMax-M2`, `abab6.5s-chat` |
+| MiniMax (Anthropic-compat) | **anthropic** | `https://api.minimaxi.com/anthropic` | `minimax-m2.7` (trailing slash auto-normalized) |
 | GLM | openai | `https://open.bigmodel.cn/api/paas/v4` | `glm-4.6`, `glm-zero-preview` |
 | **Google Gemini** | openai | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-flash-latest`, `gemini-3-flash-preview` |
 | vllm | openai | `http://localhost:8000/v1` | any loaded model |

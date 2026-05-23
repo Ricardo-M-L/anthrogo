@@ -1094,6 +1094,24 @@ func buildFromProfile(ctx context.Context, name string, prof config.Profile, def
 	switch prof.Type {
 	case "openai":
 		return openaiProvider.New(prof.BaseURL, apiKey), model, nil
+	case "anthropic":
+		// anthropic-compat endpoint with custom base_url. MiniMax's
+		// /anthropic path + any private Claude proxy fits here. Empty
+		// base_url falls back to api.anthropic.com via the SDK default.
+		opts := []option.RequestOption{option.WithAPIKey(apiKey)}
+		if prof.BaseURL != "" {
+			// anthropic-sdk-go's WithBaseURL drops any path prefix
+			// unless the URL ends with '/'. So 'https://api.minimaxi.
+			// com/anthropic' silently becomes 'https://api.minimaxi.
+			// com/' and the SDK posts to /v1/messages → 404. Append
+			// the slash so the prefix is preserved.
+			base := prof.BaseURL
+			if !strings.HasSuffix(base, "/") {
+				base += "/"
+			}
+			opts = append(opts, option.WithBaseURL(base))
+		}
+		return anthropic.NewWithOptions(model, opts...), model, nil
 	case "ollama":
 		base := prof.BaseURL
 		if base == "" {
