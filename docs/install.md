@@ -17,6 +17,33 @@ brew install Ricardo-M-L/tap/anthrogo
 Works on macOS (Intel + Apple Silicon) and Linux. Brew handles the macOS
 quarantine attribute automatically.
 
+## curl one-liner
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Ricardo-M-L/anthrogo/main/scripts/install.sh | sh
+```
+
+Detects your OS/arch, downloads the matching release tarball from
+GitHub, verifies the SHA-256 checksum against the upstream `checksums.txt`,
+strips the macOS quarantine attribute if relevant, and installs to
+`/usr/local/bin/anthrogo` (sudo prompt if needed).
+
+Environment overrides:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ANTHROGO_VERSION` | (resolves "latest") | Pin to a specific tag, e.g. `v0.14.1` |
+| `ANTHROGO_PREFIX` | `/usr/local` | Install root. Use `$HOME/.local` for a user-only install (no sudo) |
+| `ANTHROGO_REPO` | `Ricardo-M-L/anthrogo` | Override for forks / mirrors |
+
+Inspect the script before piping:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Ricardo-M-L/anthrogo/main/scripts/install.sh -o install.sh
+less install.sh
+sh install.sh
+```
+
 ## Prebuilt binaries
 
 Grab the asset matching your platform from

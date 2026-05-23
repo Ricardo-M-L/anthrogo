@@ -70,6 +70,17 @@ the status bar with shortcuts, cost, and token counter.)*
 brew install Ricardo-M-L/tap/anthrogo
 ```
 
+**macOS / Linux via curl (one-liner)**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Ricardo-M-L/anthrogo/main/scripts/install.sh | sh
+```
+
+The script auto-detects OS/arch (darwin/linux × amd64/arm64), downloads the
+matching release tarball, verifies its SHA-256 checksum, and installs to
+`/usr/local/bin/anthrogo`. Override with `ANTHROGO_PREFIX=$HOME/.local` for
+a user-local install, or `ANTHROGO_VERSION=v0.14.0` to pin a tag.
+
 **Prebuilt binaries** — pick your platform from
 [Releases](https://github.com/Ricardo-M-L/anthrogo/releases/latest)
 (linux/darwin × amd64/arm64). Extract and put `anthrogo` on your `$PATH`.
