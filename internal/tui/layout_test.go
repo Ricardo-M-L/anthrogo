@@ -37,24 +37,24 @@ func TestApp_View_LayoutSplit_IncludesLogPane(t *testing.T) {
 }
 
 func TestApp_Layout_StatusLineShowsF2Hint(t *testing.T) {
-	a := New(Options{})
+	a := New(Options{Model: "test-model"})
 	a.width = 80
 	a.height = 24
 	a.applyLayout()
 
-	// Single layout
+	// Status bar no longer carries the always-on '[F2: <layout>]' hint
+	// (Claude Code parity — kept the layout switch keybinding but dropped
+	// the visual noise). The layout field still drives applyLayout, and
+	// model name still appears in the bottom status bar.
 	out := testStripANSI(a.View())
-	require.Contains(t, out, "[F2: single]")
+	require.Contains(t, out, "test-model", "model name must appear in status bar")
+	require.NotContains(t, out, "[F2:", "the noisy F2 hint should be gone")
+	require.Equal(t, layoutSingle, a.layout)
 
-	// Split layout
 	_, _ = a.Update(tea.KeyMsg{Type: tea.KeyF2})
-	out = testStripANSI(a.View())
-	require.Contains(t, out, "[F2: split]")
-
-	// Triple layout
+	require.Equal(t, layoutSplit, a.layout)
 	_, _ = a.Update(tea.KeyMsg{Type: tea.KeyF2})
-	out = testStripANSI(a.View())
-	require.Contains(t, out, "[F2: triple]")
+	require.Equal(t, layoutTriple, a.layout)
 }
 
 func TestApp_ApplyLayout_PaneSizing(t *testing.T) {

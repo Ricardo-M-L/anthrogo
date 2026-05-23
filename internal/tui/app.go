@@ -486,13 +486,9 @@ func (a *App) handleEvent(ev query.Event) {
 		a.chat.finishAssistant()
 	case query.KindToolUseRequest:
 		a.chat.finishAssistant()
-		a.chat.appendTool(ev.ToolName, fmt.Sprintf("%v", ev.ToolInput), false)
+		a.chat.appendToolCall(ev.ToolName, ev.ToolInput)
 	case query.KindToolResult:
-		summary := ev.Text
-		if len(summary) > 200 {
-			summary = summary[:200] + "…"
-		}
-		a.chat.appendTool(ev.ToolName, summary, ev.IsError)
+		a.chat.appendToolResult(truncateToolOutput(ev.Text), ev.IsError)
 	case query.KindError:
 		a.chat.appendError(ev.Err.Error())
 	case query.KindTurnComplete:
@@ -560,16 +556,45 @@ func (a *App) formatUsageLine() string {
 	return s
 }
 
-// statusLineString builds the bottom status bar including F2 hint.
+// statusLineString builds the bottom status bar. Three slots joined by '·':
+//   - model
+//   - cwd (truncated to last component when long)
+//   - tokens + cost
+//
+// Layout hint moved to F1/F2 keypress feedback rather than always-on noise.
 func (a *App) statusLineString() string {
 	planOn := a.opts.Permissions != nil && a.opts.Permissions.Mode == permissions.ModePlan
-	tokenInfo := a.formatUsageLine()
-	hint := fmt.Sprintf("[F2: %s]", a.layout)
-	status := a.theme.StatusLine.Render(fmt.Sprintf("model=%s  cwd=%s  %s  %s", a.opts.Model, a.opts.Cwd, tokenInfo, hint))
+	cwd := a.opts.Cwd
+	if len(cwd) > 40 {
+		cwd = "…" + cwd[len(cwd)-39:]
+	}
+	parts := []string{a.opts.Model, cwd, a.formatUsageLine()}
+	sep := a.theme.StatusLine.Render("  ·  ")
+	status := a.theme.StatusLine.Render(strings.Join(parts, ""))
+	status = a.theme.StatusLine.Render(parts[0]) + sep +
+		a.theme.StatusLine.Render(parts[1]) + sep +
+		a.theme.StatusLine.Render(parts[2])
 	if badge := renderPlanBadge(a.theme, planOn); badge != "" {
 		status = badge + "   " + status
 	}
 	return status
+}
+
+// truncateToolOutput keeps the first 4 lines of a tool result + a '+N lines'
+// summary so the transcript doesn't get drowned in long file/grep outputs.
+// Matches Claude Code's terse style.
+func truncateToolOutput(s string) string {
+	s = strings.TrimRight(s, "\n")
+	if s == "" {
+		return ""
+	}
+	lines := strings.Split(s, "\n")
+	const keep = 4
+	if len(lines) <= keep {
+		return s
+	}
+	more := len(lines) - keep
+	return strings.Join(lines[:keep], "\n") + fmt.Sprintf("\n     … +%d lines", more)
 }
 
 func (a *App) View() string {

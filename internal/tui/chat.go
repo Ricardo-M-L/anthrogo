@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -51,9 +52,10 @@ func (c *chat) resize(w, h int) {
 func (c *chat) appendUser(text string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.lines = append(c.lines, chatLine{
-		rendered: c.theme.UserPrompt.Render("you > ") + text,
-	})
+	// Render user message with subtle '> ' prefix in accent colour. Each
+	// input line is shown verbatim — no 'you > ' chat-room label.
+	prefix := c.theme.UserPrompt.Render("> ")
+	c.lines = append(c.lines, chatLine{rendered: prefix + text})
 	c.refresh()
 }
 
@@ -61,15 +63,18 @@ func (c *chat) appendAssistantDelta(text string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.streaming || len(c.lines) == 0 {
+		// New assistant turn — start a single line that will accumulate
+		// raw markdown until finishAssistant() re-renders through glamour.
+		// No 'assistant > ' label; the content speaks for itself.
 		c.lines = append(c.lines, chatLine{
-			rendered: c.theme.Assistant.Render("assistant > ") + text,
+			rendered: text,
 			rawText:  text,
 		})
 		c.streaming = true
 	} else {
 		last := &c.lines[len(c.lines)-1]
 		last.rawText += text
-		last.rendered = c.theme.Assistant.Render("assistant > ") + last.rawText
+		last.rendered = last.rawText
 	}
 	c.refresh()
 }
@@ -84,7 +89,7 @@ func (c *chat) finishAssistant() {
 		if last.rawText != "" {
 			rendered, err := c.md.Render(last.rawText)
 			if err == nil {
-				last.rendered = c.theme.Assistant.Render("assistant > ") + "\n" + strings.TrimRight(rendered, "\n")
+				last.rendered = strings.TrimRight(rendered, "\n")
 				c.refresh()
 			}
 		}
@@ -92,17 +97,125 @@ func (c *chat) finishAssistant() {
 	c.streaming = false
 }
 
-func (c *chat) appendTool(toolName, summary string, isError bool) {
+// appendToolCall renders a tool dispatch in Claude Code style:
+//
+//	⏺ Bash(command: "uname -a")
+//
+// Multi-arg tools show every arg comma-separated. Long string values are
+// truncated. Use appendToolResult to attach the result line under it.
+func (c *chat) appendToolCall(toolName string, input map[string]any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.streaming = false
-	header := c.theme.ToolHeader.Render(fmt.Sprintf("[tool] %s", toolName))
-	body := c.theme.ToolBody.Render(summary)
-	if isError {
-		body = c.theme.Error.Render(summary)
-	}
-	c.lines = append(c.lines, chatLine{rendered: header + " " + body})
+	bullet := c.theme.ToolHeader.Render("⏺ ")
+	name := c.theme.ToolHeader.Render(toolName)
+	args := c.theme.ToolBody.Render(formatToolArgs(input))
+	c.lines = append(c.lines, chatLine{rendered: bullet + name + args})
 	c.refresh()
+}
+
+// appendToolResult renders the tool's result indented under the call with
+// the tree connector '⎿'. Multi-line results are kept up to 4 lines then
+// summarised with '… +N lines'. Errors render in the error colour.
+func (c *chat) appendToolResult(summary string, isError bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	connector := c.theme.StatusLine.Render("  ⎿  ")
+	body := summary
+	if isError {
+		body = c.theme.Error.Render(body)
+	} else {
+		body = c.theme.ToolBody.Render(body)
+	}
+	// Re-indent multi-line bodies so subsequent lines align under the
+	// first character after '⎿  '.
+	indent := "     "
+	if strings.Contains(body, "\n") {
+		first, rest, _ := strings.Cut(body, "\n")
+		body = first + "\n" + indentLines(rest, indent)
+	}
+	c.lines = append(c.lines, chatLine{rendered: connector + body})
+	c.refresh()
+}
+
+// formatToolArgs renders a tool's input map as a parenthesised arg list.
+//   - empty map: "()"
+//   - 1 arg with short string: ("uname -a")
+//   - 1 arg, long string: ("…truncated to 60 chars…")
+//   - N args: (key: "val", key2: "val2")
+func formatToolArgs(input map[string]any) string {
+	if len(input) == 0 {
+		return "()"
+	}
+	keys := make([]string, 0, len(input))
+	for k := range input {
+		keys = append(keys, k)
+	}
+	// Stable order — alphabetical by key keeps the same tool always
+	// rendering identically across turns.
+	sortStringsAsc(keys)
+	if len(keys) == 1 {
+		v := input[keys[0]]
+		s := truncateValue(formatValue(v), 80)
+		// Common single-arg shortcut: Bash(command), Read(file_path)
+		// look better when the key is implicit if the value is a string.
+		if _, isStr := v.(string); isStr {
+			return "(" + s + ")"
+		}
+		return fmt.Sprintf("(%s: %s)", keys[0], s)
+	}
+	var parts []string
+	for _, k := range keys {
+		v := input[k]
+		parts = append(parts, fmt.Sprintf("%s: %s", k, truncateValue(formatValue(v), 50)))
+	}
+	return "(" + strings.Join(parts, ", ") + ")"
+}
+
+func formatValue(v any) string {
+	switch t := v.(type) {
+	case string:
+		return strconv.Quote(t)
+	case bool:
+		return strconv.FormatBool(t)
+	case int, int64, float64:
+		return fmt.Sprintf("%v", t)
+	default:
+		return fmt.Sprintf("%v", t)
+	}
+}
+
+func truncateValue(s string, max int) string {
+	if len([]rune(s)) <= max {
+		return s
+	}
+	r := []rune(s)
+	// Account for the closing quote (if any) when truncating quoted strings.
+	if len(r) > 1 && r[0] == '"' {
+		return string(r[:max-2]) + `…"`
+	}
+	return string(r[:max-1]) + "…"
+}
+
+func indentLines(s, prefix string) string {
+	if s == "" {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i := range lines {
+		lines[i] = prefix + lines[i]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// sortStringsAsc — local alpha sort without pulling sort import where it's
+// the only use. Keep allocation-free for small slices.
+func sortStringsAsc(s []string) {
+	for i := 1; i < len(s); i++ {
+		for j := i; j > 0 && s[j-1] > s[j]; j-- {
+			s[j], s[j-1] = s[j-1], s[j]
+		}
+	}
 }
 
 func (c *chat) appendError(msg string) {
