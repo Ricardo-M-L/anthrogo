@@ -146,7 +146,16 @@ func (c *chat) refresh() {
 		}
 		b.WriteString(ln.rendered)
 	}
-	c.vp.SetContent(b.String())
+	// Pad the top of the viewport so transcript content sits at the BOTTOM
+	// (next to the input row) — chat-style anchoring. Without this, short
+	// transcripts hover at the top of the pane leaving a long gap above
+	// the prompt, which looks awkward.
+	content := b.String()
+	used := strings.Count(content, "\n") + 1
+	if c.vp.Height > used {
+		content = strings.Repeat("\n", c.vp.Height-used) + content
+	}
+	c.vp.SetContent(content)
 	c.vp.GotoBottom()
 }
 
