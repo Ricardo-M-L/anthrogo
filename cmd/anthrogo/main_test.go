@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ricardo/anthrogo/internal/config"
 	"github.com/ricardo/anthrogo/internal/hooks"
 )
 
@@ -140,4 +142,57 @@ func TestVersionSubcommand_PrintsVersion(t *testing.T) {
 	out, err := exec.Command(bin, "version").CombinedOutput()
 	require.NoError(t, err, "version subcommand should exit 0, got %s", string(out))
 	require.Contains(t, string(out), "anthrogo ")
+}
+
+func TestBuildFromProfile_Anthropic_BlocksLinkLocal(t *testing.T) {
+	t.Setenv("DUMMY_KEY", "abc")
+	prof := config.Profile{
+		Type:    "anthropic",
+		BaseURL: "http://169.254.169.254/anthropic/",
+		Model:   "x",
+		APIKey:  "env:DUMMY_KEY",
+	}
+	_, _, err := buildFromProfile(context.Background(), "bad", prof, "x")
+	require.Error(t, err, "anthropic profile base_url pointing at cloud-metadata must be blocked")
+	require.Contains(t, err.Error(), "link-local")
+}
+
+func TestBuildFromProfile_Anthropic_BlocksLoopback(t *testing.T) {
+	t.Setenv("DUMMY_KEY", "abc")
+	prof := config.Profile{
+		Type:    "anthropic",
+		BaseURL: "http://127.0.0.1:8080/",
+		Model:   "x",
+		APIKey:  "env:DUMMY_KEY",
+	}
+	_, _, err := buildFromProfile(context.Background(), "bad", prof, "x")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "loopback")
+}
+
+func TestBuildFromProfile_Anthropic_AcceptsPublicURL(t *testing.T) {
+	t.Setenv("DUMMY_KEY", "abc")
+	prof := config.Profile{
+		Type:    "anthropic",
+		BaseURL: "https://api.minimaxi.com/anthropic",
+		Model:   "minimax-m2.7",
+		APIKey:  "env:DUMMY_KEY",
+	}
+	p, model, err := buildFromProfile(context.Background(), "minimax", prof, "fallback")
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	require.Equal(t, "minimax-m2.7", model)
+}
+
+func TestBuildFromProfile_Anthropic_NoBaseURL_DefaultsToOfficial(t *testing.T) {
+	t.Setenv("DUMMY_KEY", "abc")
+	prof := config.Profile{
+		Type:   "anthropic",
+		Model:  "claude-sonnet-4-6",
+		APIKey: "env:DUMMY_KEY",
+	}
+	p, model, err := buildFromProfile(context.Background(), "default", prof, "fallback")
+	require.NoError(t, err, "empty base_url must work — SDK uses api.anthropic.com")
+	require.NotNil(t, p)
+	require.Equal(t, "claude-sonnet-4-6", model)
 }

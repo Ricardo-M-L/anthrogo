@@ -1100,6 +1100,15 @@ func buildFromProfile(ctx context.Context, name string, prof config.Profile, def
 		// base_url falls back to api.anthropic.com via the SDK default.
 		opts := []option.RequestOption{option.WithAPIKey(apiKey)}
 		if prof.BaseURL != "" {
+			// SSRF defense: a hostile settings.yaml could point this
+			// at 169.254.169.254/anthropic or 127.0.0.1 to attack the
+			// host. CheckURL pre-flight blocks the obvious cases;
+			// guard.HTTPClient installs the Dialer.Control hook so
+			// runtime DNS rebinding can't bypass either.
+			guard := tool.DefaultNetGuard()
+			if err := guard.CheckURL(prof.BaseURL); err != nil {
+				return nil, "", fmt.Errorf("anthropic provider %q base_url: %w", name, err)
+			}
 			// anthropic-sdk-go's WithBaseURL drops any path prefix
 			// unless the URL ends with '/'. So 'https://api.minimaxi.
 			// com/anthropic' silently becomes 'https://api.minimaxi.
@@ -1109,7 +1118,10 @@ func buildFromProfile(ctx context.Context, name string, prof config.Profile, def
 			if !strings.HasSuffix(base, "/") {
 				base += "/"
 			}
-			opts = append(opts, option.WithBaseURL(base))
+			opts = append(opts,
+				option.WithBaseURL(base),
+				option.WithHTTPClient(guard.HTTPClient(nil)),
+			)
 		}
 		return anthropic.NewWithOptions(model, opts...), model, nil
 	case "ollama":
