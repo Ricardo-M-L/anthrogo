@@ -27,7 +27,7 @@ type promptInput struct {
 func newPromptInput(theme Theme, historyPath string) promptInput {
 	ti := textinput.New()
 	ti.Prompt = "> "
-	ti.Placeholder = "Ask anthrogo anything... (Ctrl+C to quit)"
+	ti.Placeholder = "Type a message, / for commands, ? for help…"
 	ti.CharLimit = 4000
 	ti.Width = 80
 	ti.Focus()
@@ -144,7 +144,18 @@ func (p promptInput) update(msg tea.Msg) (promptInput, tea.Cmd) {
 func (p promptInput) view() string {
 	hint := ""
 	if p.ti.Value() == "" && len(p.history) > 0 {
-		hint = "  [Ctrl+E: edit last]"
+		hint = "  " + p.theme.StatusLine.Render("[Ctrl+E: edit last]")
 	}
-	return p.theme.Border.Render(p.ti.View() + hint)
+	// Render the input inline — no heavy box. Just a thin separator above the
+	// prompt to delineate from the transcript. Status line below carries the
+	// model / cost info.
+	sep := p.theme.StatusLine.Render(strings.Repeat("─", maxIntInput(40, p.ti.Width)))
+	return sep + "\n" + p.ti.View() + hint
+}
+
+func maxIntInput(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

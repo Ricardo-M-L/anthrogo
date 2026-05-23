@@ -155,6 +155,7 @@ func New(opts Options) *App {
 		opts:  opts,
 		asks:  make(chan permissionAsk, 4),
 	}
+	a.chat.setWelcome(buildWelcomeBanner(theme, opts.Model, opts.Cwd))
 	a.cmdReg = opts.Commands
 	a.palette = newPalette(theme, opts.Commands)
 	a.logPane = newLogPane(theme)
@@ -514,7 +515,7 @@ func (a *App) drainAsks() {
 // applyLayout resizes panes based on the current layout and terminal dimensions.
 func (a *App) applyLayout() {
 	w, h := a.width, a.height
-	// Reserve input row + status row + 1 separator at bottom.
+	// Bottom rows: separator (1) + input (1) + status (1) = 3.
 	contentH := h - 3
 	if contentH < 1 {
 		contentH = 1

@@ -19,12 +19,13 @@ type chatLine struct {
 }
 
 type chat struct {
-	mu        sync.Mutex
-	vp        viewport.Model
-	theme     Theme
-	lines     []chatLine
-	streaming bool // true while receiving assistant deltas for the current turn
-	md        *glamour.TermRenderer
+	mu         sync.Mutex
+	vp         viewport.Model
+	theme      Theme
+	lines      []chatLine
+	streaming  bool // true while receiving assistant deltas for the current turn
+	md         *glamour.TermRenderer
+	welcomeMsg string // shown when lines is empty (model + cwd + hints)
 }
 
 func newChat(theme Theme) chat {
@@ -132,6 +133,13 @@ func (c *chat) appendHookLog(event, msg string) {
 
 func (c *chat) refresh() {
 	var b strings.Builder
+	if len(c.lines) == 0 && c.welcomeMsg != "" {
+		// Put welcome text in viewport too so the viewport height isn't
+		// painted as a giant black box on first render. view() short-
+		// circuits this with the raw welcome message for cleaner output.
+		c.vp.SetContent(c.welcomeMsg)
+		return
+	}
 	for i, ln := range c.lines {
 		if i > 0 {
 			b.WriteByte('\n')
@@ -162,6 +170,42 @@ func (c *chat) update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
+// buildWelcomeBanner returns the static greeting shown when the chat
+// transcript is empty. Keeps the screen quiet on startup instead of
+// reserving a giant empty bordered box (the old behaviour). Style is
+// intentionally minimal — title in accent, body in default fg, hints
+// in the dim status colour.
+func buildWelcomeBanner(theme Theme, model, cwd string) string {
+	title := theme.UserPrompt.Render("✱ anthrogo")
+	greeting := "  Connected to " + theme.ToolHeader.Render(model)
+	if cwd != "" {
+		greeting += theme.StatusLine.Render("  ·  ") + theme.StatusLine.Render(cwd)
+	}
+	hints := []string{
+		"  " + theme.StatusLine.Render("/  ") + "list slash commands",
+		"  " + theme.StatusLine.Render("?  ") + "help",
+		"  " + theme.StatusLine.Render("↑  ") + "recall a previous prompt",
+		"  " + theme.StatusLine.Render("F2 ") + "toggle layouts (single / split / triple)",
+		"  " + theme.StatusLine.Render("⌃C ") + "interrupt or quit",
+	}
+	return title + "\n\n" + greeting + "\n\n" + strings.Join(hints, "\n")
+}
+
+func (c *chat) setWelcome(msg string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.welcomeMsg = msg
+	c.refresh()
+}
+
 func (c *chat) view() string {
-	return c.theme.Border.Render(c.vp.View())
+	c.mu.Lock()
+	empty := len(c.lines) == 0 && c.welcomeMsg != ""
+	c.mu.Unlock()
+	if empty {
+		// No transcript yet — render the welcome banner inside the viewport
+		// area without a bordered frame. Keeps the screen quiet on startup.
+		return c.welcomeMsg
+	}
+	return c.vp.View()
 }
