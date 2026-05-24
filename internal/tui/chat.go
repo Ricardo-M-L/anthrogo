@@ -9,6 +9,18 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
+)
+
+// Diff colours — red dim for removals, green dim for additions. Match the
+// muted palette Claude Code uses on dark terminals (and a bit lighter for
+// light terminals). Defined as package vars to avoid re-allocating styles
+// on every Edit call.
+var (
+	lipglossDelRed        = lipgloss.NewStyle().Foreground(lipgloss.Color("#eb6f92"))
+	lipglossAddGreen      = lipgloss.NewStyle().Foreground(lipgloss.Color("#9ccfd8"))
+	lipglossDelRedLight   = lipgloss.NewStyle().Foreground(lipgloss.Color("#a02b4a"))
+	lipglossAddGreenLight = lipgloss.NewStyle().Foreground(lipgloss.Color("#2c7e8b"))
 )
 
 // chatLine holds both the rendered (ANSI) string that the viewport displays
@@ -25,6 +37,8 @@ type chat struct {
 	theme      Theme
 	lines      []chatLine
 	streaming  bool // true while receiving assistant deltas for the current turn
+	thinking   bool // user submitted, waiting for first delta or tool call
+	thinkTick  int  // animation frame counter
 	md         *glamour.TermRenderer
 	welcomeMsg string // shown when lines is empty (model + cwd + hints)
 }
@@ -56,12 +70,36 @@ func (c *chat) appendUser(text string) {
 	// input line is shown verbatim — no 'you > ' chat-room label.
 	prefix := c.theme.UserPrompt.Render("> ")
 	c.lines = append(c.lines, chatLine{rendered: prefix + text})
+	c.thinking = true
+	c.refresh()
+}
+
+// setThinking toggles the 'Thinking…' indicator that's drawn just under the
+// transcript while we wait on the model. Called externally by the app loop
+// when the engine starts a new turn.
+func (c *chat) setThinking(on bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.thinking = on
+	c.refresh()
+}
+
+// tickThinking advances the spinner frame. Called from the app's tick loop
+// while c.thinking is true; cheap (refresh re-renders the viewport buffer).
+func (c *chat) tickThinking() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.thinking {
+		return
+	}
+	c.thinkTick++
 	c.refresh()
 }
 
 func (c *chat) appendAssistantDelta(text string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.thinking = false
 	if !c.streaming || len(c.lines) == 0 {
 		// New assistant turn — start a single line that will accumulate
 		// raw markdown until finishAssistant() re-renders through glamour.
@@ -103,14 +141,30 @@ func (c *chat) finishAssistant() {
 //
 // Multi-arg tools show every arg comma-separated. Long string values are
 // truncated. Use appendToolResult to attach the result line under it.
-func (c *chat) appendToolCall(toolName string, input map[string]any) {
+func (c *chat) appendToolCall(toolName, toolUseID string, input map[string]any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.streaming = false
+	c.thinking = false
 	bullet := c.theme.ToolHeader.Render("⏺ ")
 	name := c.theme.ToolHeader.Render(toolName)
-	args := c.theme.ToolBody.Render(formatToolArgs(input))
-	c.lines = append(c.lines, chatLine{rendered: bullet + name + args})
+	args := c.theme.ToolBody.Render(formatToolArgs(toolName, input))
+	header := bullet + name + args
+	if toolUseID != "" {
+		// Show last 8 chars of the tool_use_id for log correlation, in
+		// the dim status colour so it doesn't compete with the call.
+		suffix := toolUseID
+		if len(suffix) > 8 {
+			suffix = suffix[len(suffix)-8:]
+		}
+		header += c.theme.StatusLine.Render("  · " + suffix)
+	}
+	c.lines = append(c.lines, chatLine{rendered: header})
+	// For Edit-style tools, also append a compact diff block immediately
+	// after the call header so the user sees what's about to change.
+	if diff := formatEditDiff(c.theme, toolName, input); diff != "" {
+		c.lines = append(c.lines, chatLine{rendered: diff})
+	}
 	c.refresh()
 }
 
@@ -143,22 +197,34 @@ func (c *chat) appendToolResult(summary string, isError bool) {
 //   - 1 arg with short string: ("uname -a")
 //   - 1 arg, long string: ("…truncated to 60 chars…")
 //   - N args: (key: "val", key2: "val2")
-func formatToolArgs(input map[string]any) string {
+//
+// For Edit-style tools the long old_string/new_string are elided here (their
+// diff is rendered on a separate line by formatEditDiff).
+func formatToolArgs(toolName string, input map[string]any) string {
 	if len(input) == 0 {
 		return "()"
 	}
 	keys := make([]string, 0, len(input))
+	skip := editDiffKeys(toolName)
 	for k := range input {
+		if _, drop := skip[k]; drop {
+			continue
+		}
 		keys = append(keys, k)
 	}
-	// Stable order — alphabetical by key keeps the same tool always
-	// rendering identically across turns.
+	if len(keys) == 0 {
+		// Edit with only old/new — show just the file_path. Fall through
+		// to single-key branch.
+		for k := range input {
+			if k == "file_path" || k == "path" {
+				keys = append(keys, k)
+			}
+		}
+	}
 	sortStringsAsc(keys)
 	if len(keys) == 1 {
 		v := input[keys[0]]
 		s := truncateValue(formatValue(v), 80)
-		// Common single-arg shortcut: Bash(command), Read(file_path)
-		// look better when the key is implicit if the value is a string.
 		if _, isStr := v.(string); isStr {
 			return "(" + s + ")"
 		}
@@ -170,6 +236,65 @@ func formatToolArgs(input map[string]any) string {
 		parts = append(parts, fmt.Sprintf("%s: %s", k, truncateValue(formatValue(v), 50)))
 	}
 	return "(" + strings.Join(parts, ", ") + ")"
+}
+
+// editDiffKeys returns the set of input-map keys that should be omitted from
+// the parenthesised arg list because they're rendered as a diff block below.
+func editDiffKeys(toolName string) map[string]bool {
+	switch toolName {
+	case "Edit", "MultiEdit", "NotebookEdit":
+		return map[string]bool{"old_string": true, "new_string": true}
+	}
+	return nil
+}
+
+// formatEditDiff renders a compact diff snippet for Edit-style tools so the
+// user sees what's about to change before the result lands. Returns "" if
+// the tool isn't an Edit variant or required keys are missing.
+//
+//	     - old line 1
+//	     - old line 2
+//	     + new line 1
+//	     + new line 2
+func formatEditDiff(theme Theme, toolName string, input map[string]any) string {
+	if _, ok := editDiffKeys(toolName)[""]; ok || editDiffKeys(toolName) == nil {
+		// editDiffKeys returns nil for non-Edit tools; check explicitly.
+		if editDiffKeys(toolName) == nil {
+			return ""
+		}
+	}
+	oldS, _ := input["old_string"].(string)
+	newS, _ := input["new_string"].(string)
+	if oldS == "" && newS == "" {
+		return ""
+	}
+	const maxLines = 6
+	delStyle := lipglossDelRed
+	addStyle := lipglossAddGreen
+	if theme.Name == "light" {
+		delStyle = lipglossDelRedLight
+		addStyle = lipglossAddGreenLight
+	}
+	var b strings.Builder
+	indent := "     "
+	for _, ln := range linesCap(oldS, maxLines) {
+		b.WriteString(indent + delStyle.Render("- "+ln) + "\n")
+	}
+	for _, ln := range linesCap(newS, maxLines) {
+		b.WriteString(indent + addStyle.Render("+ "+ln) + "\n")
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func linesCap(s string, n int) []string {
+	if s == "" {
+		return nil
+	}
+	all := strings.Split(s, "\n")
+	if len(all) <= n {
+		return all
+	}
+	return append(all[:n], fmt.Sprintf("… +%d lines", len(all)-n))
 }
 
 func formatValue(v any) string {
@@ -222,7 +347,12 @@ func (c *chat) appendError(msg string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.streaming = false
-	c.lines = append(c.lines, chatLine{rendered: c.theme.Error.Render("error: " + msg)})
+	c.thinking = false
+	// Claude Code style: bold red 'Error:' label + dim red body, prefixed
+	// with the same '⏺' bullet so errors visually align with tool blocks.
+	bullet := c.theme.Error.Bold(true).Render("⏺ Error: ")
+	body := c.theme.Error.Render(msg)
+	c.lines = append(c.lines, chatLine{rendered: bullet + body})
 	c.refresh()
 }
 
@@ -259,6 +389,12 @@ func (c *chat) refresh() {
 		}
 		b.WriteString(ln.rendered)
 	}
+	if c.thinking {
+		if b.Len() > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(renderThinking(c.theme, c.thinkTick))
+	}
 	// Pad the top of the viewport so transcript content sits at the BOTTOM
 	// (next to the input row) — chat-style anchoring. Without this, short
 	// transcripts hover at the top of the pane leaving a long gap above
@@ -290,6 +426,17 @@ func (c *chat) update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	c.vp, cmd = c.vp.Update(msg)
 	return cmd
+}
+
+// spinnerFrames is the 8-frame braille spinner Claude Code uses (also seen
+// in spin/cli-spinners packages). Cycles every 80ms = ~12fps.
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+// renderThinking renders the 'Thinking…' indicator with an animated spinner.
+// Style: dim accent for the spinner, dim foreground for the word.
+func renderThinking(theme Theme, frame int) string {
+	sp := spinnerFrames[frame%len(spinnerFrames)]
+	return theme.ToolHeader.Render(sp) + theme.StatusLine.Render(" Thinking…")
 }
 
 // buildWelcomeBanner returns the static greeting shown when the chat

@@ -229,6 +229,7 @@ func New(opts Options) *App {
 }
 
 type tickMsg time.Time
+type spinTickMsg time.Time
 
 func tickEvery() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
@@ -236,7 +237,18 @@ func tickEvery() tea.Cmd {
 	})
 }
 
-func (a *App) Init() tea.Cmd { return tea.Batch(waitForAsk(a.asks), tickEvery()) }
+// spinTick fires ~12fps; the chat spinner advances one frame per tick while
+// chat.thinking is true. When thinking turns off the tick still fires but is
+// a no-op (chat.tickThinking early-returns).
+func spinTickEvery() tea.Cmd {
+	return tea.Tick(80*time.Millisecond, func(t time.Time) tea.Msg {
+		return spinTickMsg(t)
+	})
+}
+
+func (a *App) Init() tea.Cmd {
+	return tea.Batch(waitForAsk(a.asks), tickEvery(), spinTickEvery())
+}
 
 type askMsg permissionAsk
 
@@ -392,6 +404,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		// 1Hz tick — re-calls View() to repaint the status line live.
 		return a, tickEvery()
+
+	case spinTickMsg:
+		// 12fps tick — advances the 'Thinking…' spinner frame; no-op when
+		// chat is not currently waiting on the model.
+		a.chat.tickThinking()
+		return a, spinTickEvery()
 	}
 
 	var c tea.Cmd
@@ -486,7 +504,7 @@ func (a *App) handleEvent(ev query.Event) {
 		a.chat.finishAssistant()
 	case query.KindToolUseRequest:
 		a.chat.finishAssistant()
-		a.chat.appendToolCall(ev.ToolName, ev.ToolInput)
+		a.chat.appendToolCall(ev.ToolName, ev.ToolUseID, ev.ToolInput)
 	case query.KindToolResult:
 		a.chat.appendToolResult(truncateToolOutput(ev.Text), ev.IsError)
 	case query.KindError:

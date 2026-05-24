@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -66,11 +65,18 @@ func (p *palette) view() string {
 	}
 	var b strings.Builder
 	for i, c := range p.matches {
-		marker := "  "
+		var line string
 		if i == p.selected {
-			marker = "▶ "
+			// Selected row: accent colour, no marker, name bolded.
+			line = p.theme.UserPrompt.Render("  "+c.Name()) + p.theme.StatusLine.Render("  "+c.Description())
+		} else {
+			// Unselected: dim everything.
+			line = p.theme.StatusLine.Render("  " + c.Name() + "  " + c.Description())
 		}
-		fmt.Fprintf(&b, "%s%s  %s\n", marker, c.Name(), c.Description())
+		b.WriteString(line)
+		if i < len(p.matches)-1 {
+			b.WriteByte('\n')
+		}
 	}
-	return p.theme.ModalBorder.Padding(0, 1).Render(strings.TrimRight(b.String(), "\n"))
+	return b.String()
 }
