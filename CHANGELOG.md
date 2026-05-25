@@ -1,5 +1,68 @@
 # Changelog
 
+## [0.14.2] — 2026-05-25
+
+25 commits since v0.14.1. Focus: real-world tested correctness fixes
+(found via live LLM driving — Gemini, MiniMax, DeepSeek) + Claude Code
+style TUI polish.
+
+### Highlights
+
+- **TUI Claude Code parity**: welcome banner, bottom-anchored transcript,
+  `> user` / `⏺ Tool(arg) / ⎿ result` rendering, animated `Thinking…`
+  spinner, tool-use-id suffix, Edit-style diff blocks, TodoWrite
+  checklist (`☐ ◑ ☑`), streaming markdown at safe boundaries,
+  context-window % indicator in the status bar, single-line rounded
+  permission modal, slash palette limited to 7 rows with scroll.
+- **`type: anthropic` profile**: anthropic-compat endpoints
+  (MiniMax / private Claude proxies / etc.) now configurable via
+  `base_url` + `api_key` in settings.yaml; auto-normalises trailing
+  slash; runs through NetGuard for SSRF defense.
+- **Anthropic prompt caching**: system prompt + tool descriptions are
+  marked `cache_control: ephemeral`. Eligible workloads get the
+  upstream ~90% input-token discount on cached hits.
+- **`scripts/install.sh`** — sh-only curl one-liner installer with
+  checksum verification, sudo fallback, `ANTHROGO_PREFIX` user-dir
+  install, and macOS quarantine strip.
+- **6 security / correctness fixes** found during live testing:
+  - oauth `url.Parse` error now returned instead of nil-panic (B5);
+    OAuth `SaveToken` errors now logged instead of swallowed (B6).
+  - `session.Resume` now also takes the exclusive flock (B2) —
+    M15.2 had only fixed `New`. Two anthrogo processes resuming the
+    same session ID would have interleaved JSONL writes.
+  - SlackPost outbound URL now runs through NetGuard CheckURL +
+    Dialer.Control (B3). Previously bypassed entirely.
+  - reasoning_content + thinking deltas no longer silently dropped
+    (B4). DeepSeek-R1, Qwen-QwQ, GLM-Z1, anthropic native thinking
+    blocks all surface via `EventThinkingDelta`.
+  - Gemini 3 `thought_signature` round-tripped through
+    `ProviderMetadata` (B1). Without this, second-turn tool_use on
+    `gemini-flash-latest` failed HTTP 400.
+  - `netguard.DialContext` previously rejected ALL public hostnames
+    because it ran ParseIP on the pre-resolution string. Moved to
+    `Dialer.Control`. This was a V2 SSRF regression that would
+    have broken WebFetch / HTTPRequest / Embed / ImageGen on every
+    public URL in production.
+- **`telemetry.flush()`**: dedicated 5s-Timeout http.Client so a
+  stuck endpoint can't park process exit (D5).
+- **YAML strict mode** with warn-and-continue across 6 loader sites
+  (settings.yaml + skill / plugin / subagent / hook). Typos like
+  `pattern:` instead of `match:` now surface as a stderr warning
+  instead of silently zero-valuing the field (D4).
+- **`golang.org/x/net`** bumped 0.54.0 → 0.55.0 to clear GO-2026-5030
+  (HTML duplicate-attribute XSS, reachable via WebFetch).
+- **doctor** now reads the active profile's `apiKey` reference and
+  `base_url` instead of hard-coding Anthropic. Custom profiles
+  (Gemini / DeepSeek / Kimi / etc.) get meaningful checks.
+- **OpenAI stream parser quirks** for non-OpenAI providers:
+  - `finish_reason=stop` coerces to `tool_calls` when tool_calls
+    were observed (Gemini 3 emits both in one chunk).
+  - 429 returns `RateLimitError` with `Retry-After` parsed (RFC 7231
+    integer or HTTP-date); engine honors it instead of the fixed
+    200ms/600ms/2s ladder.
+
+See per-commit detail in `git log v0.14.1..v0.14.2`.
+
 ## [0.14.2-dev] — 2026-05-22
 
 Structured observability: OTel tracing + Prometheus metrics (C6 milestone).
