@@ -519,9 +519,20 @@ func (p permission) view() string {
 		body.WriteString("\nPress 1–4 to select   |   [esc] cancel")
 		return p.theme.ModalBorder.Padding(1, 2).Render(body.String())
 	default:
-		raw, _ := json.MarshalIndent(p.pending.req.ToolInput, "", "  ")
-		body := fmt.Sprintf("Tool: %s\nInput:\n%s\n\n[y] allow once   [a] always allow   [n] deny",
-			p.pending.req.ToolName, string(raw))
-		return p.theme.ModalBorder.Padding(1, 2).Render(body)
+		// Claude Code style: compact call summary + numbered choices.
+		// Drops the raw JSON dump (which made the modal span the whole
+		// screen on multi-arg tools) in favour of the same '⏺ Tool(arg)'
+		// formatter the transcript uses.
+		bullet := p.theme.ToolHeader.Render("⏺ ")
+		name := p.theme.ToolHeader.Render(p.pending.req.ToolName)
+		args := p.theme.ToolBody.Render(formatToolArgs(p.pending.req.ToolName, p.pending.req.ToolInput))
+		hint := p.theme.StatusLine.Render("(Selected via key in brackets)")
+		body := bullet + name + args + "\n\n" +
+			"Allow this call?\n" +
+			p.theme.UserPrompt.Render("  [y]") + " allow once\n" +
+			p.theme.UserPrompt.Render("  [a]") + " always allow this tool\n" +
+			p.theme.UserPrompt.Render("  [n]") + " deny\n\n" +
+			hint
+		return p.theme.ModalBorder.Padding(0, 2).Width(70).Render(body)
 	}
 }

@@ -28,7 +28,10 @@ func DarkTheme() Theme {
 		Error:       lipgloss.NewStyle().Foreground(lipgloss.Color("#eb6f92")),
 		StatusLine:  lipgloss.NewStyle().Foreground(lipgloss.Color("#6e6a86")),
 		Border:      lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#403d52")),
-		ModalBorder: lipgloss.NewStyle().BorderStyle(lipgloss.DoubleBorder()).BorderForeground(lipgloss.Color("#f6c177")),
+		// Modal: rounded single-line border in the accent purple to match
+		// the welcome banner. Double-line + alarmist orange replaced as
+		// part of the Claude-Code-style polish pass.
+		ModalBorder: lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#7c7cff")),
 	}
 }
 
@@ -42,7 +45,7 @@ func LightTheme() Theme {
 		Error:       lipgloss.NewStyle().Foreground(lipgloss.Color("#a02b4a")),
 		StatusLine:  lipgloss.NewStyle().Foreground(lipgloss.Color("#5a5670")),
 		Border:      lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#a8a4c5")),
-		ModalBorder: lipgloss.NewStyle().BorderStyle(lipgloss.DoubleBorder()).BorderForeground(lipgloss.Color("#aa6300")),
+		ModalBorder: lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#3b3bff")),
 	}
 }
 

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -59,24 +60,50 @@ func (p *palette) handleKey(msg tea.KeyMsg) (bool, string) {
 	return false, ""
 }
 
+const paletteVisible = 7
+
 func (p *palette) view() string {
 	if !p.visible {
 		return ""
 	}
+	// Show at most `paletteVisible` rows; window slides to keep the selected
+	// row visible (Claude Code style). For total ≤ 7, nothing scrolls.
+	start := 0
+	if len(p.matches) > paletteVisible {
+		// Anchor the selection roughly in the middle of the visible window
+		// when possible; clamp to edges.
+		half := paletteVisible / 2
+		start = p.selected - half
+		if start < 0 {
+			start = 0
+		}
+		if start+paletteVisible > len(p.matches) {
+			start = len(p.matches) - paletteVisible
+		}
+	}
+	end := start + paletteVisible
+	if end > len(p.matches) {
+		end = len(p.matches)
+	}
+
 	var b strings.Builder
-	for i, c := range p.matches {
+	for i := start; i < end; i++ {
+		c := p.matches[i]
 		var line string
 		if i == p.selected {
-			// Selected row: accent colour, no marker, name bolded.
 			line = p.theme.UserPrompt.Render("  "+c.Name()) + p.theme.StatusLine.Render("  "+c.Description())
 		} else {
-			// Unselected: dim everything.
 			line = p.theme.StatusLine.Render("  " + c.Name() + "  " + c.Description())
 		}
 		b.WriteString(line)
-		if i < len(p.matches)-1 {
+		if i < end-1 {
 			b.WriteByte('\n')
 		}
+	}
+	// Hidden-count footer when scrolled
+	if len(p.matches) > paletteVisible {
+		b.WriteByte('\n')
+		b.WriteString(p.theme.StatusLine.Render(fmt.Sprintf("  · %d/%d ·  Tab to cycle", p.selected+1, len(p.matches))))
 	}
 	return b.String()
 }
