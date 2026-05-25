@@ -565,6 +565,16 @@ func (a *App) formatUsageLine() string {
 	s := fmt.Sprintf("tok: %sin/%sout (since: %s)",
 		formatTokens(lu.InputTokens), formatTokens(lu.OutputTokens),
 		formatTokens(sinceTotal))
+	// Context-window % so the user can see how close they are to the
+	// model's hard limit. Skip when the model is unknown (cap == 0).
+	if cap := pricing.ContextWindow(a.opts.Model); cap > 0 {
+		used := lu.InputTokens
+		if sinceTotal > used {
+			used = sinceTotal
+		}
+		pct := used * 100 / cap
+		s += fmt.Sprintf(" · %d%%", pct)
+	}
 	if a.opts.AutoCompactThreshold > 0 {
 		s += fmt.Sprintf(" [⚙ %s]", formatTokens(a.opts.AutoCompactThreshold))
 	}
@@ -588,8 +598,7 @@ func (a *App) statusLineString() string {
 	}
 	parts := []string{a.opts.Model, cwd, a.formatUsageLine()}
 	sep := a.theme.StatusLine.Render("  ·  ")
-	status := a.theme.StatusLine.Render(strings.Join(parts, ""))
-	status = a.theme.StatusLine.Render(parts[0]) + sep +
+	status := a.theme.StatusLine.Render(parts[0]) + sep +
 		a.theme.StatusLine.Render(parts[1]) + sep +
 		a.theme.StatusLine.Render(parts[2])
 	if badge := renderPlanBadge(a.theme, planOn); badge != "" {

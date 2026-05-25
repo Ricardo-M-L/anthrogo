@@ -74,16 +74,6 @@ func (c *chat) appendUser(text string) {
 	c.refresh()
 }
 
-// setThinking toggles the 'Thinking…' indicator that's drawn just under the
-// transcript while we wait on the model. Called externally by the app loop
-// when the engine starts a new turn.
-func (c *chat) setThinking(on bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.thinking = on
-	c.refresh()
-}
-
 // tickThinking advances the spinner frame. Called from the app's tick loop
 // while c.thinking is true; cheap (refresh re-renders the viewport buffer).
 func (c *chat) tickThinking() {
@@ -102,8 +92,7 @@ func (c *chat) appendAssistantDelta(text string) {
 	c.thinking = false
 	if !c.streaming || len(c.lines) == 0 {
 		// New assistant turn — start a single line that will accumulate
-		// raw markdown until finishAssistant() re-renders through glamour.
-		// No 'assistant > ' label; the content speaks for itself.
+		// raw markdown. No 'assistant > ' label; content speaks for itself.
 		c.lines = append(c.lines, chatLine{
 			rendered: text,
 			rawText:  text,
@@ -112,9 +101,39 @@ func (c *chat) appendAssistantDelta(text string) {
 	} else {
 		last := &c.lines[len(c.lines)-1]
 		last.rawText += text
-		last.rendered = last.rawText
+		// Streaming-safe markdown: render through glamour ONLY when the
+		// accumulated raw text ends at a safe boundary (paragraph break
+		// or closed fenced code block). For mid-paragraph deltas keep
+		// the raw text so the partial sentence reads naturally.
+		if c.md != nil && safeMarkdownBoundary(last.rawText) {
+			if r, err := c.md.Render(last.rawText); err == nil {
+				last.rendered = strings.TrimRight(r, "\n")
+			} else {
+				last.rendered = last.rawText
+			}
+		} else {
+			last.rendered = last.rawText
+		}
 	}
 	c.refresh()
+}
+
+// safeMarkdownBoundary returns true when the buffer ends at a place where
+// glamour can render without producing surprises mid-stream.
+//   - ends with a blank line (\n\n): previous paragraph is closed
+//   - even number of ``` fences: no unclosed code block
+//
+// Returning false keeps the buffer in raw-text mode until the next safe
+// boundary; finishAssistant() always runs the final glamour pass.
+func safeMarkdownBoundary(s string) bool {
+	if !strings.HasSuffix(s, "\n\n") {
+		return false
+	}
+	// Count code fences. Odd = unclosed; skip rendering.
+	if strings.Count(s, "```")%2 != 0 {
+		return false
+	}
+	return true
 }
 
 // finishAssistant marks the current assistant turn as complete and re-renders
@@ -148,7 +167,14 @@ func (c *chat) appendToolCall(toolName, toolUseID string, input map[string]any) 
 	c.thinking = false
 	bullet := c.theme.ToolHeader.Render("⏺ ")
 	name := c.theme.ToolHeader.Render(toolName)
-	args := c.theme.ToolBody.Render(formatToolArgs(toolName, input))
+	// Tool-specific compact formatters take precedence over the generic
+	// arg-list. TodoWrite gets a checkbox list; other tools fall through.
+	var args string
+	if toolName == "TodoWrite" {
+		args = c.theme.StatusLine.Render("(update)")
+	} else {
+		args = c.theme.ToolBody.Render(formatToolArgs(toolName, input))
+	}
 	header := bullet + name + args
 	if toolUseID != "" {
 		// Show last 8 chars of the tool_use_id for log correlation, in
@@ -165,7 +191,59 @@ func (c *chat) appendToolCall(toolName, toolUseID string, input map[string]any) 
 	if diff := formatEditDiff(c.theme, toolName, input); diff != "" {
 		c.lines = append(c.lines, chatLine{rendered: diff})
 	}
+	// TodoWrite: render the checkbox list inline so the user sees the
+	// plan immediately, not as a JSON dump.
+	if toolName == "TodoWrite" {
+		if list := formatTodoList(c.theme, input); list != "" {
+			c.lines = append(c.lines, chatLine{rendered: list})
+		}
+	}
 	c.refresh()
+}
+
+// formatTodoList renders TodoWrite's todos array as a checkbox list:
+//
+//	☐ pending item
+//	◑ in-progress item (highlighted)
+//	☑ completed item (dimmed + strikethrough)
+//
+// Returns "" if input["todos"] is missing or unexpected.
+func formatTodoList(theme Theme, input map[string]any) string {
+	raw, ok := input["todos"]
+	if !ok {
+		return ""
+	}
+	arr, ok := raw.([]any)
+	if !ok {
+		return ""
+	}
+	var b strings.Builder
+	indent := "     "
+	for i, item := range arr {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		content, _ := m["content"].(string)
+		status, _ := m["status"].(string)
+		var glyph, line string
+		switch status {
+		case "completed":
+			glyph = "☑"
+			line = theme.StatusLine.Render(glyph+" "+content) + theme.StatusLine.Render("  (done)")
+		case "in_progress":
+			glyph = "◑"
+			line = theme.ToolHeader.Render(glyph+" "+content) + theme.StatusLine.Render("  (in progress)")
+		default: // pending or unknown
+			glyph = "☐"
+			line = theme.ToolBody.Render(glyph + " " + content)
+		}
+		b.WriteString(indent + line)
+		if i < len(arr)-1 {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
 }
 
 // appendToolResult renders the tool's result indented under the call with
@@ -252,10 +330,10 @@ func editDiffKeys(toolName string) map[string]bool {
 // user sees what's about to change before the result lands. Returns "" if
 // the tool isn't an Edit variant or required keys are missing.
 //
-//	     - old line 1
-//	     - old line 2
-//	     + new line 1
-//	     + new line 2
+//   - old line 1
+//   - old line 2
+//   - new line 1
+//   - new line 2
 func formatEditDiff(theme Theme, toolName string, input map[string]any) string {
 	if _, ok := editDiffKeys(toolName)[""]; ok || editDiffKeys(toolName) == nil {
 		// editDiffKeys returns nil for non-Edit tools; check explicitly.

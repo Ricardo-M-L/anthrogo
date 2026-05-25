@@ -52,9 +52,15 @@ func buildParams(defaultModel string, req provider.Request) (sdk.MessageNewParam
 	}
 
 	if req.SystemPrompt != "" {
-		params.System = sdk.F([]sdk.TextBlockParam{
-			sdk.NewTextBlock(req.SystemPrompt),
+		// Prompt cache: mark the system block as ephemeral so Anthropic
+		// reuses it on subsequent turns. 90% input-token discount on
+		// cached hits. Safe to always set — the API ignores it on
+		// non-cacheable content (< 1024 tokens).
+		block := sdk.NewTextBlock(req.SystemPrompt)
+		block.CacheControl = sdk.F(sdk.CacheControlEphemeralParam{
+			Type: sdk.F(sdk.CacheControlEphemeralTypeEphemeral),
 		})
+		params.System = sdk.F([]sdk.TextBlockParam{block})
 	}
 
 	if req.Temperature != 0 {
@@ -63,12 +69,22 @@ func buildParams(defaultModel string, req provider.Request) (sdk.MessageNewParam
 
 	if len(req.Tools) > 0 {
 		tools := make([]sdk.ToolUnionUnionParam, 0, len(req.Tools))
-		for _, ts := range req.Tools {
-			tools = append(tools, sdk.ToolParam{
+		for i, ts := range req.Tools {
+			tp := sdk.ToolParam{
 				Name:        sdk.F(ts.Name),
 				Description: sdk.F(ts.Description),
 				InputSchema: sdk.F[interface{}](ts.InputSchema),
-			})
+			}
+			// Cache the LAST tool description with ephemeral marker —
+			// Anthropic caches everything up to the most recent
+			// cache_control breakpoint. One marker = whole tool list
+			// (and system) get cached together.
+			if i == len(req.Tools)-1 {
+				tp.CacheControl = sdk.F(sdk.CacheControlEphemeralParam{
+					Type: sdk.F(sdk.CacheControlEphemeralTypeEphemeral),
+				})
+			}
+			tools = append(tools, tp)
 		}
 		params.Tools = sdk.F(tools)
 	}
