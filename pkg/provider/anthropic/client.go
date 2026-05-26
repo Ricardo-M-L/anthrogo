@@ -9,7 +9,7 @@ import (
 
 // Provider wraps anthropic-sdk-go and implements provider.Provider.
 type Provider struct {
-	client *sdk.Client
+	client sdk.Client // v1 SDK returns Client by value, not *Client
 	model  string
 }
 
@@ -24,8 +24,7 @@ func New(apiKey, model string) *Provider {
 // NewWithOptions constructs a Provider with arbitrary SDK request options.
 // Used by bedrock, Vertex and other backends that provide their own auth.
 func NewWithOptions(model string, opts ...option.RequestOption) *Provider {
-	clientVal := sdk.NewClient(opts...)
-	return &Provider{client: clientVal, model: model}
+	return &Provider{client: sdk.NewClient(opts...), model: model}
 }
 
 // Model returns the default model name.

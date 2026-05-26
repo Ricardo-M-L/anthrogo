@@ -1055,8 +1055,8 @@ func buildAnthropicCounter(apiKey string) func(model string, blocks []message.Bl
 			sdk.NewUserMessage(toContentBlocks(blocks)...),
 		}
 		result, err := client.Messages.CountTokens(ctx, sdk.MessageCountTokensParams{
-			Model:    sdk.F(sdk.Model(model)),
-			Messages: sdk.F(msgs),
+			Model:    sdk.Model(model),
+			Messages: msgs,
 		})
 		if err != nil {
 			return -1

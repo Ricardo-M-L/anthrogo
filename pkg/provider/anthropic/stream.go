@@ -10,7 +10,11 @@ import (
 	"github.com/ricardo/anthrogo/pkg/provider"
 )
 
-// Stream implements provider.Provider.
+// Stream implements provider.Provider against anthropic-sdk-go v1.x.
+//
+// The v1 SDK dropped the v0.2-alpha `sdk.F[T]()` opt wrappers and reorganised
+// the stream-event API around `MessageStreamEventUnion.AsAny()`. This file
+// is the full rewrite — same external behaviour, new SDK shape.
 func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan provider.Event, error) {
 	params, err := buildParams(p.model, req)
 	if err != nil {
@@ -46,47 +50,59 @@ func buildParams(defaultModel string, req provider.Request) (sdk.MessageNewParam
 	}
 
 	params := sdk.MessageNewParams{
-		Model:     sdk.F(sdk.Model(model)),
-		MaxTokens: sdk.F(int64(req.MaxTokens)),
-		Messages:  sdk.F(msgs),
+		Model:     sdk.Model(model),
+		MaxTokens: int64(req.MaxTokens),
+		Messages:  msgs,
 	}
 
 	if req.SystemPrompt != "" {
 		// Prompt cache: mark the system block as ephemeral so Anthropic
-		// reuses it on subsequent turns. 90% input-token discount on
-		// cached hits. Safe to always set — the API ignores it on
-		// non-cacheable content (< 1024 tokens).
-		block := sdk.NewTextBlock(req.SystemPrompt)
-		block.CacheControl = sdk.F(sdk.CacheControlEphemeralParam{
-			Type: sdk.F(sdk.CacheControlEphemeralTypeEphemeral),
-		})
-		params.System = sdk.F([]sdk.TextBlockParam{block})
+		// reuses it on subsequent turns. ~90% input-token discount on
+		// cached hits. Safe to always set — API ignores it on non-
+		// cacheable content (< 1024 tokens).
+		params.System = []sdk.TextBlockParam{
+			{
+				Text:         req.SystemPrompt,
+				CacheControl: sdk.CacheControlEphemeralParam{},
+			},
+		}
 	}
 
 	if req.Temperature != 0 {
-		params.Temperature = sdk.F(req.Temperature)
+		params.Temperature = sdk.Float(req.Temperature)
 	}
 
 	if len(req.Tools) > 0 {
-		tools := make([]sdk.ToolUnionUnionParam, 0, len(req.Tools))
+		tools := make([]sdk.ToolUnionParam, 0, len(req.Tools))
 		for i, ts := range req.Tools {
 			tp := sdk.ToolParam{
-				Name:        sdk.F(ts.Name),
-				Description: sdk.F(ts.Description),
-				InputSchema: sdk.F[interface{}](ts.InputSchema),
+				Name:        ts.Name,
+				Description: sdk.String(ts.Description),
+				InputSchema: sdk.ToolInputSchemaParam{
+					Properties: ts.InputSchema["properties"],
+				},
 			}
-			// Cache the LAST tool description with ephemeral marker —
-			// Anthropic caches everything up to the most recent
-			// cache_control breakpoint. One marker = whole tool list
-			// (and system) get cached together.
+			// Pass through 'required' if the source schema specified one.
+			if r, ok := ts.InputSchema["required"].([]string); ok {
+				tp.InputSchema.Required = r
+			} else if r, ok := ts.InputSchema["required"].([]any); ok {
+				required := make([]string, 0, len(r))
+				for _, v := range r {
+					if s, ok := v.(string); ok {
+						required = append(required, s)
+					}
+				}
+				tp.InputSchema.Required = required
+			}
+			// Cache breakpoint on the LAST tool description — Anthropic
+			// caches everything up to the most recent cache_control mark,
+			// so one breakpoint covers system + tools together.
 			if i == len(req.Tools)-1 {
-				tp.CacheControl = sdk.F(sdk.CacheControlEphemeralParam{
-					Type: sdk.F(sdk.CacheControlEphemeralTypeEphemeral),
-				})
+				tp.CacheControl = sdk.CacheControlEphemeralParam{}
 			}
-			tools = append(tools, tp)
+			tools = append(tools, sdk.ToolUnionParam{OfTool: &tp})
 		}
-		params.Tools = sdk.F(tools)
+		params.Tools = tools
 	}
 
 	return params, nil
@@ -121,41 +137,35 @@ func convertBlocks(blocks []message.Block) ([]sdk.ContentBlockParamUnion, error)
 		case message.BlockText:
 			out = append(out, sdk.NewTextBlock(b.Text))
 		case message.BlockToolUse:
-			// Serialize Input map to raw JSON then unmarshal as interface{}
 			raw, err := json.Marshal(b.Input)
 			if err != nil {
 				return nil, err
 			}
-			var inputVal interface{}
+			var inputVal any
 			if err := json.Unmarshal(raw, &inputVal); err != nil {
 				return nil, err
 			}
-			out = append(out, sdk.NewToolUseBlockParam(b.ToolUseID, b.ToolName, inputVal))
+			out = append(out, sdk.NewToolUseBlock(b.ToolUseID, inputVal, b.ToolName))
 		case message.BlockToolResult:
 			out = append(out, sdk.NewToolResultBlock(b.ToolUseID, b.Text, b.IsError))
 		case message.BlockThinking:
-			// Thinking blocks in input: skip (they are output-only)
+			// Thinking blocks in input are output-only; skip.
 		case message.BlockImage:
 			if b.ImageSource != nil {
-				mediaType := sdk.Base64ImageSourceMediaType(b.ImageSource.MediaType)
-				out = append(out, sdk.ImageBlockParam{
-					Type: sdk.F(sdk.ImageBlockParamTypeImage),
-					Source: sdk.F(sdk.ImageBlockParamSourceUnion(sdk.Base64ImageSourceParam{
-						Type:      sdk.F(sdk.Base64ImageSourceTypeBase64),
-						MediaType: sdk.F(mediaType),
-						Data:      sdk.F(b.ImageSource.Data),
-					})),
-				})
+				out = append(out, sdk.NewImageBlockBase64(b.ImageSource.MediaType, b.ImageSource.Data))
 			}
 		}
 	}
 	return out, nil
 }
 
-// translateEvent converts one SDK stream event to provider.Event(s).
-func translateEvent(raw sdk.MessageStreamEvent, out chan<- provider.Event) {
-	union := raw.AsUnion()
-	switch ev := union.(type) {
+// translateEvent converts one SDK stream event union to provider.Event(s).
+//
+// v1 SDK exposes events through MessageStreamEventUnion.AsAny() rather than
+// the v0.2-alpha (raw sdk.MessageStreamEvent).AsUnion() pattern.
+func translateEvent(raw sdk.MessageStreamEventUnion, out chan<- provider.Event) {
+	switch ev := raw.AsAny().(type) {
+
 	case sdk.MessageStartEvent:
 		u := ev.Message.Usage
 		out <- provider.Event{
@@ -170,24 +180,23 @@ func translateEvent(raw sdk.MessageStreamEvent, out chan<- provider.Event) {
 
 	case sdk.ContentBlockStartEvent:
 		cb := ev.ContentBlock
-		switch cb.Type {
-		case sdk.ContentBlockStartEventContentBlockTypeToolUse:
+		if cb.Type == "tool_use" {
 			out <- provider.Event{
 				Kind:      provider.EventToolUseStart,
 				ToolUseID: cb.ID,
 				ToolName:  cb.Name,
 			}
-			// text / thinking blocks: no start event needed
 		}
+		// text + thinking blocks: no start event needed.
 
 	case sdk.ContentBlockDeltaEvent:
 		delta := ev.Delta
 		switch delta.Type {
-		case sdk.ContentBlockDeltaEventDeltaTypeTextDelta:
+		case "text_delta":
 			out <- provider.Event{Kind: provider.EventTextDelta, Text: delta.Text}
-		case sdk.ContentBlockDeltaEventDeltaTypeInputJSONDelta:
+		case "input_json_delta":
 			out <- provider.Event{Kind: provider.EventToolInputDelta, PartialJSON: delta.PartialJSON}
-		case sdk.ContentBlockDeltaEventDeltaTypeThinkingDelta:
+		case "thinking_delta":
 			out <- provider.Event{Kind: provider.EventThinkingDelta, Text: delta.Thinking}
 		}
 
@@ -209,10 +218,8 @@ func translateEvent(raw sdk.MessageStreamEvent, out chan<- provider.Event) {
 		}
 
 	case sdk.MessageStopEvent:
-		// Intentionally NOT emitting EventMessageStop here — the SDK already
-		// surfaces stop_reason through MessageDeltaEvent above. A second empty-
-		// StopReason emit here would overwrite the real stopReason in the
-		// engine loop and surface "" as the TurnComplete reason.
+		// Intentionally NOT emitting EventMessageStop here — the SDK
+		// already surfaced stop_reason through MessageDeltaEvent above.
 		_ = ev
 	}
 }
