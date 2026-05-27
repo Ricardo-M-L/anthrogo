@@ -512,6 +512,8 @@ func (a *App) handleEvent(ev query.Event) {
 		a.chat.appendToolResult(truncateToolOutput(ev.Text), ev.IsError)
 	case query.KindError:
 		a.chat.appendError(ev.Err.Error())
+	case query.KindCompactDone:
+		a.chat.appendCompactNotice(ev.CompactOriginalTokens, ev.CompactNewTokens, ev.CompactTrigger)
 	case query.KindTurnComplete:
 		a.chat.finishAssistant()
 	}

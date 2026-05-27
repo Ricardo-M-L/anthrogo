@@ -88,11 +88,19 @@ func (e *Engine) SubmitMessageBlocks(ctx context.Context, blocks []message.Block
 						if keep == 0 {
 							keep = 10
 						}
-						if _, compactErr := e.Compact(ctx, CompactOptions{
+						summary, compactErr := e.Compact(ctx, CompactOptions{
 							Trigger:    "auto",
 							KeepRecent: keep,
-						}); compactErr != nil {
+						})
+						if compactErr != nil {
 							log.Printf("anthrogo: auto-compact failed: %v", compactErr)
+						} else if !summary.Skipped {
+							out <- Event{
+								Kind:                  KindCompactDone,
+								CompactOriginalTokens: summary.OriginalTokens,
+								CompactNewTokens:      summary.NewTokens,
+								CompactTrigger:        summary.Trigger,
+							}
 						}
 					}
 				}

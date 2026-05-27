@@ -23,6 +23,11 @@ const (
 	KindError          EventKind = "error"
 	KindStreamRetry    EventKind = "stream_retry"
 	KindCancelDraining EventKind = "cancel_draining"
+	// KindCompactDone fires when auto-compaction trimmed the conversation.
+	// Surfaces show a transcript line like:
+	//   '⚙ context compacted — 87,500 → 12,400 tokens'
+	// so the user understands why earlier turns silently disappeared.
+	KindCompactDone EventKind = "compact_done"
 )
 
 type Event struct {
@@ -55,4 +60,11 @@ type Event struct {
 	// still running. InFlightCount is the number of goroutines still pending.
 	InFlightCount int
 	RemainingMs   int
+
+	// compact_done: emitted after auto-compact has reduced the message list.
+	// Surfaces render this as a visible '⚙ context compacted' line so the
+	// user knows earlier turns were summarised.
+	CompactOriginalTokens int
+	CompactNewTokens      int
+	CompactTrigger        string // "auto" | "manual"
 }

@@ -468,6 +468,46 @@ func sortStringsAsc(s []string) {
 	}
 }
 
+// appendCompactNotice renders a visible transcript line when context
+// compaction has trimmed earlier turns. Without this users see earlier
+// messages silently vanish from the model's apparent memory and lose
+// trust in what the assistant remembers.
+//
+//	⚙ context compacted — 87,500 → 12,400 tokens (auto)
+func (c *chat) appendCompactNotice(originalTok, newTok int, trigger string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.streaming = false
+	c.thinking = false
+	icon := c.theme.ToolHeader.Render("⚙ ")
+	label := c.theme.ToolHeader.Render("context compacted")
+	body := c.theme.StatusLine.Render(fmt.Sprintf(
+		" — %s → %s tokens (%s)",
+		formatTokensWithCommas(originalTok),
+		formatTokensWithCommas(newTok),
+		trigger,
+	))
+	c.lines = append(c.lines, chatLine{rendered: icon + label + body})
+	c.refresh()
+}
+
+// formatTokensWithCommas is the same comma-thousands formatter app.go uses
+// for the status line, inlined here to avoid an import cycle.
+func formatTokensWithCommas(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	s := fmt.Sprintf("%d", n)
+	out := make([]byte, 0, len(s)+len(s)/3)
+	for i, c := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			out = append(out, ',')
+		}
+		out = append(out, byte(c))
+	}
+	return string(out)
+}
+
 func (c *chat) appendError(msg string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
