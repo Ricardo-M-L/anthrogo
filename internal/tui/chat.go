@@ -468,6 +468,29 @@ func sortStringsAsc(s []string) {
 	}
 }
 
+// appendResumeBanner renders a single transcript line indicating that a
+// prior session has been resumed and how many turns of history were
+// replayed below. Eliminates the disorientation of seeing old messages
+// scroll past on startup without context.
+//
+//	↻ Resumed session — 14 prior turns
+func (c *chat) appendResumeBanner(turns int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	icon := c.theme.ToolHeader.Render("↻ ")
+	label := c.theme.ToolHeader.Render("Resumed session")
+	body := c.theme.StatusLine.Render(fmt.Sprintf(" — %d prior turn%s", turns, plural(turns)))
+	c.lines = append(c.lines, chatLine{rendered: icon + label + body})
+	c.refresh()
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}
+
 // appendCompactNotice renders a visible transcript line when context
 // compaction has trimmed earlier turns. Without this users see earlier
 // messages silently vanish from the model's apparent memory and lose

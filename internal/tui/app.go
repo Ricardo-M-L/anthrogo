@@ -206,6 +206,18 @@ func New(opts Options) *App {
 
 	if len(opts.InitialMessages) > 0 {
 		a.engine.SetInitialMessages(opts.InitialMessages)
+		// Count user + assistant text turns for the resume banner. Tool
+		// messages and system overlays don't count toward "prior turns"
+		// because the user perceives turns as visible message pairs.
+		turns := 0
+		for _, m := range opts.InitialMessages {
+			if m.Role == message.RoleUser || m.Role == message.RoleAssistant {
+				turns++
+			}
+		}
+		if turns > 0 {
+			a.chat.appendResumeBanner(turns)
+		}
 		for _, m := range opts.InitialMessages {
 			switch m.Role {
 			case message.RoleUser:
