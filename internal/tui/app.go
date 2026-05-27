@@ -502,6 +502,9 @@ func (a *App) handleEvent(ev query.Event) {
 		a.chat.appendAssistantDelta(ev.Text)
 	case query.KindAssistantStop:
 		a.chat.finishAssistant()
+	case query.KindToolPending:
+		a.chat.finishAssistant()
+		a.chat.appendToolPending(ev.ToolName, ev.ToolUseID)
 	case query.KindToolUseRequest:
 		a.chat.finishAssistant()
 		a.chat.appendToolCall(ev.ToolName, ev.ToolUseID, ev.ToolInput)

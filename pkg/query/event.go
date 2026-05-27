@@ -10,6 +10,11 @@ const (
 	KindAssistantDelta EventKind = "assistant_delta"
 	KindThinkingDelta  EventKind = "thinking_delta"
 	KindAssistantStop  EventKind = "assistant_stop"
+	// KindToolPending fires as soon as the provider tells us a tool block
+	// has started, BEFORE the input JSON has finished streaming. Used by
+	// surfaces to show 'Tool (composing args…)' so the user doesn't sit
+	// staring at a blank screen while the model emits a large args blob.
+	KindToolPending    EventKind = "tool_pending"
 	KindToolUseRequest EventKind = "tool_use_request"
 	KindToolResult     EventKind = "tool_result"
 	KindPermissionAsk  EventKind = "permission_ask"

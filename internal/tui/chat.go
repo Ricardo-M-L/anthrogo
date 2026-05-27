@@ -27,8 +27,9 @@ var (
 // and the raw markdown source for assistant lines so finishAssistant can
 // re-render with glamour once streaming ends.
 type chatLine struct {
-	rendered string // what view() shows
-	rawText  string // non-empty only for assistant lines
+	rendered  string // what view() shows
+	rawText   string // non-empty only for assistant lines
+	toolUseID string // non-empty for the placeholder line of a pending tool call
 }
 
 type chat struct {
@@ -154,6 +155,36 @@ func (c *chat) finishAssistant() {
 	c.streaming = false
 }
 
+// appendToolPending renders a placeholder line for a tool whose args are
+// still being composed by the model. The line is replaced when the full
+// tool_use_request arrives (matched by tool_use_id). Eliminates the dead-
+// time gap when the model is emitting a large JSON input blob (e.g. an
+// Edit with multi-line old_string / new_string).
+func (c *chat) appendToolPending(toolName, toolUseID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.streaming = false
+	c.thinking = false
+	bullet := c.theme.ToolHeader.Render("⏺ ")
+	name := c.theme.ToolHeader.Render(toolName)
+	args := c.theme.StatusLine.Render(" (composing args…)")
+	suffix := ""
+	if toolUseID != "" {
+		s := toolUseID
+		if len(s) > 8 {
+			s = s[len(s)-8:]
+		}
+		suffix = c.theme.StatusLine.Render("  · " + s)
+	}
+	// Tag the chatLine with the tool_use_id so appendToolCall can find
+	// and replace it when the full input arrives.
+	c.lines = append(c.lines, chatLine{
+		rendered:  bullet + name + args + suffix,
+		toolUseID: toolUseID,
+	})
+	c.refresh()
+}
+
 // appendToolCall renders a tool dispatch in Claude Code style:
 //
 //	⏺ Bash(command: "uname -a")
@@ -185,7 +216,23 @@ func (c *chat) appendToolCall(toolName, toolUseID string, input map[string]any) 
 		}
 		header += c.theme.StatusLine.Render("  · " + suffix)
 	}
-	c.lines = append(c.lines, chatLine{rendered: header})
+	// If a pending placeholder for this tool_use_id exists, replace it in
+	// place (rather than appending a second line). Otherwise append.
+	pendingIdx := -1
+	if toolUseID != "" {
+		for i := range c.lines {
+			if c.lines[i].toolUseID == toolUseID {
+				pendingIdx = i
+				break
+			}
+		}
+	}
+	full := chatLine{rendered: header, toolUseID: toolUseID}
+	if pendingIdx >= 0 {
+		c.lines[pendingIdx] = full
+	} else {
+		c.lines = append(c.lines, full)
+	}
 	// For Edit-style tools, also append a compact diff block immediately
 	// after the call header so the user sees what's about to change.
 	if diff := formatEditDiff(c.theme, toolName, input); diff != "" {

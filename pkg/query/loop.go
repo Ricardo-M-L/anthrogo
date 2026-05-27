@@ -258,6 +258,15 @@ func (e *Engine) runOneAPITurnAttempt(ctx context.Context, out chan<- Event) (st
 				Input:            map[string]any{},
 				ProviderMetadata: ev.ProviderMetadata,
 			}
+			// Notify surfaces that a tool is being composed. The full
+			// tool_use_request event still fires later in flushTool()
+			// with the assembled input map. Surfaces render a placeholder
+			// like '⏺ Tool (composing args…)' between these two events.
+			out <- Event{
+				Kind:      KindToolPending,
+				ToolUseID: ev.ToolUseID,
+				ToolName:  ev.ToolName,
+			}
 		case provider.EventToolInputDelta:
 			toolInputJSON.WriteString(ev.PartialJSON)
 		case provider.EventBlockStop:
