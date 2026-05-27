@@ -33,15 +33,17 @@ type chatLine struct {
 }
 
 type chat struct {
-	mu         sync.Mutex
-	vp         viewport.Model
-	theme      Theme
-	lines      []chatLine
-	streaming  bool // true while receiving assistant deltas for the current turn
-	thinking   bool // user submitted, waiting for first delta or tool call
-	thinkTick  int  // animation frame counter
-	md         *glamour.TermRenderer
-	welcomeMsg string // shown when lines is empty (model + cwd + hints)
+	mu              sync.Mutex
+	vp              viewport.Model
+	theme           Theme
+	lines           []chatLine
+	streaming       bool   // true while receiving assistant deltas for the current turn
+	thinking        bool   // user submitted, waiting for first delta or tool call
+	thinkTick       int    // animation frame counter
+	md              *glamour.TermRenderer
+	welcomeMsg      string // shown when lines is empty (model + cwd + hints)
+	activeSubagent  string // tool_use_id of an in-flight Task dispatch; spinner shows below
+	subagentType    string // 'general-purpose', 'echo-bot', etc. — shown next to spinner
 }
 
 func newChat(theme Theme) chat {
@@ -245,6 +247,17 @@ func (c *chat) appendToolCall(toolName, toolUseID string, input map[string]any) 
 			c.lines = append(c.lines, chatLine{rendered: list})
 		}
 	}
+	// Task: mark a subagent as in-flight so refresh() draws a spinner
+	// row beneath the call header. appendToolResult clears it.
+	if toolName == "Task" {
+		c.activeSubagent = toolUseID
+		if st, _ := input["subagent_type"].(string); st != "" {
+			c.subagentType = st
+		} else {
+			c.subagentType = "subagent"
+		}
+		c.thinking = true // reuse the existing spinTick driver
+	}
 	c.refresh()
 }
 
@@ -299,11 +312,25 @@ func formatTodoList(theme Theme, input map[string]any) string {
 func (c *chat) appendToolResult(summary string, isError bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// Clear any in-flight subagent spinner; the Task tool's result has
+	// arrived. (No tool_use_id is on this event so we conservatively
+	// clear on any tool result. Race: parallel tools — Task subagent
+	// runs are synchronous in anthrogo today so this is fine in practice.)
+	if c.activeSubagent != "" {
+		c.activeSubagent = ""
+		c.subagentType = ""
+		c.thinking = false
+	}
 	connector := c.theme.StatusLine.Render("  ⎿  ")
 	body := summary
+	// ANSI passthrough: if the result already carries escape codes (git
+	// log --color, ls --color=always, etc.), DON'T wrap it in a lipgloss
+	// style — lipgloss would overwrite the existing colours. Otherwise
+	// apply the tool-body / error colour.
+	hasANSI := strings.Contains(body, "\x1b[")
 	if isError {
 		body = c.theme.Error.Render(body)
-	} else {
+	} else if !hasANSI {
 		body = c.theme.ToolBody.Render(body)
 	}
 	// Re-indent multi-line bodies so subsequent lines align under the
@@ -581,7 +608,14 @@ func (c *chat) refresh() {
 		if b.Len() > 0 {
 			b.WriteByte('\n')
 		}
-		b.WriteString(renderThinking(c.theme, c.thinkTick))
+		// When a Task subagent is in flight, label the spinner with the
+		// subagent type so it's clear that work is happening in a nested
+		// context, not the current model.
+		if c.activeSubagent != "" {
+			b.WriteString(renderSubagentSpinner(c.theme, c.thinkTick, c.subagentType))
+		} else {
+			b.WriteString(renderThinking(c.theme, c.thinkTick))
+		}
 	}
 	// Pad the top of the viewport so transcript content sits at the BOTTOM
 	// (next to the input row) — chat-style anchoring. Without this, short
@@ -625,6 +659,20 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 func renderThinking(theme Theme, frame int) string {
 	sp := spinnerFrames[frame%len(spinnerFrames)]
 	return theme.ToolHeader.Render(sp) + theme.StatusLine.Render(" Thinking…")
+}
+
+// renderSubagentSpinner renders the spinner indicating that a Task tool
+// dispatch is in flight — model running in a nested subagent context.
+//
+//	↳ ⠋ subagent (general-purpose) running…
+//
+// Indented + with a curved arrow so the visual nesting is obvious.
+func renderSubagentSpinner(theme Theme, frame int, subagentType string) string {
+	sp := spinnerFrames[frame%len(spinnerFrames)]
+	arrow := theme.StatusLine.Render("  ↳ ")
+	icon := theme.ToolHeader.Render(sp)
+	label := fmt.Sprintf(" subagent (%s) running…", subagentType)
+	return arrow + icon + theme.StatusLine.Render(label)
 }
 
 // buildWelcomeBanner returns the static greeting shown when the chat
