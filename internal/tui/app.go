@@ -284,7 +284,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Palette consumes Tab / Shift+Tab / Esc when visible
 		if consumed, newInput := a.palette.handleKey(m); consumed {
 			if newInput != "" {
-				a.input.ti.SetValue(newInput)
+				a.input.setValue(newInput)
 			}
 			return a, nil
 		}
@@ -415,7 +415,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var c tea.Cmd
 	a.input, c = a.input.update(msg)
 	cmds = append(cmds, c)
-	a.palette.updateForInput(a.input.ti.Value())
+	a.palette.updateForInput(a.input.value())
 	c = a.chat.update(msg)
 	cmds = append(cmds, c)
 	return a, tea.Batch(cmds...)
