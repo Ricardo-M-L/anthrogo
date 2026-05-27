@@ -158,6 +158,7 @@ func New(opts Options) *App {
 	a.chat.setWelcome(buildWelcomeBanner(theme, opts.Model, opts.Cwd))
 	a.cmdReg = opts.Commands
 	a.palette = newPalette(theme, opts.Commands)
+	a.palette.setCwd(opts.Cwd)
 	a.logPane = newLogPane(theme)
 	a.statusPane = statusPane{
 		theme: theme,
@@ -296,7 +297,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Palette consumes Tab / Shift+Tab / Esc when visible
 		if consumed, newInput := a.palette.handleKey(m); consumed {
 			if newInput != "" {
-				a.input.setValue(newInput)
+				if strings.HasPrefix(newInput, "REPLACE_PARTIAL:") {
+					full := strings.TrimPrefix(newInput, "REPLACE_PARTIAL:")
+					a.input.setValue(applyFileCompletion(a.input.value(), full))
+				} else {
+					a.input.setValue(newInput)
+				}
 			}
 			return a, nil
 		}

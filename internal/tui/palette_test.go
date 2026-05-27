@@ -34,14 +34,14 @@ func newTestRegistry(names ...string) *command.Registry {
 func TestPalette_HiddenWhenInputDoesntStartWithSlash(t *testing.T) {
 	p := newPalette(DefaultTheme(), newTestRegistry("/help", "/clear"))
 	p.updateForInput("hello")
-	require.False(t, p.visible)
+	require.False(t, p.visible())
 	require.Equal(t, "", p.view())
 }
 
 func TestPalette_VisibleWithFuzzyMatches(t *testing.T) {
 	p := newPalette(DefaultTheme(), newTestRegistry("/help", "/clear", "/cwd", "/compact"))
 	p.updateForInput("/c")
-	require.True(t, p.visible)
+	require.True(t, p.visible())
 	require.Len(t, p.matches, 3) // /clear /cwd /compact
 }
 
@@ -80,12 +80,12 @@ func TestPalette_ShiftTabCyclesBackward(t *testing.T) {
 func TestPalette_EscHidesPalette(t *testing.T) {
 	p := newPalette(DefaultTheme(), newTestRegistry("/help"))
 	p.updateForInput("/h")
-	require.True(t, p.visible)
+	require.True(t, p.visible())
 
 	consumed, input := p.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
 	require.True(t, consumed)
 	require.Equal(t, "", input)
-	require.False(t, p.visible)
+	require.False(t, p.visible())
 }
 
 func TestPalette_NonNavigationKey_NotConsumed(t *testing.T) {
@@ -100,6 +100,6 @@ func TestPalette_NonNavigationKey_NotConsumed(t *testing.T) {
 func TestPalette_HiddenWhenNoFuzzyMatches(t *testing.T) {
 	p := newPalette(DefaultTheme(), newTestRegistry("/help", "/clear"))
 	p.updateForInput("/zzz")
-	require.False(t, p.visible)
+	require.False(t, p.visible())
 	require.Empty(t, p.matches)
 }
